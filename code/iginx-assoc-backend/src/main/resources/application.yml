@@ -1,0 +1,52 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: iginx-assoc-backend
+  profiles:
+    active: dev
+  main:
+    allow-circular-references: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/iginx_assoc}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+      location: ${ASSOC_UPLOAD_TMP:E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-backend/storage/tmp}
+
+# IGinX Configuration
+iginx:
+  host: ${IGINX_HOST:127.0.0.1}
+  port: ${IGINX_PORT:6888}
+  user: ${IGINX_USER:root}
+  password: ${IGINX_PASSWORD:root}
+  storage-host-override: ${IGINX_STORAGE_HOST_OVERRIDE:127.0.0.1}
+
+assoc:
+  crypto:
+    aes-key: ${ASSOC_AES_KEY:iginx-assoc-dev-key}
+  storage:
+    model-root: ${ASSOC_MODEL_ROOT:storage}
+    data-root: ${ASSOC_DATA_ROOT:storage/data}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.xmu.iginx.assoc: DEBUG

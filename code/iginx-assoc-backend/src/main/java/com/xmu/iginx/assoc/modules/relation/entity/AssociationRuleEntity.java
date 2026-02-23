@@ -1,0 +1,54 @@
+package com.xmu.iginx.assoc.modules.relation.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.LocalDateTime;
+
+@Getter
+@Setter
+@Entity
+@Table(name = "association_rule")
+public class AssociationRuleEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 100)
+    private String name;
+
+    @Column(name = "data_id")
+    private Long dataId;
+
+    @Column(name = "model_id")
+    private Long modelId;
+
+    @Column(name = "trigger_type", nullable = false, length = 20)
+    private String triggerType;
+
+    @Column(name = "cron_exp", length = 50)
+    private String cronExp;
+
+    @Column(name = "output_target", nullable = false, columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String outputTarget;
+
+    @Column(name = "mapping_json", nullable = false, columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String mappingJson;
+
+    @Column(nullable = false)
+    private Boolean enabled;
+
+    @Column(name = "update_time")
+    private LocalDateTime updateTime;
+}

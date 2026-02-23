@@ -1,0 +1,4 @@
+````````````````````````
+Starting IGinX
+````````````````````````
+[0.004s][warning][gc] -Xloggc is deprecated. Will use -Xlog:gc:E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\IGinX\core\target\iginx-core-0.9.0-SNAPSHOT\gc.log instead.

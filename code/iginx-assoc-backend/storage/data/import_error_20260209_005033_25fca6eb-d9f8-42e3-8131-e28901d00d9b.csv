@@ -1,0 +1,6 @@
+error_message,device_id,device_name,device_type,status,install_date,location,last_maintain,firmware_version,owner,notes
+ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification,1001,热泵主机A,Pump,ACTIVE,2022-05-01,厦门机房A1,2023-12-15,v3.2.1,研发一部,首次导入
+"ERROR: current transaction is aborted, commands ignored until end of transaction block",1002,热泵主机B,Pump,INACTIVE,2021-11-12,厦门机房A2,2023-10-08,v3.1.4,研发二部,停机检修
+"ERROR: current transaction is aborted, commands ignored until end of transaction block",1003,循环泵C,Pump,ACTIVE,2023-03-28,厦门机房B1,2024-01-05,v3.3.0,运维中心,预留备件
+"ERROR: current transaction is aborted, commands ignored until end of transaction block",1004,换热器D,HeatExchanger,ACTIVE,2020-08-20,厦门机房B2,2023-11-30,v2.9.8,运维中心,已升级
+"ERROR: current transaction is aborted, commands ignored until end of transaction block",1005,冷凝器E,Condenser,INACTIVE,2021-01-10,厦门机房C1,2022-09-18,v2.8.3,供应链,待报废

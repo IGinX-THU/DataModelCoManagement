@@ -1,0 +1,1371 @@
+2026-02-23 00:36:25,932 INFO  [main] - [cn.edu.tsinghua.iginx.conf.ConfigDescriptor.loadPropsFromFile:61] load parameters from file: E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\IGinX\core\target\iginx-core-0.9.0-SNAPSHOT\conf\config.properties.
+2026-02-23 00:36:25,958 INFO  [main] - [cn.edu.tsinghua.iginx.metadata.DefaultMetaManager.<init>:91] use zookeeper as meta storage.
+二月 23, 2026 12:36:26 上午 org.glassfish.jersey.internal.Errors logErrors
+警告: The following warnings have been detected: WARNING: The (sub)resource method OK in cn.edu.tsinghua.iginx.rest.MetricsResource contains empty path annotation.
+
+二月 23, 2026 12:36:27 上午 org.glassfish.grizzly.http.server.NetworkListener start
+信息: Started listener bound to [0.0.0.0:7888]
+二月 23, 2026 12:36:27 上午 org.glassfish.grizzly.http.server.HttpServer start
+信息: [HttpServer] Started.
+2026-02-23 00:36:27,619 INFO  [Thread-1] - [cn.edu.tsinghua.iginx.rest.RestServer.start:58] Iginx REST server has been available at http://0.0.0.0:7888/.
+2026-02-23 00:36:29,144 INFO  [Curator-TreeCache-0] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerIginxListener$0:249] new iginx comes to cluster: id = 13 ,ip = 192.168.0.100 , port = 6888
+2026-02-23 00:36:29,147 INFO  [main] - [cn.edu.tsinghua.iginx.utils.SnowFlakeUtils.<init>:53] data center id: 0, machine id: 13
+2026-02-23 00:36:29,233 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:484] storage engine meta updated /storage/node0000000000
+2026-02-23 00:36:29,235 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:485] storage engine: {"createdBy":0,"dataPrefix":"models","extraParams":{"has_data":"false","data_prefix":"models","is_read_only":"false","dir":"E:/modeldata","iginx_port":"6888"},"hasData":false,"id":0,"ip":"127.0.0.1","needReAllocate":false,"port":6671,"readOnly":false,"storageEngine":"filesystem"}
+2026-02-23 00:36:29,248 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:488] new storage engine comes to cluster: id = 0 ,ip = 127.0.0.1 , port = 6671
+2026-02-23 00:36:29,249 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:484] storage engine meta updated /storage/node0000000001
+2026-02-23 00:36:29,249 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:485] storage engine: {"createdBy":0,"dataPrefix":"root.demo","dummyFragment":{"columnsInterval":{"endColumn":"root.demo~","startColumn":"root.demo!"},"createdBy":0,"dummyFragment":true,"initialFragment":true,"keyInterval":{"endKey":9223372036854775807,"span":-2,"startKey":-9223372036854775807},"masterStorageUnitId":"dummy0000000000","updatedBy":0,"valid":true},"dummyStorageUnit":{"createdBy":0,"dummy":true,"id":"dummy0000000000","ifValid":true,"initialStorageUnit":true,"master":true,"masterId":"dummy0000000000","storageEngineId":1},"extraParams":{"has_data":"true","password":"root","database":"root","data_prefix":"root.demo","is_read_only":"false","username":"root"},"hasData":true,"id":1,"ip":"127.0.0.1","needReAllocate":true,"port":6667,"readOnly":false,"storageEngine":"iotdb12"}
+2026-02-23 00:36:29,266 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:488] new storage engine comes to cluster: id = 1 ,ip = 127.0.0.1 , port = 6667
+2026-02-23 00:36:29,268 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:484] storage engine meta updated /storage/node0000000002
+2026-02-23 00:36:29,268 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:485] storage engine: {"createdBy":0,"dataPrefix":"root.demo1","dummyFragment":{"columnsInterval":{"endColumn":"root.demo1~","startColumn":"root.demo1!"},"createdBy":0,"dummyFragment":true,"initialFragment":true,"keyInterval":{"endKey":9223372036854775807,"span":-2,"startKey":-9223372036854775807},"masterStorageUnitId":"dummy0000000000","updatedBy":0,"valid":true},"dummyStorageUnit":{"createdBy":0,"dummy":true,"id":"dummy0000000000","ifValid":true,"initialStorageUnit":true,"master":true,"masterId":"dummy0000000000","storageEngineId":2},"extraParams":{"has_data":"true","password":"root","database":"root","data_prefix":"root.demo1","is_read_only":"false","username":"root"},"hasData":true,"id":2,"ip":"127.0.0.1","needReAllocate":true,"port":6668,"readOnly":false,"storageEngine":"iotdb12"}
+2026-02-23 00:36:29,269 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:488] new storage engine comes to cluster: id = 2 ,ip = 127.0.0.1 , port = 6668
+2026-02-23 00:36:29,270 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:484] storage engine meta updated /storage/node0000000003
+2026-02-23 00:36:29,270 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:485] storage engine: {"createdBy":7,"dataPrefix":"root.demot","dummyFragment":{"columnsInterval":{"endColumn":"root.demot~","startColumn":"root.demot!"},"createdBy":0,"dummyFragment":true,"initialFragment":true,"keyInterval":{"endKey":9223372036854775807,"span":-2,"startKey":-9223372036854775807},"masterStorageUnitId":"dummy0000000000","updatedBy":0,"valid":true},"dummyStorageUnit":{"createdBy":0,"dummy":true,"id":"dummy0000000000","ifValid":true,"initialStorageUnit":true,"master":true,"masterId":"dummy0000000000","storageEngineId":3},"extraParams":{"has_data":"true","password":"root","database":"root","data_prefix":"root.demot","is_read_only":"false","username":"root"},"hasData":true,"id":3,"ip":"127.0.0.1","needReAllocate":true,"port":6668,"readOnly":false,"storageEngine":"iotdb12"}
+2026-02-23 00:36:29,271 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:488] new storage engine comes to cluster: id = 3 ,ip = 127.0.0.1 , port = 6668
+2026-02-23 00:36:29,457 INFO  [main] - [cn.edu.tsinghua.iginx.engine.physical.optimizer.PhysicalOptimizerManager.getOptimizer:51] use naive as physical optimizer.
+2026-02-23 00:36:29,637 INFO  [main] - [cn.edu.tsinghua.iginx.filesystem.FileSystemStorage.<clinit>:95] found file structures: [LegacyParquet, LegacyFilesystem, FileTree]
+2026-02-23 00:36:29,723 INFO  [main] - [cn.edu.tsinghua.iginx.filesystem.struct.legacy.parquet.LegacyParquet.newShared:129] Create shared storage properties: StorageProperties[flushOnClose=true, writeBufferSize=104857600, writeBufferPermits=2, writeBufferChunkValuesMax=3970, writeBufferChunkValuesMin=3970, writeBufferChunkType=NONE, writeBufferTimeout=PT0S, writeBatchSize=1048576, compactPermits=2, cacheCapacity=16777216, cacheTimeout=null, cacheSoftValues=false, parquetRowGroupSize=134217728, parquetPageSize=8192, parquetOutputBufferMaxSize=262144, parquetCompression='UNCOMPRESSED', zstdLevel=3, zstdWorkers=0, parquetLz4BufferSize=262144]
+2026-02-23 00:36:29,900 INFO  [main] - [cn.edu.tsinghua.iginx.filesystem.struct.legacy.parquet.LegacyParquet.newShared:129] Create shared storage properties: StorageProperties[flushOnClose=true, writeBufferSize=104857600, writeBufferPermits=2, writeBufferChunkValuesMax=3970, writeBufferChunkValuesMin=3970, writeBufferChunkType=NONE, writeBufferTimeout=PT0S, writeBatchSize=1048576, compactPermits=2, cacheCapacity=16777216, cacheTimeout=null, cacheSoftValues=false, parquetRowGroupSize=134217728, parquetPageSize=8192, parquetOutputBufferMaxSize=262144, parquetCompression='UNCOMPRESSED', zstdLevel=3, zstdWorkers=0, parquetLz4BufferSize=262144]
+2026-02-23 00:36:29,903 INFO  [main] - [cn.edu.tsinghua.iginx.filesystem.service.storage.StorageService.createManager:202] creating LegacyParquet writer for DataUnit(dummy:false, name:unit0000000000) in E:\modeldata\iginx_unit0000000000
+2026-02-23 00:36:30,613 INFO  [main] - [cn.edu.tsinghua.iginx.filesystem.service.storage.StorageService.createManager:202] creating LegacyParquet writer for DataUnit(dummy:false, name:unit0000000001) in E:\modeldata\iginx_unit0000000001
+2026-02-23 00:36:30,646 INFO  [main] - [cn.edu.tsinghua.iginx.filesystem.service.storage.StorageService.createManager:202] creating LegacyParquet writer for DataUnit(dummy:false, name:unit0000000006) in E:\modeldata\iginx_unit0000000006
+2026-02-23 00:36:30,690 INFO  [main] - [cn.edu.tsinghua.iginx.filesystem.service.rpc.server.Server.<init>:46] starting thrift server at /127.0.0.1:6671
+2026-02-23 00:36:30,960 INFO  [main] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.addStorageConnection:649] connect to storage engine StorageEngineMeta {id='0', ip='127.0.0.1', port='6671', type='filesystem', has_data='false', read_only='false', schema_prefix='NULL', data_prefix='models', extra_params='{has_data=false, data_prefix=models, is_read_only=false, dir=E:/modeldata, iginx_port=6888}',  
+2026-02-23 00:36:30,962 INFO  [main] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.addStorageConnection:649] connect to storage engine StorageEngineMeta {id='1', ip='127.0.0.1', port='6667', type='iotdb12', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='root.demo', extra_params='{has_data=true, password=root, database=root, data_prefix=root.demo, is_read_only=false, username=root}',  
+2026-02-23 00:36:30,963 INFO  [main] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.addStorageConnection:649] connect to storage engine StorageEngineMeta {id='2', ip='127.0.0.1', port='6668', type='iotdb12', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='root.demo1', extra_params='{has_data=true, password=root, database=root, data_prefix=root.demo1, is_read_only=false, username=root}',  
+2026-02-23 00:36:30,964 INFO  [main] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.addStorageConnection:649] connect to storage engine StorageEngineMeta {id='3', ip='127.0.0.1', port='6668', type='iotdb12', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='root.demot', extra_params='{has_data=true, password=root, database=root, data_prefix=root.demot, is_read_only=false, username=root}',  
+2026-02-23 00:36:30,992 INFO  [main] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit dummy0000000001 come!
+2026-02-23 00:36:30,994 INFO  [main] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 00:36:30,995 INFO  [main] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit dummy0000000002 come!
+2026-02-23 00:36:30,995 INFO  [main] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 00:36:30,996 INFO  [main] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit dummy0000000003 come!
+2026-02-23 00:36:30,997 INFO  [main] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 00:36:30,998 INFO  [main] - [cn.edu.tsinghua.iginx.engine.logical.constraint.ConstraintCheckerManager.getChecker:43] use naive as constraint checker.
+2026-02-23 00:36:31,033 INFO  [main] - [cn.edu.tsinghua.iginx.IginxWorker.loadReplicaNum:147] Replica number has been set to 0.
+2026-02-23 00:36:31,045 INFO  [main] - [cn.edu.tsinghua.iginx.Iginx.startServer:68] iginx starts successfully!
+2026-02-23 00:36:33,991 INFO  [Curator-TreeCache-0] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerIginxListener$0:262] node /iginx/info/node0000000012 is removed
+2026-02-23 00:36:33,992 INFO  [Curator-TreeCache-0] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerIginxListener$0:271] iginx leave from cluster: id = 12 ,ip = 192.168.0.100 , port = 6888
+2026-02-23 00:48:27,477 INFO  [TThreadPoolServer WorkerProcess-0] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221633646137631599
+2026-02-23 00:49:50,391 INFO  [TThreadPoolServer WorkerProcess-1] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639210470416799
+2026-02-23 00:49:50,992 INFO  [TThreadPoolServer WorkerProcess-2] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639250802853679
+2026-02-23 00:49:50,998 INFO  [TThreadPoolServer WorkerProcess-3] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639251205506959
+2026-02-23 00:49:51,600 INFO  [TThreadPoolServer WorkerProcess-4] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639291605052719
+2026-02-23 00:49:51,605 INFO  [TThreadPoolServer WorkerProcess-5] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639291873488239
+2026-02-23 00:49:52,114 INFO  [TThreadPoolServer WorkerProcess-6] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639326099017039
+2026-02-23 00:49:52,119 INFO  [TThreadPoolServer WorkerProcess-7] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639326434561439
+2026-02-23 00:49:53,037 INFO  [TThreadPoolServer WorkerProcess-8] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639388040513279
+2026-02-23 00:49:53,044 INFO  [TThreadPoolServer WorkerProcess-9] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221639388510275439
+2026-02-23 00:50:59,325 INFO  [TThreadPoolServer WorkerProcess-10] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221643836553950719
+2026-02-23 00:50:59,344 INFO  [TThreadPoolServer WorkerProcess-10] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:50:59,391 INFO  [TThreadPoolServer WorkerProcess-11] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221643840983136799
+2026-02-23 00:51:03,818 INFO  [TThreadPoolServer WorkerProcess-12] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221644138074148559
+2026-02-23 00:51:03,821 INFO  [TThreadPoolServer WorkerProcess-12] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:51:03,825 INFO  [TThreadPoolServer WorkerProcess-13] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221644138543910719
+2026-02-23 00:51:28,946 INFO  [TThreadPoolServer WorkerProcess-14] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221645824386085199
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-2] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,711 ERROR [TThreadPoolServer WorkerProcess-5] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,711 ERROR [TThreadPoolServer WorkerProcess-7] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,711 ERROR [TThreadPoolServer WorkerProcess-0] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-8] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-6] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,711 ERROR [TThreadPoolServer WorkerProcess-11] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-13] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-14] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,711 ERROR [TThreadPoolServer WorkerProcess-10] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-4] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-3] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,713 ERROR [TThreadPoolServer WorkerProcess-12] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,711 ERROR [TThreadPoolServer WorkerProcess-9] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:12,711 ERROR [TThreadPoolServer WorkerProcess-1] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 00:53:39,847 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221654609005586079
+2026-02-23 00:54:48,930 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:54:49,359 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:55:03,491 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:55:03,987 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:55:05,490 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:55:28,087 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:55:28,109 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 00:55:28,159 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221661877702596639
+2026-02-23 01:03:36,772 ERROR [TThreadPoolServer WorkerProcess-16] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:03:36,772 ERROR [TThreadPoolServer WorkerProcess-15] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:04:11,211 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221696979136498399
+2026-02-23 01:05:15,026 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:05:27,959 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:05:27,979 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:05:28,002 INFO  [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221702132494502479
+2026-02-23 01:06:44,272 ERROR [TThreadPoolServer WorkerProcess-18] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:06:44,272 ERROR [TThreadPoolServer WorkerProcess-17] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:07:10,629 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221709019677530239
+2026-02-23 01:07:54,439 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:07:54,483 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:07:54,538 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000000
+2026-02-23 01:07:54,540 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000001
+2026-02-23 01:07:54,541 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000002
+2026-02-23 01:07:54,543 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000003
+2026-02-23 01:07:54,544 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000004
+2026-02-23 01:07:54,546 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000005
+2026-02-23 01:07:54,547 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000006
+2026-02-23 01:07:54,548 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000007
+2026-02-23 01:07:54,550 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000008
+2026-02-23 01:07:54,551 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.loadStorageUnit:739] load storage unit: unit0000000009
+2026-02-23 01:07:54,561 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000000
+2026-02-23 01:07:54,562 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000001
+2026-02-23 01:07:54,563 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000002
+2026-02-23 01:07:54,563 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000003
+2026-02-23 01:07:54,563 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000004
+2026-02-23 01:07:54,564 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000005
+2026-02-23 01:07:54,564 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000006
+2026-02-23 01:07:54,564 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000007
+2026-02-23 01:07:54,564 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000008
+2026-02-23 01:07:54,565 INFO  [Curator-TreeCache-11] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageUnitListener$4:831] new storage unit comes to cluster: id = unit0000000009
+2026-02-23 01:07:54,586 WARN  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.DefaultMetaManager.createInitialFragmentsAndStorageUnits:1123] server has created storage unit, just need to load.
+2026-02-23 01:07:54,587 WARN  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.DefaultMetaManager.createInitialFragmentsAndStorageUnits:1124] notify storage unit listeners.
+2026-02-23 01:07:54,587 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000000 come!
+2026-02-23 01:07:54,588 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,588 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000001 come!
+2026-02-23 01:07:54,588 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,589 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000002 come!
+2026-02-23 01:07:54,589 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,589 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000003 come!
+2026-02-23 01:07:54,590 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,590 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000004 come!
+2026-02-23 01:07:54,591 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,591 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000005 come!
+2026-02-23 01:07:54,591 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,592 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000006 come!
+2026-02-23 01:07:54,592 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,593 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000007 come!
+2026-02-23 01:07:54,594 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,594 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000008 come!
+2026-02-23 01:07:54,595 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,595 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:92] new storage unit unit0000000009 come!
+2026-02-23 01:07:54,596 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.execute.StoragePhysicalTaskExecutor.lambda$new$1:104] process for new storage unit finished!
+2026-02-23 01:07:54,596 WARN  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.metadata.DefaultMetaManager.createInitialFragmentsAndStorageUnits:1130] notify storage unit listeners finished.
+2026-02-23 01:07:54,607 ERROR [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement:323] unexpected exception during dispatcher memory task, please contact developer to check: 
+java.lang.IllegalArgumentException: sourceList shouldn't be null or empty
+	at cn.edu.tsinghua.iginx.engine.shared.operator.AbstractMultipleOperator.<init>(AbstractMultipleOperator.java:37)
+	at cn.edu.tsinghua.iginx.engine.shared.operator.CombineNonQuery.<init>(CombineNonQuery.java:29)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.InsertGenerator.generateRoot(InsertGenerator.java:112)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.AbstractGenerator.generate(AbstractGenerator.java:60)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.process(StatementExecutor.java:336)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:288)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:07:54,618 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221711971730052559
+2026-02-23 01:07:54,621 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement:323] unexpected exception during dispatcher memory task, please contact developer to check: 
+java.lang.IllegalArgumentException: sourceList shouldn't be null or empty
+	at cn.edu.tsinghua.iginx.engine.shared.operator.AbstractMultipleOperator.<init>(AbstractMultipleOperator.java:37)
+	at cn.edu.tsinghua.iginx.engine.shared.operator.CombineNonQuery.<init>(CombineNonQuery.java:29)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.InsertGenerator.generateRoot(InsertGenerator.java:112)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.AbstractGenerator.generate(AbstractGenerator.java:60)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.process(StatementExecutor.java:336)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:288)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:12:59,582 ERROR [TThreadPoolServer WorkerProcess-17] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:12:59,586 ERROR [TThreadPoolServer WorkerProcess-19] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:13:26,143 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221734220001494559
+2026-02-23 01:13:53,496 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:16:11,541 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:16:12,037 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:16:25,678 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:16:27,965 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:16:27,965 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:16:28,260 ERROR [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:16:28,261 ERROR [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:16:28,275 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221746442676026719
+2026-02-23 01:16:28,278 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:16:28,338 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:16:28,338 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:16:28,479 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:16:28,480 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:24:11,569 ERROR [TThreadPoolServer WorkerProcess-19] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:24:11,570 ERROR [TThreadPoolServer WorkerProcess-17] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:24:39,619 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221779416154452559
+2026-02-23 01:25:12,336 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:25:12,399 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:25:12,399 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:25:12,541 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:25:12,542 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:25:12,556 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221781626586741999
+2026-02-23 01:25:12,560 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:25:12,623 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:25:12,624 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:25:12,760 ERROR [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:25:12,761 ERROR [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:25:29,334 INFO  [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221782752539530639
+2026-02-23 01:25:29,338 INFO  [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:25:29,399 INFO  [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:25:29,399 INFO  [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:25:29,534 ERROR [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:25:29,535 ERROR [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:25:29,539 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221782766296851039
+2026-02-23 01:25:29,542 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:25:29,601 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:25:29,602 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:25:29,745 ERROR [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:25:29,746 ERROR [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:25:44,140 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221783746153607919
+2026-02-23 01:25:44,881 INFO  [pool-29-thread-21] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:44,881 INFO  [pool-27-thread-21] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:44,889 INFO  [pool-29-thread-23] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:44,889 INFO  [pool-29-thread-22] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:45,987 INFO  [pool-29-thread-26] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:45,987 INFO  [pool-29-thread-24] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:45,987 INFO  [pool-29-thread-25] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:45,988 INFO  [pool-27-thread-22] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:48,788 INFO  [pool-27-thread-23] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:48,788 INFO  [pool-29-thread-29] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:48,788 INFO  [pool-29-thread-28] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:48,788 INFO  [pool-29-thread-27] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:49,606 INFO  [pool-29-thread-32] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:49,606 INFO  [pool-29-thread-31] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:49,607 INFO  [pool-29-thread-30] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:49,606 INFO  [pool-27-thread-24] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:50,557 INFO  [pool-29-thread-35] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:50,557 INFO  [pool-29-thread-33] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:50,557 INFO  [pool-29-thread-34] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:50,557 INFO  [pool-27-thread-25] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:52,261 INFO  [pool-27-thread-27] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demo.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:52,278 INFO  [pool-27-thread-29] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000002.demo.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:52,280 INFO  [pool-27-thread-28] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000007.demo.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:53,456 INFO  [pool-27-thread-32] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demo.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:53,456 INFO  [pool-27-thread-30] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000007.demo.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:53,456 INFO  [pool-27-thread-31] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000002.demo.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:55,200 INFO  [pool-27-thread-35] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demo.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:55,201 INFO  [pool-27-thread-34] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000002.demo.flow.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:55,200 INFO  [pool-27-thread-33] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000007.demo.flow.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:56,019 INFO  [pool-27-thread-37] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demo.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:56,019 INFO  [pool-27-thread-36] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000007.demo.pressure.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:25:56,019 INFO  [pool-27-thread-38] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000002.demo.pressure.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:56,948 INFO  [pool-27-thread-40] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demo.demo1_test.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:25:56,948 INFO  [pool-27-thread-39] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000002.demo.demo1_test.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:25:56,949 INFO  [pool-27-thread-41] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000007.demo.demo1_test.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:00,056 INFO  [pool-29-thread-39] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.flow.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:00,056 INFO  [pool-29-thread-38] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.flow.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:00,056 INFO  [pool-29-thread-37] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:00,056 INFO  [pool-27-thread-42] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:01,576 INFO  [pool-27-thread-43] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:01,577 INFO  [pool-29-thread-42] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:01,577 INFO  [pool-29-thread-40] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:01,577 INFO  [pool-29-thread-41] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:04,512 INFO  [pool-29-thread-45] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:04,512 INFO  [pool-29-thread-44] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:04,512 INFO  [pool-27-thread-44] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:04,513 INFO  [pool-29-thread-43] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:27,576 INFO  [pool-29-thread-48] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:27,576 INFO  [pool-29-thread-47] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:27,580 INFO  [pool-27-thread-45] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:27,580 INFO  [pool-29-thread-46] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:29,507 INFO  [pool-29-thread-51] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:29,507 INFO  [pool-27-thread-47] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:29,507 INFO  [pool-29-thread-52] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:29,507 INFO  [pool-29-thread-50] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:33,319 INFO  [pool-29-thread-53] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:33,320 INFO  [pool-29-thread-54] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:33,320 INFO  [pool-29-thread-55] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:33,320 INFO  [pool-27-thread-48] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:36,923 INFO  [pool-29-thread-56] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:36,923 INFO  [pool-29-thread-57] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:36,923 INFO  [pool-29-thread-58] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:36,924 INFO  [pool-27-thread-49] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:38,723 INFO  [pool-29-thread-61] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:38,723 INFO  [pool-29-thread-59] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 01:26:38,723 INFO  [pool-29-thread-60] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 01:26:38,724 INFO  [pool-27-thread-50] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 01:26:54,352 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:26:54,413 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:26:54,413 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:26:54,560 ERROR [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:26:54,561 ERROR [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:26:54,567 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221788472430699679
+2026-02-23 01:26:54,570 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:26:54,641 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:26:54,642 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:26:54,784 ERROR [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:26:54,785 ERROR [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', ;{has_data=true, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}.
+2026-02-23 01:29:48,818 ERROR [TThreadPoolServer WorkerProcess-17] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:29:48,818 ERROR [TThreadPoolServer WorkerProcess-15] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:29:48,818 ERROR [TThreadPoolServer WorkerProcess-16] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:30:16,841 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221802046745183919
+2026-02-23 01:30:52,395 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 01:30:52,457 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 01:30:52,458 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 01:30:52,526 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:484] storage engine meta updated /storage/node0000000004
+2026-02-23 01:30:52,526 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:485] storage engine: 
+2026-02-23 01:30:52,526 ERROR [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:495] resolve storage engine from zookeeper error
+2026-02-23 01:30:52,549 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:484] storage engine meta updated /storage/node0000000004
+2026-02-23 01:30:52,550 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:485] storage engine: {"createdBy":13,"dataPrefix":"ssss","extraParams":{"has_data":"false","password":"postgres","database":"postgres","engine":"postgresql","data_prefix":"ssss","is_read_only":"false","username":"postgres"},"hasData":false,"id":4,"ip":"127.0.0.1","needReAllocate":true,"port":5433,"readOnly":false,"storageEngine":"relational"}
+2026-02-23 01:30:52,550 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.metadata.storage.zk.ZooKeeperMetaStorage.lambda$registerStorageEngineListener$1:488] new storage engine comes to cluster: id = 4 ,ip = 127.0.0.1 , port = 5433
+2026-02-23 01:30:52,551 INFO  [Curator-TreeCache-1] - [cn.edu.tsinghua.iginx.policy.naive.NaivePolicy.lambda$getStorageEngineChangeHook$0:77] 新的可写节点进入集群，集群需要重新分片
+2026-02-23 01:30:52,558 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.policy.naive.NaivePolicy.lambda$getStorageEngineChangeHook$0:77] 新的可写节点进入集群，集群需要重新分片
+2026-02-23 01:30:52,588 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.addStorage:219] add storage StorageEngineMeta {id='4', ip='127.0.0.1', port='5433', type='relational', has_data='false', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=false, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}',  success.
+2026-02-23 01:30:52,708 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:30:52,748 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:30:52,755 ERROR [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement:323] unexpected exception during dispatcher memory task, please contact developer to check: 
+java.lang.IllegalArgumentException: sourceList shouldn't be null or empty
+	at cn.edu.tsinghua.iginx.engine.shared.operator.AbstractMultipleOperator.<init>(AbstractMultipleOperator.java:37)
+	at cn.edu.tsinghua.iginx.engine.shared.operator.CombineNonQuery.<init>(CombineNonQuery.java:29)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.InsertGenerator.generateRoot(InsertGenerator.java:112)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.AbstractGenerator.generate(AbstractGenerator.java:60)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.process(StatementExecutor.java:336)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:288)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:30:52,762 INFO  [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221804457430371279
+2026-02-23 01:30:52,764 ERROR [TThreadPoolServer WorkerProcess-15] - [cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement:323] unexpected exception during dispatcher memory task, please contact developer to check: 
+java.lang.IllegalArgumentException: sourceList shouldn't be null or empty
+	at cn.edu.tsinghua.iginx.engine.shared.operator.AbstractMultipleOperator.<init>(AbstractMultipleOperator.java:37)
+	at cn.edu.tsinghua.iginx.engine.shared.operator.CombineNonQuery.<init>(CombineNonQuery.java:29)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.InsertGenerator.generateRoot(InsertGenerator.java:112)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.AbstractGenerator.generate(AbstractGenerator.java:60)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.process(StatementExecutor.java:336)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:288)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:31:12,232 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221805764040264879
+2026-02-23 01:31:12,235 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] repeatedly add storage engine StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='false', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=false, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', .
+2026-02-23 01:31:12,248 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:31:12,265 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 01:31:12,268 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement:323] unexpected exception during dispatcher memory task, please contact developer to check: 
+java.lang.IllegalArgumentException: sourceList shouldn't be null or empty
+	at cn.edu.tsinghua.iginx.engine.shared.operator.AbstractMultipleOperator.<init>(AbstractMultipleOperator.java:37)
+	at cn.edu.tsinghua.iginx.engine.shared.operator.CombineNonQuery.<init>(CombineNonQuery.java:29)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.InsertGenerator.generateRoot(InsertGenerator.java:112)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.AbstractGenerator.generate(AbstractGenerator.java:60)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.process(StatementExecutor.java:336)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:288)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:31:12,272 INFO  [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221805766724620079
+2026-02-23 01:31:12,274 ERROR [TThreadPoolServer WorkerProcess-18] - [cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement:323] unexpected exception during dispatcher memory task, please contact developer to check: 
+java.lang.IllegalArgumentException: sourceList shouldn't be null or empty
+	at cn.edu.tsinghua.iginx.engine.shared.operator.AbstractMultipleOperator.<init>(AbstractMultipleOperator.java:37)
+	at cn.edu.tsinghua.iginx.engine.shared.operator.CombineNonQuery.<init>(CombineNonQuery.java:29)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.InsertGenerator.generateRoot(InsertGenerator.java:112)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.AbstractGenerator.generate(AbstractGenerator.java:60)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.process(StatementExecutor.java:336)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:288)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:39:22,026 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221838633567035599
+2026-02-23 01:39:22,081 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8221838633567035599 is removed.
+2026-02-23 01:40:02,628 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221841358321781359
+2026-02-23 01:40:02,691 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8221841358321781359 is removed.
+2026-02-23 01:51:52,817 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221889018310159679
+2026-02-23 01:51:53,323 WARN  [pool-29-thread-66] - [org.apache.iotdb.tsfile.common.conf.TSFileDescriptor.loadProps:85] Failed to find config file iotdb-engine.properties at classpath, use default configuration
+2026-02-23 01:51:53,575 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8221889018310159679 is removed.
+2026-02-23 01:52:05,647 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221889879182872319
+2026-02-23 01:52:05,695 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8221889879182872319 is removed.
+2026-02-23 01:52:14,985 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221890505979811519
+2026-02-23 01:52:14,999 ERROR [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement:323] unexpected exception during dispatcher memory task, please contact developer to check: 
+java.lang.IllegalArgumentException: sourceList shouldn't be null or empty
+	at cn.edu.tsinghua.iginx.engine.shared.operator.AbstractMultipleOperator.<init>(AbstractMultipleOperator.java:37)
+	at cn.edu.tsinghua.iginx.engine.shared.operator.CombineNonQuery.<init>(CombineNonQuery.java:29)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.InsertGenerator.generateRoot(InsertGenerator.java:112)
+	at cn.edu.tsinghua.iginx.engine.logical.generator.AbstractGenerator.generate(AbstractGenerator.java:60)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.process(StatementExecutor.java:336)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:288)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 01:52:15,025 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8221890505979811519 is removed.
+2026-02-23 01:53:00,238 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221893542857958159
+2026-02-23 01:53:00,289 INFO  [TThreadPoolServer WorkerProcess-19] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8221893542857958159 is removed.
+2026-02-23 01:58:09,288 ERROR [TThreadPoolServer WorkerProcess-15] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:58:09,288 ERROR [TThreadPoolServer WorkerProcess-18] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:58:09,288 ERROR [TThreadPoolServer WorkerProcess-16] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 01:58:09,288 ERROR [TThreadPoolServer WorkerProcess-17] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 02:00:50,559 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221925105573508639
+2026-02-23 02:04:31,219 ERROR [TThreadPoolServer WorkerProcess-17] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 02:05:01,970 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8221941977417029439
+2026-02-23 10:17:30,423 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] repeatedly add storage engine StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='false', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=false, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', .
+2026-02-23 10:17:30,463 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:17:30,534 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:17:30,624 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:19:27,613 ERROR [TThreadPoolServer WorkerProcess-17] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more
+2026-02-23 10:19:58,217 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8223934859360511679
+2026-02-23 10:20:33,757 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8223937244410106879
+2026-02-23 10:20:33,798 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:20:33,842 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8223937244410106879 is removed.
+2026-02-23 10:22:34,180 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8223945325862763119
+2026-02-23 10:22:34,202 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:22:34,244 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8223945325862763119 is removed.
+2026-02-23 10:24:12,845 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8223951947160408319
+2026-02-23 10:24:12,905 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8223951947160408319 is removed.
+2026-02-23 10:32:12,168 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:32:21,652 ERROR [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] repeatedly add storage engine StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='false', read_only='false', schema_prefix='NULL', data_prefix='ssss', extra_params='{has_data=false, password=postgres, database=postgres, engine=postgresql, data_prefix=ssss, is_read_only=false, username=postgres}', .
+2026-02-23 10:32:21,674 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:32:21,694 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:32:21,760 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:41:02,905 INFO  [pool-27-thread-65] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:02,908 INFO  [pool-29-thread-85] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:02,908 INFO  [pool-29-thread-86] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:02,927 INFO  [pool-29-thread-87] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:04,016 INFO  [pool-27-thread-67] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:04,016 INFO  [pool-29-thread-90] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:04,016 INFO  [pool-29-thread-91] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:04,017 INFO  [pool-29-thread-89] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:07,404 INFO  [pool-29-thread-93] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:07,405 INFO  [pool-29-thread-92] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:07,404 INFO  [pool-27-thread-68] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:07,405 INFO  [pool-29-thread-94] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:12,747 INFO  [pool-27-thread-69] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:12,747 INFO  [pool-29-thread-96] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:12,748 INFO  [pool-29-thread-97] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:12,750 INFO  [pool-29-thread-95] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:14,702 INFO  [pool-27-thread-70] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:14,702 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:14,702 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:14,702 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:18,840 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:18,840 INFO  [pool-27-thread-71] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:18,840 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:18,841 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:19,285 INFO  [pool-27-thread-72] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:19,285 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:19,285 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:19,285 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:20,793 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.pressure.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:20,794 INFO  [pool-27-thread-73] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:20,794 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.pressure.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:20,794 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:22,826 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.flow.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:22,826 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.flow.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:22,826 INFO  [pool-27-thread-74] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:22,826 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:24,246 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:41:24,247 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:41:24,247 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:41:24,247 INFO  [pool-27-thread-75] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:42:09,259 INFO  [pool-27-thread-76] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:42:09,259 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:42:09,259 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:42:09,260 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:42:25,038 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:42:25,038 INFO  [pool-27-thread-77] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:42:25,038 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:42:25,038 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:42:25,463 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:42:25,463 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:42:25,463 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:42:25,464 INFO  [pool-27-thread-78] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:43:06,690 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8224028038228451919
+2026-02-23 10:43:06,780 ERROR [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] dummy storage engine RemovedStorageEngineInfo(ip:127.0.0.1, port:5433, schemaPrefix:, dataPrefix:ssss) does not exist.
+2026-02-23 10:43:06,832 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.getProperties:246] loading engine 'postgresql' overrides from postgresql-meta.properties (base: default-meta.properties)
+2026-02-23 10:43:06,892 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildSingleRowSizeLimit:165] max_single_row_size is not provided, using default limit 8100
+2026-02-23 10:43:06,892 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.relational.RelationalStorage.buildMaxColumnNumLimit:198] max_column_num is not provided, using default 1550
+2026-02-23 10:43:07,066 ERROR [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage:106] unexpected error when process engine relational:
+cn.edu.tsinghua.iginx.relational.exception.RelationalTaskExecuteFailureException: no data!
+	at cn.edu.tsinghua.iginx.relational.RelationalStorage.getBoundaryOfStorage(RelationalStorage.java:2553)
+	at cn.edu.tsinghua.iginx.engine.physical.storage.StorageManager.getBoundaryOfStorage(StorageManager.java:101)
+	at cn.edu.tsinghua.iginx.IginxWorker.setDummyInfo(IginxWorker.java:568)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngineMetas(IginxWorker.java:507)
+	at cn.edu.tsinghua.iginx.IginxWorker.addStorageEngines(IginxWorker.java:406)
+	at cn.edu.tsinghua.iginx.sql.statement.AddStorageEngineStatement.execute(AddStorageEngineStatement.java:51)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeStatement(StatementExecutor.java:314)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.executeSQL(StatementExecutor.java:260)
+	at cn.edu.tsinghua.iginx.engine.StatementExecutor.execute(StatementExecutor.java:248)
+	at cn.edu.tsinghua.iginx.IginxWorker.executeSql(IginxWorker.java:700)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2980)
+	at cn.edu.tsinghua.iginx.thrift.IService$Processor$executeSql.getResult(IService.java:2960)
+	at org.apache.thrift.ProcessFunction.process(ProcessFunction.java:38)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:38)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+2026-02-23 10:43:07,067 ERROR [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.IginxWorker.partialFailAndLog:591] Failed to read data in dummy storage engine relational. Please check params:StorageEngineMeta {id='-1', ip='127.0.0.1', port='5433', type='relational', has_data='true', read_only='false', schema_prefix='ssss', data_prefix='ssss', extra_params='{password=postgres, database=demo, has_data=true, engine=postgresql, data_prefix=ssss, is_read_only=false, schema_prefix=ssss, username=postgres}', ;{password=postgres, database=demo, has_data=true, engine=postgresql, data_prefix=ssss, is_read_only=false, schema_prefix=ssss, username=postgres}.
+2026-02-23 10:43:07,101 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:43:07,122 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8224028038228451919 is removed.
+2026-02-23 10:44:12,884 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:12,884 INFO  [pool-27-thread-83] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:12,884 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:12,884 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:14,431 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:14,431 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:14,431 INFO  [pool-27-thread-85] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:14,432 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:18,344 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:18,344 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:18,345 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:18,346 INFO  [pool-27-thread-86] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:19,696 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:19,695 INFO  [pool-27-thread-87] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.result.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:19,697 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.result.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:19,697 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.result.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:20,234 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:20,234 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.pressure.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:20,234 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.pressure.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:20,235 INFO  [pool-27-thread-88] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:20,865 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:20,865 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.flow.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:20,865 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.flow.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:20,866 INFO  [pool-27-thread-89] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:21,549 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.pressure.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:21,549 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.pressure.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:21,549 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:21,551 INFO  [pool-27-thread-90] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:32,866 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:44:33,947 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.flow.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:33,947 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:33,947 INFO  [pool-27-thread-92] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:33,947 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.flow.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:44:34,335 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:34,335 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.pressure.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:44:34,335 INFO  [pool-27-thread-93] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:44:34,335 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.pressure.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:50:28,009 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.pressure.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:50:28,009 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:50:28,010 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.pressure.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:50:28,010 INFO  [pool-27-thread-94] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:50:36,767 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:50:36,767 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:50:36,767 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:50:36,768 INFO  [pool-27-thread-96] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:50:40,518 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:50:40,519 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:50:40,519 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:50:40,522 INFO  [pool-27-thread-97] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:51:21,534 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:51:21,534 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.flow.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:51:21,535 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.flow.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:51:21,535 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:51:21,535 INFO  [pool-27-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.flow.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:51:21,538 INFO  [pool-27-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.pressure.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:51:21,540 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.pressure.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:51:21,542 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.pressure.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:51:21,547 INFO  [pool-27-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:51:21,577 INFO  [pool-29-thread-98] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectDummyWithFilter:512] [Query] execute query: SELECT iginx_end FROM root.demot.temperature.iginx_tagkv WHERE (time >= -9223372036854775807 and time < 9223372036854775807 )
+2026-02-23 10:51:21,577 INFO  [pool-29-thread-99] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000004.demot.temperature.iginx_tagkv WHERE (time >= 0 and time < 1771745361169000000 )
+2026-02-23 10:51:21,586 INFO  [pool-29-thread-100] - [cn.edu.tsinghua.iginx.iotdb.IoTDBStorage.executeProjectWithFilter:422] [Query] execute query: SELECT iginx_end FROM root.unit0000000009.demot.temperature.iginx_tagkv WHERE (time >= 1771745361169000000 and time < 9223372036854775807 )
+2026-02-23 10:54:01,149 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:54:01,654 INFO  [TThreadPoolServer WorkerProcess-17] - [cn.edu.tsinghua.iginx.engine.shared.Result.getExecuteStatementResp:247] metadataSize: 10
+2026-02-23 10:55:39,588 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8224078564369986159
+2026-02-23 10:55:39,651 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8224078564369986159 is removed.
+2026-02-23 10:55:57,073 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8224079737768752959
+2026-02-23 10:55:57,098 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8224079737768752959 is removed.
+2026-02-23 10:59:18,564 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.openSession:71] new session id comes: 8224093259604093039
+2026-02-23 10:59:18,628 INFO  [TThreadPoolServer WorkerProcess-16] - [cn.edu.tsinghua.iginx.auth.SessionManager.closeSession:77] session id 8224093259604093039 is removed.
