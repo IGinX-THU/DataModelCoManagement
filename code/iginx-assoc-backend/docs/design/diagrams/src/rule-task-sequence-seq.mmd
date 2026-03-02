@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant Client as 前端
+    participant TaskAPI as TaskController
+    participant TaskSvc as TaskServiceImpl
+    participant RuleRepo as AssociationRuleRepository
+    participant ModelRepo as ModelAssetRepository
+    participant Scheduler as TaskScheduler
+    participant IG as IginxStorageWrapper
+    participant DB as TaskRepository
+
+    Client->>TaskAPI: POST /api/v1/tasks/submit
+    TaskAPI->>TaskSvc: submitTask(request)
+    TaskSvc->>RuleRepo: findById(ruleId)
+    TaskSvc->>ModelRepo: findById(modelId)
+    TaskSvc->>DB: save(PENDING task)
+    TaskSvc->>Scheduler: submit(taskRunner)
+    Scheduler-->>TaskSvc: accepted
+    TaskSvc-->>Client: taskId
+
+    Scheduler->>TaskSvc: executeTask(taskId)
+    TaskSvc->>DB: update RUNNING + startTime
+    TaskSvc->>IG: queryData(inputPaths, range)
+    TaskSvc->>IG: insertColumnRecords(outputPaths)
+    TaskSvc->>DB: update SUCCESS/FAILED + endTime
+    TaskSvc->>Scheduler: clear(taskId)

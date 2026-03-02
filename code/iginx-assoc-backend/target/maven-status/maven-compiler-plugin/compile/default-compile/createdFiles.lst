@@ -15,13 +15,16 @@ com\xmu\iginx\assoc\modules\sys\vo\DashboardTrendPointVO.class
 com\xmu\iginx\assoc\modules\data\dto\TimeSeriesDeleteRequest.class
 com\xmu\iginx\assoc\modules\analysis\service\AnalysisService.class
 com\xmu\iginx\assoc\modules\data\dto\DataSourceQueryRequest.class
+com\xmu\iginx\assoc\modules\sys\vo\SqlExecuteResultVO.class
 com\xmu\iginx\assoc\modules\task\service\impl\TaskServiceImpl$3.class
 com\xmu\iginx\assoc\modules\data\enums\DataExportTaskStatus.class
 com\xmu\iginx\assoc\modules\data\model\DataSourceDetail.class
+com\xmu\iginx\assoc\modules\data\service\impl\DataExportServiceImpl$StructuredExportMeta.class
 com\xmu\iginx\assoc\modules\data\dto\TableCreateRequest.class
 com\xmu\iginx\assoc\modules\data\service\impl\DataImportServiceImpl$1.class
 com\xmu\iginx\assoc\modules\data\service\impl\DataImportServiceImpl$RowConsumer.class
 com\xmu\iginx\assoc\modules\data\service\impl\StructureServiceImpl$1.class
+com\xmu\iginx\assoc\modules\sys\vo\SystemLogEntryVO.class
 com\xmu\iginx\assoc\modules\data\util\IginxDataTypeConverter.class
 com\xmu\iginx\assoc\modules\data\dto\StructuredQueryRequest.class
 com\xmu\iginx\assoc\modules\data\vo\TableColumnVO.class
@@ -42,6 +45,7 @@ com\xmu\iginx\assoc\framework\security\SecurityConfig.class
 com\xmu\iginx\assoc\modules\task\repository\TaskRepository.class
 com\xmu\iginx\assoc\modules\data\service\impl\DataImportServiceImpl$StructuredBatchRow.class
 com\xmu\iginx\assoc\modules\data\vo\TimeSeriesQueryResultVO.class
+com\xmu\iginx\assoc\framework\iginx\IginxFileSystemConfig.class
 com\xmu\iginx\assoc\modules\data\util\IginxDataTypeConverter$1.class
 com\xmu\iginx\assoc\modules\data\util\IginxStorageEngineHelper$1.class
 com\xmu\iginx\assoc\modules\analysis\service\impl\AnalysisServiceImpl.class
@@ -69,6 +73,7 @@ com\xmu\iginx\assoc\modules\data\dto\StructuredQueryCondition.class
 com\xmu\iginx\assoc\modules\data\dto\TimeSeriesQueryRequest.class
 com\xmu\iginx\assoc\modules\data\dto\TableColumnDefinitionDTO.class
 com\xmu\iginx\assoc\modules\analysis\dto\TaskSeriesRequest.class
+com\xmu\iginx\assoc\framework\iginx\IginxFileSystemRegistrar.class
 com\xmu\iginx\assoc\common\Result.class
 com\xmu\iginx\assoc\modules\data\util\IginxStructuredUtils$1.class
 com\xmu\iginx\assoc\modules\model\entity\MetaModelProfileEntity.class
@@ -95,12 +100,15 @@ com\xmu\iginx\assoc\modules\model\util\ModelFileStorageService.class
 com\xmu\iginx\assoc\modules\data\dto\StructuredRowDeleteRequest.class
 com\xmu\iginx\assoc\modules\relation\service\impl\AssociationRuleServiceImpl$MappingResult.class
 com\xmu\iginx\assoc\modules\sys\controller\DashboardController.class
+com\xmu\iginx\assoc\modules\sys\service\SystemLogBuffer$LogBufferAppender.class
 com\xmu\iginx\assoc\framework\crypto\CryptoConfig.class
 com\xmu\iginx\assoc\modules\analysis\util\ReportPdfBuilder$ReportContent.class
 com\xmu\iginx\assoc\modules\data\service\DataSourceService.class
 com\xmu\iginx\assoc\modules\model\controller\ModelAssetController.class
 com\xmu\iginx\assoc\modules\data\util\TimeSeriesPathUtils.class
 com\xmu\iginx\assoc\modules\analysis\vo\TaskSeriesVO.class
+com\xmu\iginx\assoc\modules\sys\service\impl\SystemSqlServiceImpl.class
+com\xmu\iginx\assoc\modules\sys\service\impl\SystemLogServiceImpl.class
 com\xmu\iginx\assoc\modules\data\controller\DataSourceController$TestConnectionRequest.class
 com\xmu\iginx\assoc\modules\model\dto\ModelProfileUpdateRequest.class
 com\xmu\iginx\assoc\modules\task\service\TaskService.class
@@ -122,8 +130,10 @@ com\xmu\iginx\assoc\modules\task\service\impl\TaskServiceImpl$2.class
 com\xmu\iginx\assoc\modules\data\vo\DataSourceVO.class
 com\xmu\iginx\assoc\modules\analysis\dto\TaskCompareRequest.class
 com\xmu\iginx\assoc\modules\data\vo\DataSourceStructureNodeVO.class
+com\xmu\iginx\assoc\modules\sys\service\SystemLogService.class
 com\xmu\iginx\assoc\modules\model\dto\ModelSchemaParam.class
 com\xmu\iginx\assoc\modules\data\dto\StructuredImportRequest.class
+com\xmu\iginx\assoc\modules\sys\service\SystemLogBuffer.class
 com\xmu\iginx\assoc\modules\data\service\StructureService.class
 com\xmu\iginx\assoc\modules\data\dto\DataSourceUpdateRequest.class
 com\xmu\iginx\assoc\modules\task\service\TaskScheduler.class
@@ -142,6 +152,7 @@ com\xmu\iginx\assoc\modules\data\util\RelationalConnectionFactory.class
 com\xmu\iginx\assoc\modules\data\service\DataSourceAccessor.class
 com\xmu\iginx\assoc\modules\analysis\service\impl\AnalysisServiceImpl$Stats.class
 com\xmu\iginx\assoc\modules\model\util\ModelFileStorageService$StoredFile.class
+com\xmu\iginx\assoc\modules\sys\service\SystemSqlService.class
 com\xmu\iginx\assoc\modules\data\controller\DataSourceController.class
 com\xmu\iginx\assoc\modules\data\util\CsvUtils.class
 com\xmu\iginx\assoc\modules\analysis\util\ReportPdfBuilder.class
@@ -153,6 +164,7 @@ com\xmu\iginx\assoc\modules\model\util\ModelSchemaParser.class
 com\xmu\iginx\assoc\modules\relation\service\AssociationRuleService.class
 com\xmu\iginx\assoc\modules\data\controller\DataResourceController.class
 com\xmu\iginx\assoc\modules\data\service\impl\DataSourceServiceImpl.class
+com\xmu\iginx\assoc\modules\sys\dto\SqlExecuteRequest.class
 com\xmu\iginx\assoc\modules\data\service\DataSourceConnectionTestService.class
 com\xmu\iginx\assoc\modules\data\util\DataFileStorageService.class
 com\xmu\iginx\assoc\modules\sys\service\DashboardService.class

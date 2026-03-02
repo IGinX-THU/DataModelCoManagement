@@ -105,11 +105,28 @@ public class DataMaintainServiceImpl implements DataMaintainService {
         Map<String, Object> keys = request.getKeys();
         long key = resolveDeleteKey(keys);
         String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-        requireColumnTypes(schemaWithMount, request.getTable());
-        String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
-        String sql = "DELETE FROM " + tablePath + " WHERE KEY = " + key;
+        Map<String, DataType> columnTypes = requireColumnTypes(schemaWithMount, request.getTable());
+        List<String> columnPaths = new ArrayList<>();
+        for (String column : columnTypes.keySet()) {
+            if (column == null || column.isBlank()) {
+                continue;
+            }
+            columnPaths.add(IginxStructuredUtils.buildColumnPath(schemaWithMount, request.getTable(), column));
+        }
+        if (columnPaths.isEmpty()) {
+            throw BizException.badRequest("娌℃湁鍙垹闄ょ殑瀛楁");
+        }
+        long endKey;
         try {
-            structuredQueryHelper.executeSql(sql);
+            endKey = Math.addExact(key, 1L);
+        } catch (ArithmeticException ex) {
+            throw BizException.badRequest("鍐呴儴閿?_iginx_key 瓒呭嚭鍙敤鑼冨洿");
+        }
+        try {
+            iginxStorageWrapper.executeWithSession(session -> {
+                session.deleteDataInColumns(columnPaths, key, endKey);
+                return null;
+            });
         } catch (Exception ex) {
             throw BizException.internal("删除结构化数据失败: " + ex.getMessage());
         }
@@ -202,7 +219,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
             .append(" (KEY");
         for (String column : columns) {
             builder.append(", ")
-                .append(IginxStructuredUtils.buildColumnPath(schema, table, column));
+                .append(IginxStructuredUtils.buildInsertColumn(column));
         }
         builder.append(") VALUES (").append(key);
         for (String column : columns) {

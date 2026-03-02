@@ -1,0 +1,51 @@
+erDiagram
+    SYS_DATA_RESOURCE ||--o{ ASSOCIATION_RULE : "data_id"
+    MODEL_ASSET ||--o{ ASSOCIATION_RULE : "model_id"
+    META_MODEL_PROFILE ||--o{ MODEL_ASSET : "profile_id"
+    ASSOCIATION_RULE ||--o{ TASK : "rule_id"
+    SYS_DATA_RESOURCE ||--o{ DATA_EXPORT_TASK : "source_id"
+
+    SYS_DATA_RESOURCE {
+        bigint id PK
+        string name
+        string source_type
+        string mount_path
+        text conn_config
+    }
+    META_MODEL_PROFILE {
+        bigint id PK
+        string name
+        jsonb io_schema
+    }
+    MODEL_ASSET {
+        bigint id PK
+        bigint profile_id FK
+        string version
+        string storage_path
+        boolean is_latest
+    }
+    ASSOCIATION_RULE {
+        bigint id PK
+        bigint data_id FK
+        bigint model_id FK
+        string trigger_type
+        jsonb mapping_json
+        jsonb output_target
+        boolean enabled
+    }
+    TASK {
+        string id PK
+        bigint rule_id FK
+        string status
+        datetime range_start
+        datetime range_end
+        string result_link
+    }
+    DATA_EXPORT_TASK {
+        bigint id PK
+        bigint source_id FK
+        string export_type
+        string format
+        string status
+        string file_name
+    }

@@ -15,7 +15,7 @@
     <description>Intelligent Data and Model Association Management System based on IGinX</description>
     <properties>
         <java.version>17</java.version>
-        <iginx.version>0.9.0-SNAPSHOT</iginx.version>
+        <iginx.version>0.8.0</iginx.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>

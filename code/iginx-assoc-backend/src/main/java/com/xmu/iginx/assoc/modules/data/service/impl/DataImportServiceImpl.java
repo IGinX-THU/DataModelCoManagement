@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 import cn.edu.tsinghua.iginx.session.Column;
 import cn.edu.tsinghua.iginx.session.ClusterInfo;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
+import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import cn.edu.tsinghua.iginx.thrift.StorageEngineInfo;
 import com.alibaba.excel.EasyExcel;
@@ -64,8 +65,11 @@ public class DataImportServiceImpl implements DataImportService {
     @Override
     public DataImportResultVO importTimeSeries(TimeSeriesImportRequest request, MultipartFile file) {
         DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
-        String storageGroup = TimeSeriesPathUtils.resolvePathUnderMount(request.getStorageGroup(),
-            detail.entity().getMountPath(), true);
+        String mountPath = detail.entity().getMountPath();
+        if (detail.type() == DataSourceType.IOTDB) {
+            mountPath = TimeSeriesPathUtils.normalizeIotdbMountPath(mountPath);
+        }
+        String storageGroup = TimeSeriesPathUtils.resolvePathUnderMount(request.getStorageGroup(), mountPath, true);
         ensureStorageGroupExists(storageGroup);
         String extension = getExtension(file);
         // 闂傚倸鍊搁崐宄懊归崶褏鏆﹂柣銏㈩焾缁愭鏌熼幍顔碱暭闁稿绻濆鍫曞醇濮橆厽鐝旂紓浣界堪閸婃洝鐏冮梺鎸庣箓閹冲酣寮抽悙鐑樼厱濠电姴娲﹀☉褔妫佹径鎰厽婵☆垳鍎ら埢鏇㈡煕鎼达紕绠插ǎ鍥э躬椤㈡洟鏁愯箛姘ｅ亾閸ф鐓涢悘鐐插⒔濞叉潙鈹戦敍鍕幋妞ゃ垺鐩幃娆撳箹椤撴稑浜剧€广儱鎷嬪〒濠氭煏閸繃顥滃┑顔艰嫰閳规垿顢欓崫鍕ㄥ亾濠靛违闁告劦鍠栧敮闂佸啿鎼崐鎼佸焵椤掑倸鍘撮柟顔款潐閵堬箓骞愭惔顔诲摋闂備礁鎲￠敃鈺呭磻婵犲洤钃熼柨婵嗘閸庣喖鏌ㄥ☉妯侯仹缂侇喚鏁哥槐鎾寸瑹閸パ勭亶闂佸湱鎳撳ú顓㈠箖娴兼惌鏁婄痪鏉垮船閹垶绻濋姀锝嗙【妞ゆ垵鎳忕粋鎺楊敇閵忊檧鎷洪梺鍛婄箓鐎氬嘲危瑜版帗鍊电紒妤佺☉閸熺娀寮稿澶嬬厪闊洤顑呴埀顒佺墵閸?IGinX
@@ -185,12 +189,31 @@ public class DataImportServiceImpl implements DataImportService {
             return;
         }
         String initPath = TimeSeriesPathUtils.joinPath(storageGroup, "__init__");
-        long timestamp = System.currentTimeMillis() * 1_000_000;
         iginxStorageWrapper.executeWithSession(session -> {
+            if (columnExists(session, initPath)) {
+                return null;
+            }
+            long timestamp = System.currentTimeMillis() * 1_000_000;
             session.insertRowRecords(List.of(initPath), new long[]{timestamp},
-                new Object[]{new Object[]{0.0d}}, List.of(DataType.DOUBLE), null);
+                new Object[]{new Object[]{0L}}, List.of(DataType.LONG), null);
             return null;
         });
+    }
+
+    private boolean columnExists(Session session, String path) throws Exception {
+        List<Column> columns = session.showColumns();
+        if (columns == null || columns.isEmpty()) {
+            return false;
+        }
+        for (Column column : columns) {
+            if (column == null || column.getPath() == null) {
+                continue;
+            }
+            if (path.equals(column.getPath())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @FunctionalInterface
@@ -717,7 +740,7 @@ public class DataImportServiceImpl implements DataImportService {
             StringBuilder builder = new StringBuilder();
             builder.append("INSERT INTO ").append(tablePath).append(" (KEY");
             for (String column : columns) {
-                builder.append(", ").append(IginxStructuredUtils.buildColumnPath(schemaWithMount, request.getTable(), column));
+                builder.append(", ").append(IginxStructuredUtils.buildInsertColumn(column));
             }
             builder.append(") VALUES ");
             for (int i = 0; i < rows.size(); i++) {
@@ -834,36 +857,53 @@ public class DataImportServiceImpl implements DataImportService {
         String engineType = storageEngineHelper.resolveEngineType(sourceType);
         int port = config.getPort() == null ? -1 : config.getPort();
         String expectedPrefix = normalizePrefix(mountPath);
-        return iginxStorageWrapper.executeWithSession(session -> {
-            ClusterInfo clusterInfo = session.getClusterInfo();
-            List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
-            if (infos == null || infos.isEmpty()) {
+        try {
+            return iginxStorageWrapper.executeWithSession(session -> {
+                ClusterInfo clusterInfo = session.getClusterInfo();
+                List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
+                if (infos == null || infos.isEmpty()) {
+                    return false;
+                }
+                for (StorageEngineInfo info : infos) {
+                    String infoType = info.getType() == null ? "" : info.getType().toString();
+                    if (!engineType.equalsIgnoreCase(infoType)) {
+                        continue;
+                    }
+                    if (resolvedHost == null || info.getIp() == null) {
+                        continue;
+                    }
+                    if (!resolvedHost.equalsIgnoreCase(info.getIp())
+                        && !isHostAliasMatch(config.getHost(), info.getIp())) {
+                        continue;
+                    }
+                    if (info.getPort() != port) {
+                        continue;
+                    }
+                    String schemaPrefix = normalizePrefix(info.getSchemaPrefix());
+                    String dataPrefix = normalizePrefix(info.getDataPrefix());
+                    boolean schemaMatch = expectedPrefix.equals(schemaPrefix) || schemaPrefix.isEmpty();
+                    if (expectedPrefix.equals(dataPrefix) && schemaMatch) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        } catch (BizException ex) {
+            if (isClusterInfoIncompatible(ex)) {
+                // 兼容旧版 IGinX：无法读取集群信息时默认按未注册处理
                 return false;
             }
-            for (StorageEngineInfo info : infos) {
-                String infoType = info.getType() == null ? "" : info.getType().toString();
-                if (!engineType.equalsIgnoreCase(infoType)) {
-                    continue;
-                }
-                if (resolvedHost == null || info.getIp() == null) {
-                    continue;
-                }
-                if (!resolvedHost.equalsIgnoreCase(info.getIp())
-                    && !isHostAliasMatch(config.getHost(), info.getIp())) {
-                    continue;
-                }
-                if (info.getPort() != port) {
-                    continue;
-                }
-                String schemaPrefix = normalizePrefix(info.getSchemaPrefix());
-                String dataPrefix = normalizePrefix(info.getDataPrefix());
-                boolean schemaMatch = expectedPrefix.equals(schemaPrefix) || schemaPrefix.isEmpty();
-                if (expectedPrefix.equals(dataPrefix) && schemaMatch) {
-                    return true;
-                }
-            }
+            throw ex;
+        }
+    }
+
+    private boolean isClusterInfoIncompatible(BizException ex) {
+        String message = ex.getMessage();
+        if (message == null) {
             return false;
-        });
+        }
+        String lower = message.toLowerCase(Locale.ROOT);
+        return lower.contains("connectable") && lower.contains("iginxinfo");
     }
 
     private boolean isHostAliasMatch(String rawHost, String actualHost) {

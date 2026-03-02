@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.data.util;
 import com.xmu.iginx.assoc.framework.iginx.IginxConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
+import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -58,10 +59,14 @@ public class IginxStorageEngineHelper {
                                     String mountPath,
                                     String resolvedHost) {
         List<String> params = new ArrayList<>();
+        if (sourceType == DataSourceType.IOTDB) {
+            mountPath = TimeSeriesPathUtils.normalizeIotdbMountPath(mountPath);
+        }
         String extra = config.getExtra();
         boolean hasDataSpecified = containsParam(extra, "has_data");
         boolean readOnlySpecified = containsParam(extra, "is_read_only");
-        boolean defaultHasData = true;
+        // IGinX 0.8.0 仅在 has_data=true 时记录 data_prefix，因此有挂载路径时默认设为 true
+        boolean defaultHasData = StringUtils.hasText(mountPath);
         if (!hasDataSpecified) {
             params.add("has_data=" + defaultHasData);
         }

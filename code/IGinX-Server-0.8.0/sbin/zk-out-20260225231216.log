@@ -1,0 +1,21 @@
+23:12:17.946 [main] ERROR org.apache.zookeeper.server.NIOServerCnxnFactory - Thread Thread[main,5,main] died
+java.lang.NoClassDefFoundError: org/xerial/snappy/SnappyInputStream
+	at org.apache.zookeeper.server.persistence.Util.makeSnapshotName(Util.java:97) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.persistence.FileTxnSnapLog.save(FileTxnSnapLog.java:478) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.persistence.FileTxnSnapLog.restore(FileTxnSnapLog.java:300) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZKDatabase.loadDataBase(ZKDatabase.java:286) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServer.loadData(ZooKeeperServer.java:527) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServer.startdata(ZooKeeperServer.java:700) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.NIOServerCnxnFactory.startup(NIOServerCnxnFactory.java:744) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ServerCnxnFactory.startup(ServerCnxnFactory.java:130) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServerMain.runFromConfig(ZooKeeperServerMain.java:161) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServerMain.initializeAndRun(ZooKeeperServerMain.java:113) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServerMain.main(ZooKeeperServerMain.java:68) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.quorum.QuorumPeerMain.initializeAndRun(QuorumPeerMain.java:141) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.quorum.QuorumPeerMain.main(QuorumPeerMain.java:91) ~[zookeeper-3.7.2.jar:3.7.2]
+Caused by: java.lang.ClassNotFoundException: org.xerial.snappy.SnappyInputStream
+	at java.net.URLClassLoader.findClass(URLClassLoader.java:387) ~[?:1.8.0_331]
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:418) ~[?:1.8.0_331]
+	at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:355) ~[?:1.8.0_331]
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:351) ~[?:1.8.0_331]
+	... 13 more

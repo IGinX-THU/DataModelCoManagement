@@ -1,0 +1,9 @@
+flowchart LR
+    P[PENDING] --> R[RUNNING]
+    R --> S[SUCCESS]
+    R --> F[FAILED]
+    P --> A[ABORTED]
+    R --> A
+
+    Q1[线程池队列满] --> FQ[提交失败并标记 FAILED]
+    STOP[用户停止任务] --> A

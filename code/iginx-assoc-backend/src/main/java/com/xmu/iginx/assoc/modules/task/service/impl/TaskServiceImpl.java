@@ -20,6 +20,7 @@ import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -36,6 +37,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Sort;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
 
@@ -236,10 +238,14 @@ public class TaskServiceImpl implements TaskService {
             return null;
         });
         if (!taskResultPaths.isEmpty() && !taskResultPaths.equals(outputPaths)) {
-            iginxStorageWrapper.executeWithSession(session -> {
-                session.insertColumnRecords(taskResultPaths, keys, valuesArray, dataTypes);
-                return null;
-            });
+            try {
+                iginxStorageWrapper.executeWithSession(session -> {
+                    session.insertColumnRecords(taskResultPaths, keys, valuesArray, dataTypes);
+                    return null;
+                });
+            } catch (Exception ex) {
+                log.warn("任务结果路径写入失败，已忽略。paths={}, message={}", taskResultPaths, ex.getMessage());
+            }
         }
     }
 
@@ -293,13 +299,7 @@ public class TaskServiceImpl implements TaskService {
         if (!StringUtils.hasText(path)) {
             return outputName;
         }
-        if (StringUtils.hasText(outputName)) {
-            String suffix = "." + outputName;
-            if (!path.endsWith(suffix)) {
-                return path.endsWith(".") ? path + outputName : path + suffix;
-            }
-        }
-        return path;
+        return path.trim();
     }
 
     private List<String> buildTaskResultPaths(String resultPrefix, List<String> outputNames) {

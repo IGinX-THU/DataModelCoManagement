@@ -35,12 +35,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.Set;
 
 @Service
@@ -64,6 +64,7 @@ public class DataSourceServiceImpl implements DataSourceService {
         DataSourceType sourceType = resolveSourceType(request.getSourceType());
         String mountPath = resolveMountPathForCreate(request.getMountPath(), sourceType, request.getConnectionConfig());
         validateMountPath(mountPath, null);
+        ensureNoConflictingResidualEngines(sourceType, mountPath);
 
         if (isTimeSeriesSource(sourceType)) {
             if (!storageEngineExists(sourceType, request.getConnectionConfig(), mountPath)) {
@@ -142,7 +143,7 @@ public class DataSourceServiceImpl implements DataSourceService {
             throw BizException.badRequest("该数据源正被关联规则占用，无法删除");
         }
         DataSourceType sourceType = resolveSourceType(entity.getSourceType());
-        if (isTimeSeriesSource(sourceType)) {
+        if (needsStorageEngineUnregister(sourceType)) {
             if (!force) {
                 removeStorageEngine(entity);
             } else {
@@ -175,7 +176,8 @@ public class DataSourceServiceImpl implements DataSourceService {
         if (sourceType == DataSourceType.POSTGRESQL) {
             return listPostgresStructure(entity.getId(), entity.getMountPath());
         }
-        return listTimeSeriesStructure(entity.getMountPath());
+        String normalizedMount = normalizeTimeSeriesMountPath(entity.getMountPath(), sourceType);
+        return listTimeSeriesStructure(normalizedMount);
     }
 
     private void validateRequest(String sourceType, DataSourceConnectionConfig connectionConfig) {
@@ -214,7 +216,18 @@ public class DataSourceServiceImpl implements DataSourceService {
         if (normalized.isBlank()) {
             throw BizException.badRequest("挂载路径不能为空");
         }
-        if (sourceType == DataSourceType.INFLUXDB || sourceType == DataSourceType.IOTDB) {
+        if (sourceType == DataSourceType.IOTDB) {
+            String lower = normalized.trim().toLowerCase(Locale.ROOT);
+            if ("root".equals(lower)) {
+                throw BizException.badRequest("鎸傝浇璺緞涓嶈兘浠?root 结尾，请填写 root.xxx 或 xxx");
+            }
+            String stripped = TimeSeriesPathUtils.normalizeIotdbMountPath(normalized);
+            if (stripped.isBlank()) {
+                throw BizException.badRequest("鎸傝浇璺緞涓嶈兘涓虹┖");
+            }
+            return stripped;
+        }
+        if (sourceType == DataSourceType.INFLUXDB) {
             String lower = normalized.trim().toLowerCase(Locale.ROOT);
             if ("root".equals(lower)) {
                 throw BizException.badRequest("挂载路径必须为 root.xxx，不能仅 root");
@@ -245,6 +258,19 @@ public class DataSourceServiceImpl implements DataSourceService {
         return sourceType == DataSourceType.IOTDB || sourceType == DataSourceType.INFLUXDB;
     }
 
+    private boolean needsStorageEngineUnregister(DataSourceType sourceType) {
+        return sourceType == DataSourceType.IOTDB
+            || sourceType == DataSourceType.INFLUXDB
+            || sourceType == DataSourceType.POSTGRESQL;
+    }
+
+    private String normalizeTimeSeriesMountPath(String mountPath, DataSourceType sourceType) {
+        if (sourceType == DataSourceType.IOTDB) {
+            return TimeSeriesPathUtils.normalizeIotdbMountPath(mountPath);
+        }
+        return mountPath;
+    }
+
     private DataResourceEntity findById(Long id) {
         return dataResourceRepository.findById(id)
             .orElseThrow(() -> BizException.badRequest("数据源不存在，id=" + id));
@@ -254,6 +280,9 @@ public class DataSourceServiceImpl implements DataSourceService {
         QueryDataSet dataSet = structuredQueryHelper.executeQuery("SHOW COLUMNS;", 1000);
         try {
             List<String> headers = dataSet.getColumnList();
+            if (headers == null || headers.isEmpty()) {
+                return List.of();
+            }
             int pathIndex = indexOfIgnoreCase(headers, "Path");
             if (pathIndex < 0) {
                 return List.of();
@@ -261,8 +290,11 @@ public class DataSourceServiceImpl implements DataSourceService {
             List<String> mountSegments = IginxStructuredUtils.splitPathSegments(mountPath);
             Map<String, Set<String>> allTables = new LinkedHashMap<>();
             Map<String, Set<String>> matchedTables = new LinkedHashMap<>();
-            Object[] row;
-            while ((row = dataSet.nextRow()) != null) {
+            while (dataSet.hasMore()) {
+                Object[] row = dataSet.nextRow();
+                if (row == null) {
+                    continue;
+                }
                 if (row.length <= pathIndex) {
                     continue;
                 }
@@ -331,6 +363,10 @@ public class DataSourceServiceImpl implements DataSourceService {
             }
             return schemaNodes;
         } catch (Exception ex) {
+            String message = extractMessage(ex);
+            if (message != null && message.contains("Index 0 out of bounds")) {
+                return List.of();
+            }
             throw BizException.internal("鑾峰彇鏁版嵁婧愯〃缁撴瀯澶辫触: " + ex.getMessage());
         } finally {
             closeQuietly(dataSet);
@@ -364,6 +400,17 @@ public class DataSourceServiceImpl implements DataSourceService {
             return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
         }
         return String.valueOf(value);
+    }
+
+    private String extractMessage(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            if (current.getMessage() != null && !current.getMessage().isBlank()) {
+                return current.getMessage();
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     private void closeQuietly(QueryDataSet dataSet) {
@@ -514,27 +561,97 @@ public class DataSourceServiceImpl implements DataSourceService {
 
     private void removeStorageEngine(DataResourceEntity entity) {
         DataSourceConnectionConfig config = connectionConfigCipher.decrypt(entity.getConnConfig());
-        String mountPath = entity.getMountPath();
-        List<String> sqlList = new ArrayList<>();
-        sqlList.add(storageEngineHelper.buildRemoveStorageEngineSql(config, mountPath, mountPath, true));
-        if (mountPath != null && !mountPath.isBlank()) {
-            sqlList.add(storageEngineHelper.buildRemoveStorageEngineSql(config, "", mountPath, true));
+        DataSourceType sourceType = resolveSourceType(entity.getSourceType());
+        if (sourceType == null) {
+            return;
         }
+        boolean existsBefore = storageEngineExistsByEndpoint(sourceType, config);
+        if (!existsBefore) {
+            return;
+        }
+        String mountPath = entity.getMountPath();
+        String normalizedMount = normalizeTimeSeriesMountPath(mountPath, sourceType);
+        LinkedHashSet<String> prefixes = buildRemovePrefixCandidates(mountPath, normalizedMount, sourceType);
+        if (prefixes.isEmpty()) {
+            prefixes.add("");
+        }
+        LinkedHashSet<String> sqlSet = new LinkedHashSet<>();
+        for (String prefix : prefixes) {
+            // 依据 IGinX 手册 3.3.5：host/port/schemaPrefix/dataPrefix 四元组唯一确定待移除分片
+            sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, prefix, prefix, false));
+            if (!prefix.isBlank()) {
+                sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, "", prefix, false));
+                sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, prefix, "", false));
+            }
+        }
+        // 手册要求当 schemaPrefix/dataPrefix 为空时使用空字符串
+        sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, "", "", false));
+        List<String> sqlList = new ArrayList<>(sqlSet);
         BizException lastException = null;
+        boolean removed = false;
         for (String sql : sqlList) {
             try {
                 iginxStorageWrapper.executeSql(sql);
-                lastException = null;
+                removed = true;
+                break;
             } catch (BizException ex) {
                 if (shouldIgnoreRemoveError(ex)) {
+                    lastException = ex;
                     continue;
                 }
-                lastException = ex;
+                throw ex;
             }
         }
-        if (lastException != null) {
-            throw lastException;
+        if (removed) {
+            return;
         }
+        if (!storageEngineExistsByEndpoint(sourceType, config)) {
+            return;
+        }
+        if (lastException != null && lastException.getMessage() != null && !lastException.getMessage().isBlank()) {
+            throw BizException.badRequest("IGinX 存储引擎卸载失败，目标引擎仍存在: " + lastException.getMessage());
+        }
+        throw BizException.badRequest("IGinX 存储引擎卸载失败，目标引擎仍存在");
+    }
+
+    private LinkedHashSet<String> buildRemovePrefixCandidates(String mountPath,
+                                                              String normalizedMount,
+                                                              DataSourceType sourceType) {
+        LinkedHashSet<String> prefixes = new LinkedHashSet<>();
+        addNormalizedPrefix(prefixes, mountPath);
+        addNormalizedPrefix(prefixes, normalizedMount);
+        if (sourceType == DataSourceType.IOTDB) {
+            List<String> snapshot = new ArrayList<>(prefixes);
+            for (String prefix : snapshot) {
+                addIotdbRootVariants(prefixes, prefix);
+            }
+        }
+        return prefixes;
+    }
+
+    private void addNormalizedPrefix(LinkedHashSet<String> prefixes, String rawPrefix) {
+        if (rawPrefix == null) {
+            return;
+        }
+        String normalized = TimeSeriesPathUtils.normalizePath(rawPrefix);
+        if (!normalized.isBlank()) {
+            prefixes.add(normalized);
+        }
+    }
+
+    private void addIotdbRootVariants(LinkedHashSet<String> prefixes, String prefix) {
+        String normalized = TimeSeriesPathUtils.normalizePath(prefix);
+        if (normalized.isBlank()) {
+            return;
+        }
+        if (TimeSeriesPathUtils.hasRootPrefix(normalized)) {
+            String stripped = TimeSeriesPathUtils.stripRootPrefix(normalized);
+            if (!stripped.isBlank()) {
+                prefixes.add(stripped);
+            }
+            return;
+        }
+        prefixes.add("root." + normalized);
     }
 
     private boolean storageEngineExists(DataSourceType sourceType,
@@ -543,37 +660,139 @@ public class DataSourceServiceImpl implements DataSourceService {
         String resolvedHost = storageEngineHelper.resolveStorageHost(config.getHost());
         String engineType = storageEngineHelper.resolveEngineType(sourceType);
         int port = config.getPort() == null ? -1 : config.getPort();
-        String expectedPrefix = normalizePrefix(mountPath);
-        return iginxStorageWrapper.executeWithSession(session -> {
-            ClusterInfo clusterInfo = session.getClusterInfo();
-            List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
-            if (infos == null || infos.isEmpty()) {
+        String normalizedMount = normalizeTimeSeriesMountPath(mountPath, sourceType);
+        String expectedPrefix = normalizePrefix(normalizedMount);
+        try {
+            return iginxStorageWrapper.executeWithSession(session -> {
+                ClusterInfo clusterInfo = session.getClusterInfo();
+                List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
+                if (infos == null || infos.isEmpty()) {
+                    return false;
+                }
+                for (StorageEngineInfo info : infos) {
+                    String infoType = info.getType() == null ? "" : info.getType().toString();
+                    if (!engineType.equalsIgnoreCase(infoType)) {
+                        continue;
+                    }
+                    if (resolvedHost == null || info.getIp() == null) {
+                        continue;
+                    }
+                    if (!resolvedHost.equalsIgnoreCase(info.getIp())
+                        && !isHostAliasMatch(config.getHost(), info.getIp())) {
+                        continue;
+                    }
+                    if (info.getPort() != port) {
+                        continue;
+                    }
+                    String schemaPrefix = normalizePrefix(info.getSchemaPrefix());
+                    String dataPrefix = normalizePrefix(info.getDataPrefix());
+                    boolean schemaMatch = expectedPrefix.equals(schemaPrefix) || schemaPrefix.isEmpty();
+                    if (expectedPrefix.equals(dataPrefix) && schemaMatch) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        } catch (BizException ex) {
+            if (isClusterInfoIncompatible(ex)) {
+                // 兼容旧版 IGinX：无法读取集群信息时默认按未注册处理
                 return false;
             }
-            for (StorageEngineInfo info : infos) {
-                String infoType = info.getType() == null ? "" : info.getType().toString();
-                if (!engineType.equalsIgnoreCase(infoType)) {
-                    continue;
+            throw ex;
+        }
+    }
+
+    private boolean storageEngineExistsByEndpoint(DataSourceType sourceType,
+                                                  DataSourceConnectionConfig config) {
+        String resolvedHost = storageEngineHelper.resolveStorageHost(config.getHost());
+        String engineType = storageEngineHelper.resolveEngineType(sourceType);
+        int port = config.getPort() == null ? -1 : config.getPort();
+        try {
+            return iginxStorageWrapper.executeWithSession(session -> {
+                ClusterInfo clusterInfo = session.getClusterInfo();
+                List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
+                if (infos == null || infos.isEmpty()) {
+                    return false;
                 }
-                if (resolvedHost == null || info.getIp() == null) {
-                    continue;
-                }
-                if (!resolvedHost.equalsIgnoreCase(info.getIp())
-                    && !isHostAliasMatch(config.getHost(), info.getIp())) {
-                    continue;
-                }
-                if (info.getPort() != port) {
-                    continue;
-                }
-                String schemaPrefix = normalizePrefix(info.getSchemaPrefix());
-                String dataPrefix = normalizePrefix(info.getDataPrefix());
-                boolean schemaMatch = expectedPrefix.equals(schemaPrefix) || schemaPrefix.isEmpty();
-                if (expectedPrefix.equals(dataPrefix) && schemaMatch) {
+                for (StorageEngineInfo info : infos) {
+                    String infoType = info.getType() == null ? "" : info.getType().toString();
+                    if (!engineType.equalsIgnoreCase(infoType)) {
+                        continue;
+                    }
+                    if (resolvedHost == null || info.getIp() == null) {
+                        continue;
+                    }
+                    if (!resolvedHost.equalsIgnoreCase(info.getIp())
+                        && !isHostAliasMatch(config.getHost(), info.getIp())) {
+                        continue;
+                    }
+                    if (info.getPort() != port) {
+                        continue;
+                    }
                     return true;
                 }
+                return false;
+            });
+        } catch (BizException ex) {
+            if (isClusterInfoIncompatible(ex)) {
+                return false;
             }
+            throw ex;
+        }
+    }
+
+    private void ensureNoConflictingResidualEngines(DataSourceType sourceType, String mountPath) {
+        if (sourceType == null || mountPath == null || mountPath.isBlank()) {
+            return;
+        }
+        String normalizedMount = normalizeTimeSeriesMountPath(mountPath, sourceType);
+        LinkedHashSet<String> targetPrefixes = buildRemovePrefixCandidates(mountPath, normalizedMount, sourceType);
+        if (targetPrefixes.isEmpty()) {
+            return;
+        }
+        String expectedEngineType = storageEngineHelper.resolveEngineType(sourceType);
+        try {
+            boolean hasConflict = iginxStorageWrapper.executeWithSession(session -> {
+                ClusterInfo clusterInfo = session.getClusterInfo();
+                List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
+                if (infos == null || infos.isEmpty()) {
+                    return false;
+                }
+                for (StorageEngineInfo info : infos) {
+                    String infoType = info.getType() == null ? "" : info.getType().toString();
+                    String dataPrefix = normalizePrefix(info.getDataPrefix());
+                    if (isTimeSeriesSource(sourceType)
+                        && "relational".equalsIgnoreCase(infoType)
+                        && dataPrefix.isEmpty()) {
+                        return true;
+                    }
+                    if (!targetPrefixes.contains(dataPrefix)) {
+                        continue;
+                    }
+                    if (!expectedEngineType.equalsIgnoreCase(infoType)) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            if (hasConflict) {
+                throw BizException.badRequest("IGinX 中存在冲突或残留存储引擎，请先清理后再创建该挂载路径的数据源");
+            }
+        } catch (BizException ex) {
+            if (isClusterInfoIncompatible(ex)) {
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isClusterInfoIncompatible(BizException ex) {
+        String message = ex.getMessage();
+        if (message == null) {
             return false;
-        });
+        }
+        String lower = message.toLowerCase(Locale.ROOT);
+        return lower.contains("connectable") && lower.contains("iginxinfo");
     }
 
     private boolean shouldIgnoreRemoveError(BizException ex) {

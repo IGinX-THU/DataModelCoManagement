@@ -1,0 +1,15 @@
+23:13:07.554 [main] ERROR org.apache.zookeeper.server.ZooKeeperServerMain - Unexpected exception, exiting abnormally
+java.net.BindException: Address already in use: bind
+	at sun.nio.ch.Net.bind0(Native Method) ~[?:1.8.0_331]
+	at sun.nio.ch.Net.bind(Net.java:438) ~[?:1.8.0_331]
+	at sun.nio.ch.Net.bind(Net.java:430) ~[?:1.8.0_331]
+	at sun.nio.ch.ServerSocketChannelImpl.bind(ServerSocketChannelImpl.java:225) ~[?:1.8.0_331]
+	at sun.nio.ch.ServerSocketAdaptor.bind(ServerSocketAdaptor.java:74) ~[?:1.8.0_331]
+	at sun.nio.ch.ServerSocketAdaptor.bind(ServerSocketAdaptor.java:67) ~[?:1.8.0_331]
+	at org.apache.zookeeper.server.NIOServerCnxnFactory.configure(NIOServerCnxnFactory.java:662) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServerMain.runFromConfig(ZooKeeperServerMain.java:160) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServerMain.initializeAndRun(ZooKeeperServerMain.java:113) ~[zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.ZooKeeperServerMain.main(ZooKeeperServerMain.java:68) [zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.quorum.QuorumPeerMain.initializeAndRun(QuorumPeerMain.java:141) [zookeeper-3.7.2.jar:3.7.2]
+	at org.apache.zookeeper.server.quorum.QuorumPeerMain.main(QuorumPeerMain.java:91) [zookeeper-3.7.2.jar:3.7.2]
+23:13:07.582 [main] ERROR org.apache.zookeeper.util.ServiceUtils - Exiting JVM with code 1

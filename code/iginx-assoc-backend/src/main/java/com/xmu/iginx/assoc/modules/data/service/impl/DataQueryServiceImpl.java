@@ -103,23 +103,24 @@ public class DataQueryServiceImpl implements DataQueryService {
             Set<String> columns = columnTypes.keySet();
             StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
                 request.getConditions(), sqlTypeMap.keySet(), sqlTypeMap);
-            String selectList = IginxStructuredUtils.buildSelectList(
-                schemaWithMount, request.getTable(), new ArrayList<>(columns), true);
+            String selectList = "*";
             String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
             String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
             String orderBy = buildOrderBy(request.getOrderBy(), request.getOrderDirection(), columns);
-            long offset = (request.getPageNum() - 1L) * request.getPageSize();
-            String sql = "SELECT " + selectList + " FROM " + tablePath + whereClause
-                + orderBy + " LIMIT " + request.getPageSize() + " OFFSET " + offset;
+            String sql = "SELECT " + selectList + " FROM " + tablePath + whereClause + orderBy;
             String finalSql = IginxStructuredUtils.renderSqlWithParams(sql, where.params());
             QueryDataSet dataSet = structuredQueryHelper.executeQuery(finalSql, request.getPageSize());
             try {
-                List<String> header = dataSet.getColumnList();
-                List<Map<String, Object>> records = structuredQueryHelper.readAll(dataSet);
+                List<String> rawHeader = dataSet.getColumnList();
+                List<String> header = IginxStructuredUtils.normalizeStructuredHeaders(rawHeader);
+                List<Map<String, Object>> records = structuredQueryHelper.readAll(dataSet, header);
+                normalizeInternalKey(records);
+                List<Map<String, Object>> visibleRecords = filterDeletedStructuredRecords(records, header);
+                List<Map<String, Object>> pageRecords = paginateStructuredRecords(
+                    visibleRecords, request.getPageNum(), request.getPageSize());
                 StructuredQueryResultVO result = new StructuredQueryResultVO();
                 result.setColumns(header);
-                long total = queryTotal(request, where, schemaWithMount);
-                result.setPage(PageResult.of(records, total, request.getPageNum(), request.getPageSize()));
+                result.setPage(PageResult.of(pageRecords, visibleRecords.size(), request.getPageNum(), request.getPageSize()));
                 return result;
             } finally {
                 closeQuietly(dataSet);
@@ -131,39 +132,59 @@ public class DataQueryServiceImpl implements DataQueryService {
         }
     }
 
-    private long queryTotal(StructuredQueryRequest request,
-                            StructuredSqlBuilder.SqlWithParams where,
-                            String schemaWithMount) {
-        String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
-        String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
-        String sql = "SELECT COUNT(*) FROM " + tablePath + whereClause;
-        String finalSql = IginxStructuredUtils.renderSqlWithParams(sql, where.params());
-        QueryDataSet dataSet = structuredQueryHelper.executeQuery(finalSql, 1000);
-        try {
-            Object[] row = dataSet.nextRow();
-            if (row == null || row.length == 0) {
-                return 0L;
-            }
-            long max = 0L;
-            for (Object value : row) {
-                if (value == null) {
+    private List<Map<String, Object>> filterDeletedStructuredRecords(List<Map<String, Object>> records,
+                                                                     List<String> headers) {
+        if (records == null || records.isEmpty()) {
+            return records == null ? List.of() : records;
+        }
+        List<String> dataColumns = new ArrayList<>();
+        if (headers != null) {
+            for (String header : headers) {
+                if (IginxStructuredUtils.isInternalKey(header)) {
                     continue;
                 }
-                if (value instanceof Number number) {
-                    max = Math.max(max, number.longValue());
-                } else {
-                    try {
-                        max = Math.max(max, Long.parseLong(String.valueOf(value)));
-                    } catch (Exception ignored) {
-                    }
-                }
+                dataColumns.add(header);
             }
-            return max;
-        } catch (Exception ex) {
-            return 0L;
-        } finally {
-            closeQuietly(dataSet);
         }
+        if (dataColumns.isEmpty()) {
+            return records;
+        }
+        List<Map<String, Object>> filtered = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            if (record == null) {
+                continue;
+            }
+            if (!isDeletedStructuredRecord(record, dataColumns)) {
+                filtered.add(record);
+            }
+        }
+        return filtered;
+    }
+
+    private boolean isDeletedStructuredRecord(Map<String, Object> record, List<String> dataColumns) {
+        for (String column : dataColumns) {
+            if (record.get(column) != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<Map<String, Object>> paginateStructuredRecords(List<Map<String, Object>> records,
+                                                                int pageNum,
+                                                                int pageSize) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        int safePageNum = Math.max(pageNum, 1);
+        int safePageSize = Math.max(pageSize, 1);
+        long offset = (long) (safePageNum - 1) * safePageSize;
+        if (offset >= records.size()) {
+            return List.of();
+        }
+        int fromIndex = (int) offset;
+        int toIndex = (int) Math.min(records.size(), offset + safePageSize);
+        return new ArrayList<>(records.subList(fromIndex, toIndex));
     }
 
     private String buildOrderBy(String orderBy, String direction, Set<String> columns) {
@@ -197,6 +218,26 @@ public class DataQueryServiceImpl implements DataQueryService {
         normalized = normalized.replace(quotedInternal, "KEY");
         normalized = normalized.replace(IginxStructuredUtils.INTERNAL_KEY, "KEY");
         return normalized;
+    }
+
+    private void normalizeInternalKey(List<Map<String, Object>> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        for (Map<String, Object> record : records) {
+            if (record == null) {
+                continue;
+            }
+            Object raw = record.get(IginxStructuredUtils.INTERNAL_KEY);
+            if (raw == null) {
+                continue;
+            }
+            if (raw instanceof Number number) {
+                record.put(IginxStructuredUtils.INTERNAL_KEY, String.valueOf(number.longValue()));
+            } else {
+                record.put(IginxStructuredUtils.INTERNAL_KEY, String.valueOf(raw));
+            }
+        }
     }
 
     private void closeQuietly(QueryDataSet dataSet) {

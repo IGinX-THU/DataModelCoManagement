@@ -15,7 +15,7 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class IginxStorageWrapper {
 
-    private static final String IGNX_UNAVAILABLE_MESSAGE = "IGinX 服务不可用，请稍后再试";
+    private static final String IGNX_UNAVAILABLE_MESSAGE = "IGinX service unavailable, please retry later.";
 
     private final IginxConfig config;
     private volatile Session session;
@@ -34,8 +34,12 @@ public class IginxStorageWrapper {
             throw e;
         } catch (Exception firstEx) {
             if (isDuplicateStorageEngineError(sql, firstEx)) {
-                log.warn("IGinX 已存在相同存储引擎，跳过重复注册。sql={}", sql);
+                log.warn("IGinX duplicate storage engine detected, skip registration. sql={}", sql);
                 return new SessionExecuteSqlResult();
+            }
+            if (!shouldRetry(firstEx)) {
+                log.warn("IGinX execution rejected without reconnect. sql={}, message={}", sql, safeMessage(firstEx));
+                throw toBizException(firstEx);
             }
             log.warn("IGinX execution failed, try reconnect once. sql={}", sql, firstEx);
             session = null;
@@ -44,8 +48,12 @@ public class IginxStorageWrapper {
                 return retry.executeSql(sql);
             } catch (Exception secondEx) {
                 if (isDuplicateStorageEngineError(sql, secondEx)) {
-                    log.warn("IGinX 已存在相同存储引擎，跳过重复注册。sql={}", sql);
+                    log.warn("IGinX duplicate storage engine detected, skip registration. sql={}", sql);
                     return new SessionExecuteSqlResult();
+                }
+                if (!shouldRetry(secondEx)) {
+                    log.warn("IGinX execution rejected after reconnect. sql={}, message={}", sql, safeMessage(secondEx));
+                    throw toBizException(secondEx);
                 }
                 log.error("IGinX execution failed after reconnect. sql={}", sql, secondEx);
                 session = null;
@@ -61,12 +69,20 @@ public class IginxStorageWrapper {
         } catch (BizException e) {
             throw e;
         } catch (Exception firstEx) {
+            if (!shouldRetry(firstEx)) {
+                log.warn("IGinX session execution rejected without reconnect. message={}", safeMessage(firstEx));
+                throw toBizException(firstEx);
+            }
             log.warn("IGinX session execution failed, try reconnect once.", firstEx);
             session = null;
             Session retry = requireSession();
             try {
                 return executor.apply(retry);
             } catch (Exception secondEx) {
+                if (!shouldRetry(secondEx)) {
+                    log.warn("IGinX session execution rejected after reconnect. message={}", safeMessage(secondEx));
+                    throw toBizException(secondEx);
+                }
                 log.error("IGinX session execution failed after reconnect.", secondEx);
                 session = null;
                 throw toBizException(secondEx);
@@ -156,6 +172,19 @@ public class IginxStorageWrapper {
             || lower.contains("timeout")
             || lower.contains("no route")
             || lower.contains("socket");
+    }
+
+    private boolean shouldRetry(Exception ex) {
+        String message = extractMessage(ex);
+        return message == null || message.isBlank() || isConnectionIssue(message);
+    }
+
+    private String safeMessage(Exception ex) {
+        String message = extractMessage(ex);
+        if (message == null || message.isBlank()) {
+            return ex.getClass().getSimpleName();
+        }
+        return message.trim();
     }
 
     private void closeSilently() {

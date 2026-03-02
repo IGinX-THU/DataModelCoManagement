@@ -86,8 +86,7 @@ public class AnalysisServiceImpl implements AnalysisService {
 
         Map<String, String> inputBindings = parseInputBindings(rule.getMappingJson());
         Map<String, String> outputBindings = parseOutputBindings(rule.getOutputTarget());
-        Map<String, String> taskOutputBindings = buildTaskResultPaths(task.getResultLink(), outputBindings);
-        Map<String, String> outputPaths = !taskOutputBindings.isEmpty() ? taskOutputBindings : outputBindings;
+        Map<String, String> outputPaths = outputBindings;
 
         List<String> inputPaths = inputBindings.values().stream()
             .filter(StringUtils::hasText)
@@ -144,8 +143,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         ModelAssetEntity asset = modelAssetRepository.findById(rule.getModelId()).orElse(null);
 
         Map<String, String> outputBindings = parseOutputBindings(rule.getOutputTarget());
-        Map<String, String> taskOutputBindings = buildTaskResultPaths(task.getResultLink(), outputBindings);
-        Map<String, String> outputPaths = !taskOutputBindings.isEmpty() ? taskOutputBindings : outputBindings;
+        Map<String, String> outputPaths = outputBindings;
         List<String> outputPathList = outputPaths.values().stream()
             .filter(StringUtils::hasText)
             .toList();
@@ -171,13 +169,6 @@ public class AnalysisServiceImpl implements AnalysisService {
         AssociationRuleEntity rule = associationRuleRepository.findById(task.getRuleId()).orElse(null);
         Map<String, String> ruleOutputs = rule == null ? Map.of() : parseOutputBindings(rule.getOutputTarget());
         Map<String, String> outputPaths = ruleOutputs;
-        Map<String, String> taskResultPaths = buildTaskResultPaths(task.getResultLink(), ruleOutputs);
-        boolean preferTaskResult = !taskResultPaths.isEmpty();
-        if (preferTaskResult) {
-            outputPaths = taskResultPaths;
-        } else if (outputPaths.isEmpty() && StringUtils.hasText(task.getResultLink())) {
-            outputPaths = Map.of("result", task.getResultLink());
-        }
         if (outputPaths.isEmpty()) {
             return List.of();
         }
@@ -185,25 +176,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         List<String> pathList = new ArrayList<>(outputPaths.values());
         long startNs = toNano(task.getRangeStart());
         long endNs = toNano(task.getRangeEnd());
-        List<String> initialPaths = pathList;
-        SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session ->
-            session.queryData(initialPaths, startNs, endNs));
+        SessionQueryDataSet dataSet = safeQuerySeries(pathList, startNs, endNs);
 
-        long[] keys = dataSet.getKeys();
-        List<List<Object>> rows = dataSet.getValues();
-        List<String> dataPaths = dataSet.getPaths();
-        if ((keys == null || keys.length == 0 || rows == null || rows.isEmpty())
-            && preferTaskResult && !ruleOutputs.isEmpty()) {
-            outputPaths = ruleOutputs;
-            pathList = new ArrayList<>(outputPaths.values());
-            List<String> fallbackPaths = pathList;
-            dataSet = iginxStorageWrapper.executeWithSession(session ->
-                session.queryData(fallbackPaths, startNs, endNs));
-            keys = dataSet.getKeys();
-            rows = dataSet.getValues();
-            dataPaths = dataSet.getPaths();
-        }
-        if (keys == null || keys.length == 0 || rows == null || rows.isEmpty()) {
+        long[] keys = dataSet == null ? null : dataSet.getKeys();
+        List<List<Object>> rows = dataSet == null ? null : dataSet.getValues();
+        List<String> dataPaths = dataSet == null ? List.of() : dataSet.getPaths();
+        if (isDataSetEmpty(dataSet)) {
             return List.of();
         }
         int size = Math.min(keys.length, rows.size());
@@ -250,6 +228,25 @@ public class AnalysisServiceImpl implements AnalysisService {
         return result;
     }
 
+    private SessionQueryDataSet safeQuerySeries(List<String> paths, long startNs, long endNs) {
+        if (paths == null || paths.isEmpty()) {
+            return null;
+        }
+        try {
+            return iginxStorageWrapper.executeWithSession(session -> session.queryData(paths, startNs, endNs));
+        } catch (Exception ex) {
+            if (needsRootPrefix(paths)) {
+                List<String> fallbackPaths = addRootPrefix(paths);
+                try {
+                    return iginxStorageWrapper.executeWithSession(session -> session.queryData(fallbackPaths, startNs, endNs));
+                } catch (Exception ignored) {
+                    return null;
+                }
+            }
+            return null;
+        }
+    }
+
     private Map<String, String> parseOutputBindings(String outputTargetJson) {
         if (!StringUtils.hasText(outputTargetJson)) {
             return Map.of();
@@ -269,22 +266,6 @@ public class AnalysisServiceImpl implements AnalysisService {
         } catch (Exception e) {
             return Map.of();
         }
-    }
-
-    private Map<String, String> buildTaskResultPaths(String resultPrefix, Map<String, String> outputBindings) {
-        if (!StringUtils.hasText(resultPrefix) || outputBindings == null || outputBindings.isEmpty()) {
-            return Map.of();
-        }
-        String prefix = resultPrefix.trim();
-        Map<String, String> results = new LinkedHashMap<>();
-        for (String name : outputBindings.keySet()) {
-            if (!StringUtils.hasText(name)) {
-                continue;
-            }
-            String path = prefix.endsWith(".") ? prefix + name : prefix + "." + name;
-            results.put(name, path);
-        }
-        return results;
     }
 
     private Map<String, String> parseInputBindings(String mappingJson) {

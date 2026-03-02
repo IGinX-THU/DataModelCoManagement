@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant Client as 前端
+    participant API as AnalysisController
+    participant Svc as AnalysisServiceImpl
+    participant TaskRepo as TaskRepository
+    participant RuleRepo as AssociationRuleRepository
+    participant IG as IginxStorageWrapper
+    participant MFS as ModelFileStorageService
+    participant DFS as DataFileStorageService
+
+    Client->>API: POST /analysis/tasks/{id}/export
+    API->>Svc: exportPackage(taskId, options)
+    Svc->>TaskRepo: find task
+    Svc->>RuleRepo: find rule + output paths
+    Svc->>IG: query series(input/output)
+    Svc->>MFS: read model bytes(optional)
+    Svc->>DFS: create zip file
+    Svc-->>API: /api/v1/data/files/{fileName}
+    API-->>Client: download url
+
+    Client->>API: POST /analysis/tasks/{id}/report
+    API->>Svc: generateReport(taskId, options)
+    Svc->>IG: query output series
+    Svc->>Svc: calculate stats + build chart data
+    Svc->>DFS: write pdf file
+    Svc-->>API: /api/v1/data/files/{fileName}

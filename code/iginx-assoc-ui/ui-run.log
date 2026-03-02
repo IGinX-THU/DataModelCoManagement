@@ -1,0 +1,374 @@
+
+> iginx-frontend@0.0.0 dev
+> vite
+
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m3433[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m20:28:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LeftSidebar.vue, /src/style.css[22m
+[2m20:28:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LeftSidebar.vue, /src/style.css[22m
+[2m20:28:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LeftSidebar.vue, /src/style.css[22m
+[2m20:31:35[22m [31m[1m[vite][22m[39m Pre-transform error: Element is missing end tag.
+[2m20:31:35[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:112:9
+[33m  110|      <!-- Header -->
+  111|      <div class="h-10 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-50">
+  112|          <span class="font-bold text-xs text-gray-700">数据资源�?/span>
+     |           ^
+  113|          <div class="flex space-x-2">
+  114|              <i @click="uiStore.showLeftSidebar = false" class="ri-close-line text-gray-400 cursor-pointer hover:text-gray-800"></i>[39m
+      at createCompilerError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3053:13)
+      at Object.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m20:31:36[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:112:9
+[33m  110|      <!-- Header -->
+  111|      <div class="h-10 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-50">
+  112|          <span class="font-bold text-xs text-gray-700">数据资源�?/span>
+     |           ^
+  113|          <div class="flex space-x-2">
+  114|              <i @click="uiStore.showLeftSidebar = false" class="ri-close-line text-gray-400 cursor-pointer hover:text-gray-800"></i>[39m
+      at createCompilerError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3053:13)
+      at Object.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m20:31:38[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:112:9
+[33m  110|      <!-- Header -->
+  111|      <div class="h-10 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-50">
+  112|          <span class="font-bold text-xs text-gray-700">数据资源�?/span>
+     |           ^
+  113|          <div class="flex space-x-2">
+  114|              <i @click="uiStore.showLeftSidebar = false" class="ri-close-line text-gray-400 cursor-pointer hover:text-gray-800"></i>[39m
+      at createCompilerError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3053:13)
+      at Object.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m20:31:39[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:112:9
+[33m  110|      <!-- Header -->
+  111|      <div class="h-10 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-50">
+  112|          <span class="font-bold text-xs text-gray-700">数据资源�?/span>
+     |           ^
+  113|          <div class="flex space-x-2">
+  114|              <i @click="uiStore.showLeftSidebar = false" class="ri-close-line text-gray-400 cursor-pointer hover:text-gray-800"></i>[39m
+      at createCompilerError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3053:13)
+      at Object.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m20:31:40[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:112:9
+[33m  110|      <!-- Header -->
+  111|      <div class="h-10 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-50">
+  112|          <span class="font-bold text-xs text-gray-700">数据资源�?/span>
+     |           ^
+  113|          <div class="flex space-x-2">
+  114|              <i @click="uiStore.showLeftSidebar = false" class="ri-close-line text-gray-400 cursor-pointer hover:text-gray-800"></i>[39m
+      at createCompilerError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3053:13)
+      at Object.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m20:31:42[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:112:9
+[33m  110|      <!-- Header -->
+  111|      <div class="h-10 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-50">
+  112|          <span class="font-bold text-xs text-gray-700">数据资源�?/span>
+     |           ^
+  113|          <div class="flex space-x-2">
+  114|              <i @click="uiStore.showLeftSidebar = false" class="ri-close-line text-gray-400 cursor-pointer hover:text-gray-800"></i>[39m
+      at createCompilerError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3014:5)
+      at Object.onclosetag (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2381:13)
+      at Tokenizer.stateInClosingTagName (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3053:13)
+      at Object.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m20:33:08[22m [31m[1m[vite][22m[39m Pre-transform error: Attribute name cannot contain U+0022 ("), U+0027 ('), and U+003C (<).
+[2m20:33:08[22m [31m[1m[vite][22m[39m [31mInternal server error: Attribute name cannot contain U+0022 ("), U+0027 ('), and U+003C (<).[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:132:52
+[33m  130|                           class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-all"
+  131|                           title="查看拓扑�?>
+  132|                       <i class="ri-node-tree text-xs"></i>
+     |                                                      ^
+  133|                   </button>
+  134|               </div>[39m
+      at createCompilerError (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at Object.emitError [as onerr] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3014:5)
+      at Tokenizer.stateInAttrName (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:868:16)
+      at Tokenizer.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1117:16)
+      at Object.baseParse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3053:13)
+      at Object.parse (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+      at async handleHMRUpdate (file:///E:/%E6%AF%95%E8%AE%BE/%E5%9F%BA%E4%BA%8EIGinX%E7%9A%84%E6%95%B0%E6%8D%AE%E4%B8%8E%E6%A8%A1%E5%9E%8B%E6%99%BA%E8%83%BD%E5%85%B3%E8%81%94%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/code/iginx-assoc-ui/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:63718:31)
+[2m20:35:37[22m [31m[1m[vite][22m[39m Pre-transform error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }
+[2m20:35:37[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:35:38[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:35:39[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:35:39[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:36:45[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:36:46[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:36:46[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:36:46[22m [31m[1m[vite][22m[39m [31mInternal server error: [vue/compiler-sfc] Unterminated string constant. (19:26)
+
+E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue
+17 |      if (['ts', 'rel'].includes(node.type)) {
+18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+19 |              console.error('加载数据源结构失�?, err)
+   |                            ^
+20 |          })
+21 |      }[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mE:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/code/iginx-assoc-ui/src/components/LeftSidebar.vue[39m:19:26
+[33m  17 |      if (['ts', 'rel'].includes(node.type)) {
+  18 |          dataStore.loadDataSourceStructure(node.id).catch(err => {
+  19 |              console.error('加载数据源结构失�?, err)
+     |              ^
+  20 |          })
+  21 |      }[39m
+      at constructor (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:365:19)
+      at Parser.raise (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6599:19)
+      at Object.unterminated (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5664:20)
+      at readStringContents (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5406:16)
+      at Parser.readString (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6498:9)
+      at Parser.getTokenFromCode (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:6258:14)
+      at Parser.nextToken (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5782:10)
+      at Parser.next (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:5692:10)
+      at Parser.parseCoverCallAndAsyncArrowHead (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11159:10)
+      at Parser.parseSubscript (E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-ui\node_modules\@babel\parser\lib\index.js:11110:19)
+[2m20:38:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LeftSidebar.vue, /src/style.css[22m
+[2m01:49:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/RibbonToolbar.vue, /src/style.css, /src/components/LeftSidebar.vue, /src/components/DataModals.vue, /src/views/DataEditorView.vue[22m

@@ -209,7 +209,7 @@ public class StructureServiceImpl implements StructureService {
         StringBuilder builder = new StringBuilder();
         builder.append("INSERT INTO ").append(tablePath).append(" (KEY");
         for (String column : columnTypes.keySet()) {
-            builder.append(", ").append(IginxStructuredUtils.buildColumnPath(schema, table, column));
+            builder.append(", ").append(IginxStructuredUtils.buildInsertColumn(column));
         }
         builder.append(") VALUES (").append(IginxStructuredUtils.DUMMY_KEY);
         for (DataType type : columnTypes.values()) {

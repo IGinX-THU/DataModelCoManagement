@@ -253,14 +253,23 @@ public class DataExportServiceImpl implements DataExportService {
     }
 
     private void writeStructuredCsv(DataFileStorageService.StoredFile file, QueryDataSet dataSet) throws Exception {
-        List<String> headers = dataSet.getColumnList();
+        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet);
+        List<String> headers = meta.headers();
+        List<Integer> indices = meta.indices();
         try (BufferedWriter writer = Files.newBufferedWriter(file.path(), StandardCharsets.UTF_8)) {
+            writer.write('\uFEFF');
             writer.write(headers.stream().map(CsvUtils::toCsvValue).collect(Collectors.joining(",")));
             writer.newLine();
             Object[] row;
-            while ((row = dataSet.nextRow()) != null) {
+            int columnCount = indices.size();
+            while ((row = nextRowQuietly(dataSet)) != null) {
+                if (isDeletedStructuredRow(row, indices)) {
+                    continue;
+                }
                 List<String> values = new ArrayList<>();
-                for (Object value : row) {
+                for (int i = 0; i < columnCount; i++) {
+                    int idx = indices.get(i);
+                    Object value = idx < row.length ? row[idx] : null;
                     Object normalized = normalizeStructuredValue(value);
                     values.add(java.util.Objects.toString(normalized, ""));
                 }
@@ -271,7 +280,9 @@ public class DataExportServiceImpl implements DataExportService {
     }
 
     private void writeStructuredExcel(DataFileStorageService.StoredFile file, QueryDataSet dataSet) throws Exception {
-        List<String> headers = dataSet.getColumnList();
+        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet);
+        List<String> headers = meta.headers();
+        List<Integer> indices = meta.indices();
         List<List<String>> header = new ArrayList<>();
         for (String name : headers) {
             header.add(List.of(name));
@@ -280,9 +291,15 @@ public class DataExportServiceImpl implements DataExportService {
             WriteSheet sheet = EasyExcel.writerSheet("Sheet1").build();
             List<List<Object>> buffer = new ArrayList<>();
             Object[] row;
-            while ((row = dataSet.nextRow()) != null) {
+            int columnCount = indices.size();
+            while ((row = nextRowQuietly(dataSet)) != null) {
+                if (isDeletedStructuredRow(row, indices)) {
+                    continue;
+                }
                 List<Object> values = new ArrayList<>();
-                for (Object value : row) {
+                for (int i = 0; i < columnCount; i++) {
+                    int idx = indices.get(i);
+                    Object value = idx < row.length ? row[idx] : null;
                     values.add(normalizeStructuredValue(value));
                 }
                 buffer.add(values);
@@ -298,15 +315,23 @@ public class DataExportServiceImpl implements DataExportService {
     }
 
     private void writeStructuredJson(DataFileStorageService.StoredFile file, QueryDataSet dataSet) throws Exception {
-        List<String> headers = dataSet.getColumnList();
+        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet);
+        List<String> headers = meta.headers();
+        List<Integer> indices = meta.indices();
         try (OutputStream outputStream = Files.newOutputStream(file.path());
              JsonGenerator generator = objectMapper.getFactory().createGenerator(outputStream)) {
             generator.writeStartArray();
             Object[] row;
-            while ((row = dataSet.nextRow()) != null) {
+            int columnCount = indices.size();
+            while ((row = nextRowQuietly(dataSet)) != null) {
+                if (isDeletedStructuredRow(row, indices)) {
+                    continue;
+                }
                 generator.writeStartObject();
-                for (int i = 0; i < headers.size(); i++) {
-                    generator.writeObjectField(headers.get(i), normalizeStructuredValue(row[i]));
+                for (int i = 0; i < columnCount; i++) {
+                    int idx = indices.get(i);
+                    Object value = idx < row.length ? row[idx] : null;
+                    generator.writeObjectField(headers.get(i), normalizeStructuredValue(value));
                 }
                 generator.writeEndObject();
             }
@@ -319,6 +344,45 @@ public class DataExportServiceImpl implements DataExportService {
             return new String(bytes, StandardCharsets.UTF_8);
         }
         return value;
+    }
+
+    private boolean isDeletedStructuredRow(Object[] row, List<Integer> indices) {
+        if (indices == null || indices.isEmpty()) {
+            return false;
+        }
+        for (int idx : indices) {
+            Object value = idx < row.length ? row[idx] : null;
+            if (value != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Object[] nextRowQuietly(QueryDataSet dataSet) {
+        try {
+            return dataSet.nextRow();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private StructuredExportMeta resolveStructuredExportMeta(QueryDataSet dataSet) {
+        List<String> headers = IginxStructuredUtils.normalizeStructuredHeaders(dataSet.getColumnList());
+        List<String> visibleHeaders = new ArrayList<>();
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < headers.size(); i++) {
+            String header = headers.get(i);
+            if (IginxStructuredUtils.isInternalKey(header)) {
+                continue;
+            }
+            visibleHeaders.add(header);
+            indices.add(i);
+        }
+        return new StructuredExportMeta(visibleHeaders, indices);
+    }
+
+    private record StructuredExportMeta(List<String> headers, List<Integer> indices) {
     }
 
     private StructuredSqlBuilder.SqlWithParams buildStructuredQuery(DataExportRequest request,
@@ -345,7 +409,7 @@ public class DataExportServiceImpl implements DataExportService {
         List<StructuredQueryCondition> conditions = request.getConditions();
         StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
             conditions, sqlTypeMap.keySet(), sqlTypeMap);
-        String selectList = IginxStructuredUtils.buildSelectList(schemaWithMount, table, new ArrayList<>(columnTypes.keySet()), false);
+        String selectList = "*";
         String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, table);
         String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
         String sql = "SELECT " + selectList + " FROM " + tablePath + whereClause;

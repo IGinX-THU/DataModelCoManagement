@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph ClientZone[客户端区]
+        FE[Vue 前端]
+    end
+
+    subgraph AppZone[应用区]
+        APP[iginx-assoc-backend\nSpring Boot :8080]
+    end
+
+    subgraph DataZone[数据区]
+        PG[(PostgreSQL)]
+        IGINX[(IGinX)]
+        IFS[(IGinX FileSystem)]
+        FS[(本地文件目录 storage/data)]
+    end
+
+    FE --> APP
+    APP --> PG
+    APP --> IGINX
+    APP --> IFS
+    APP --> FS

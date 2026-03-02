@@ -105,10 +105,35 @@ public final class IginxStructuredUtils {
         return buildTablePath(schema, table) + "." + quoteIdentifier(column);
     }
 
+    public static String buildInsertColumn(String column) {
+        if (column == null || column.isBlank()) {
+            return "";
+        }
+        List<String> segments = splitPathSegments(column);
+        if (segments.isEmpty()) {
+            return "";
+        }
+        return segments.stream()
+            .map(IginxStructuredUtils::quoteIdentifier)
+            .collect(java.util.stream.Collectors.joining("."));
+    }
+
     public static String buildSelectList(String schema, String table, List<String> columns, boolean includeKey) {
+        return buildSelectList(schema, table, columns, includeKey, true);
+    }
+
+    public static String buildSelectList(String schema,
+                                         String table,
+                                         List<String> columns,
+                                         boolean includeKey,
+                                         boolean useAlias) {
         List<String> parts = new ArrayList<>();
         if (includeKey) {
-            parts.add("KEY AS " + quoteIdentifier(INTERNAL_KEY));
+            if (useAlias) {
+                parts.add("KEY AS " + quoteIdentifier(INTERNAL_KEY));
+            } else {
+                parts.add("KEY");
+            }
         }
         if (columns != null) {
             for (String column : columns) {
@@ -116,7 +141,11 @@ public final class IginxStructuredUtils {
                     continue;
                 }
                 String path = buildColumnPath(schema, table, column);
-                parts.add(path + " AS " + quoteIdentifier(column));
+                if (useAlias) {
+                    parts.add(path + " AS " + quoteIdentifier(column));
+                } else {
+                    parts.add(path);
+                }
             }
         }
         if (parts.isEmpty()) {
@@ -204,6 +233,26 @@ public final class IginxStructuredUtils {
             case DOUBLE -> Types.DOUBLE;
             case BINARY -> Types.VARCHAR;
         };
+    }
+
+    public static List<String> normalizeStructuredHeaders(List<String> headers) {
+        if (headers == null || headers.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (String header : headers) {
+            if (header == null || header.isBlank()) {
+                result.add("");
+                continue;
+            }
+            String trimmed = header.trim();
+            if ("KEY".equalsIgnoreCase(trimmed) || isInternalKey(trimmed)) {
+                result.add(INTERNAL_KEY);
+                continue;
+            }
+            result.add(extractColumnName(trimmed));
+        }
+        return result;
     }
 
     public static String extractColumnName(String path) {

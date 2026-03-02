@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.model.util;
 import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.framework.iginx.IginxFileSystemRegistrar;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,14 +29,15 @@ import java.util.Map;
 public class ModelFileStorageService {
 
     private static final String URI_PREFIX = "iginx://";
-    private static final String MODEL_ROOT = "models";
     private static final int CHUNK_SIZE = 1024 * 10;
     private static final int INSERT_BATCH_SIZE = 512;
     private static final int QUERY_BATCH_SIZE = 1024;
 
     private final IginxStorageWrapper iginxStorageWrapper;
+    private final IginxFileSystemRegistrar fileSystemRegistrar;
 
     public StoredFile store(MultipartFile file, String framework, Long profileId, String version) throws IOException {
+        ensureFileSystemReady();
         String fileName = resolveFileName(file);
         String storageUri = buildStorageUri(framework, profileId, version, fileName);
         String iginxPath = toIginxPath(storageUri);
@@ -68,6 +70,7 @@ public class ModelFileStorageService {
     }
 
     public void ensureExists(String storageUri) {
+        ensureFileSystemReady();
         String iginxPath = toIginxPath(storageUri);
         List<String> paths = new ArrayList<>();
         paths.add(iginxPath);
@@ -80,6 +83,7 @@ public class ModelFileStorageService {
     }
 
     public void writeTo(String storageUri, Long fileSize, OutputStream outputStream) throws IOException {
+        ensureFileSystemReady();
         String iginxPath = toIginxPath(storageUri);
         long totalChunks = resolveTotalChunks(fileSize);
         long start = 0;
@@ -118,6 +122,7 @@ public class ModelFileStorageService {
     }
 
     public void delete(String storageUri) {
+        ensureFileSystemReady();
         if (!StringUtils.hasText(storageUri)) {
             return;
         }
@@ -222,10 +227,11 @@ public class ModelFileStorageService {
     }
 
     private String buildStorageUri(String framework, Long profileId, String version, String fileName) {
+        String modelRoot = resolveModelRoot();
         String safeFramework = sanitizeUriSegment(framework).toLowerCase(Locale.ROOT);
         String safeVersion = sanitizeUriSegment(version);
         String safeFileName = sanitizeUriSegment(fileName);
-        return URI_PREFIX + MODEL_ROOT + "/" + safeFramework + "/" + profileId + "/" + safeVersion + "/" + safeFileName;
+        return URI_PREFIX + modelRoot + "/" + safeFramework + "/" + profileId + "/" + safeVersion + "/" + safeFileName;
     }
 
     private String sanitizeUriSegment(String value) {
@@ -238,6 +244,14 @@ public class ModelFileStorageService {
             return "unknown";
         }
         return replaced;
+    }
+
+    private String resolveModelRoot() {
+        String root = fileSystemRegistrar.getDataPrefix();
+        if (!StringUtils.hasText(root)) {
+            throw BizException.internal("模型文件存储前缀未配置");
+        }
+        return sanitizeUriSegment(root);
     }
 
     private String toIginxPath(String storageUri) {
@@ -258,6 +272,10 @@ public class ModelFileStorageService {
             throw BizException.badRequest("模型文件路径不合法");
         }
         return String.join(".", sanitized);
+    }
+
+    private void ensureFileSystemReady() {
+        fileSystemRegistrar.ensureRegistered();
     }
 
     private String sanitizeSegment(String segment) {

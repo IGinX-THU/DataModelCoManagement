@@ -37,6 +37,14 @@ iginx:
   user: ${IGINX_USER:root}
   password: ${IGINX_PASSWORD:root}
   storage-host-override: ${IGINX_STORAGE_HOST_OVERRIDE:127.0.0.1}
+  filesystem:
+    enabled: ${IGINX_FS_ENABLED:true}
+    auto-register: ${IGINX_FS_AUTO_REGISTER:true}
+    host: ${IGINX_FS_HOST:127.0.0.1}
+    port: ${IGINX_FS_PORT:6668}
+    data-prefix: ${IGINX_FS_DATA_PREFIX:models}
+    dir: ${IGINX_FS_DIR:data}
+    extra: ${IGINX_FS_EXTRA:}
 
 assoc:
   crypto:

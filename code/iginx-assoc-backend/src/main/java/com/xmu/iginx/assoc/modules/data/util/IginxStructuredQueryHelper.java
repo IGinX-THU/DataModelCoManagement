@@ -21,7 +21,7 @@ public class IginxStructuredQueryHelper {
 
     public QueryDataSet executeQuery(String sql, int fetchSize) {
         String normalized = normalizeSql(sql);
-        return iginxStorageWrapper.executeWithSession(session -> session.executeQuery(normalized, fetchSize));
+        return iginxStorageWrapper.executeWithSession(session -> session.executeQuery(normalized));
     }
 
     public void executeSql(String sql) {
@@ -92,13 +92,23 @@ public class IginxStructuredQueryHelper {
     }
 
     public List<Map<String, Object>> readAll(QueryDataSet dataSet) {
+        return readAll(dataSet, null);
+    }
+
+    public List<Map<String, Object>> readAll(QueryDataSet dataSet, List<String> headerOverride) {
         List<Map<String, Object>> records = new ArrayList<>();
-        List<String> headers = dataSet.getColumnList();
+        List<String> rawHeaders = dataSet.getColumnList();
+        List<String> headers = headerOverride;
+        if (headers == null || headers.isEmpty() || headers.size() != rawHeaders.size()) {
+            headers = rawHeaders;
+        }
         Object[] row;
         while ((row = nextRowQuietly(dataSet)) != null) {
             Map<String, Object> record = new LinkedHashMap<>();
-            for (int i = 0; i < headers.size(); i++) {
-                record.put(headers.get(i), normalizeValue(row[i]));
+            int headerCount = headers.size();
+            for (int i = 0; i < headerCount; i++) {
+                Object value = i < row.length ? row[i] : null;
+                record.put(headers.get(i), normalizeValue(value));
             }
             records.add(record);
         }

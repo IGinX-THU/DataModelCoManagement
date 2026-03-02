@@ -1,0 +1,20 @@
+2026-03-02 00:14:51,499 ERROR [TThreadPoolServer WorkerProcess-0] - [org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run:260] Thrift Error occurred during processing of message.
+org.apache.thrift.transport.TTransportException: java.net.SocketException: Connection reset
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:181)
+	at org.apache.thrift.transport.TTransport.readAll(TTransport.java:109)
+	at org.apache.thrift.protocol.TBinaryProtocol.readAll(TBinaryProtocol.java:464)
+	at org.apache.thrift.protocol.TBinaryProtocol.readI32(TBinaryProtocol.java:362)
+	at org.apache.thrift.protocol.TBinaryProtocol.readMessageBegin(TBinaryProtocol.java:245)
+	at org.apache.thrift.TBaseProcessor.process(TBaseProcessor.java:27)
+	at org.apache.thrift.server.TThreadPoolServer$WorkerProcess.run(TThreadPoolServer.java:250)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+Caused by: java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at java.io.BufferedInputStream.fill(BufferedInputStream.java:246)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:286)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	at org.apache.thrift.transport.TIOStreamTransport.read(TIOStreamTransport.java:177)
+	... 9 more

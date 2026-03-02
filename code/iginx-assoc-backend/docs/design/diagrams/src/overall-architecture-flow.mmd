@@ -1,0 +1,23 @@
+flowchart LR
+    U[前端 Web 客户端] --> G[Spring Boot API 网关层]
+    G --> C1[数据资源模块]
+    G --> C2[模型资产模块]
+    G --> C3[关联规则模块]
+    G --> C4[任务调度模块]
+    G --> C5[分析报告模块]
+    G --> C6[系统管理模块]
+
+    C1 --> IG[IGinX Session 封装层]
+    C2 --> MFS[模型文件存储服务]
+    C5 --> DFS[导出文件存储服务]
+    C4 --> TS[线程池任务调度器]
+
+    IG --> IGINX[(IGinX 服务)]
+    C1 --> PG[(PostgreSQL 元数据库)]
+    C2 --> PG
+    C3 --> PG
+    C4 --> PG
+    C6 --> PG
+
+    MFS --> IGINXFS[(IGinX 文件系统)]
+    DFS --> LOCAL[(本地存储目录)]

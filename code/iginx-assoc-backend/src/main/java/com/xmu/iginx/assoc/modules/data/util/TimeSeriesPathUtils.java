@@ -5,6 +5,7 @@ import com.xmu.iginx.assoc.common.exception.BizException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public final class TimeSeriesPathUtils {
 
@@ -109,6 +110,21 @@ public final class TimeSeriesPathUtils {
         }
         String combined = joinPath(normalizedMount, normalizedInput);
         return ensureNotSame(combined, normalizedMount, allowSameAsMount);
+    }
+
+    /**
+     * IoTDB 存储引擎在查询时会自动补上 root 前缀，因此挂载路径需要去掉 root.
+     */
+    public static String normalizeIotdbMountPath(String mountPath) {
+        String normalized = normalizePath(mountPath);
+        if (normalized.isEmpty()) {
+            return normalized;
+        }
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.startsWith(ROOT_PREFIX)) {
+            return normalized.substring(ROOT_PREFIX.length());
+        }
+        return normalized;
     }
 
     public static List<String> resolvePathsUnderMount(List<String> paths, String mountPath, boolean allowSameAsMount) {

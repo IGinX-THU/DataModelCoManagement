@@ -6,11 +6,14 @@ E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\model\util\ModelSchemaParser.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\service\DataQueryService.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\service\StructureService.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\framework\iginx\IginxFileSystemRegistrar.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\analysis\service\impl\AnalysisServiceImpl.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\service\SystemSqlService.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\vo\TimeSeriesQueryResultVO.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\vo\TableColumnVO.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\util\ConnectionConfigCipher.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\dto\TimeSeriesImportRequest.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\vo\SystemLogEntryVO.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\vo\DataImportResultVO.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\service\DataSourceService.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\dto\TimeSeriesDeleteRequest.java
@@ -18,7 +21,9 @@ E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\dto\TimeSeriesQueryRequest.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\task\entity\TaskEntity.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\relation\dto\AssociationRuleCreateRequest.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\service\impl\SystemLogServiceImpl.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\service\impl\DashboardServiceImpl.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\framework\iginx\IginxFileSystemConfig.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\dto\TableDropRequest.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\util\JdbcValueConverter.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\util\TimeParser.java
@@ -34,7 +39,9 @@ E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\controller\DashboardController.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\model\dto\ModelSchemaParam.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\model\dto\ModelIoSchema.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\dto\SqlExecuteRequest.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\vo\DataSourceStructureNodeVO.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\service\impl\SystemSqlServiceImpl.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\model\entity\ModelAssetEntity.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\repository\DataResourceRepository.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\util\IginxStructuredUtils.java
@@ -72,6 +79,7 @@ E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\framework\crypto\CryptoConfig.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\util\IginxDataTypeConverter.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\model\service\ModelAssetService.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\vo\SqlExecuteResultVO.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\dto\MeasurementRequest.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\relation\service\impl\AssociationRuleServiceImpl.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\service\impl\DataSourceServiceImpl.java
@@ -102,6 +110,7 @@ E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\relation\service\AssociationRuleService.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\analysis\dto\TaskSeriesResponse.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\service\impl\DataExportServiceImpl.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\service\SystemLogService.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\task\service\TaskScheduler.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\analysis\dto\TaskReportRequest.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\analysis\vo\TaskSeriesPointVO.java
@@ -121,6 +130,7 @@ E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\framework\storage\StorageConfig.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\model\service\impl\ModelAssetServiceImpl.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\relation\dto\RuleStatusRequest.java
+E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\sys\service\SystemLogBuffer.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\framework\security\SecurityConfig.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\data\dto\DataExportRequest.java
 E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\src\main\java\com\xmu\iginx\assoc\modules\task\dto\TaskSubmitRequest.java
