@@ -3,7 +3,9 @@ package com.xmu.iginx.assoc.modules.model.service;
 import com.xmu.iginx.assoc.modules.model.dto.ModelProfileUpdateRequest;
 import com.xmu.iginx.assoc.modules.model.dto.ModelUploadRequest;
 import com.xmu.iginx.assoc.modules.model.entity.ModelAssetEntity;
+import com.xmu.iginx.assoc.modules.model.vo.ModelFunctionOptionVO;
 import com.xmu.iginx.assoc.modules.model.vo.ModelProfileVO;
+import com.xmu.iginx.assoc.modules.model.vo.ModelSchemaParseVO;
 import com.xmu.iginx.assoc.modules.model.vo.ModelVersionVO;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,6 +26,10 @@ public interface ModelAssetService {
     void deleteVersion(Long assetId);
 
     ModelVersionVO parseSchema(MultipartFile file);
+
+    List<ModelFunctionOptionVO> listFunctions(MultipartFile file);
+
+    ModelSchemaParseVO parseSchemaByFunction(MultipartFile file, String functionName);
 
     ModelAssetEntity getAsset(Long assetId);
 }

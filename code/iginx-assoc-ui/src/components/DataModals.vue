@@ -60,12 +60,43 @@ const exportForm = reactive({
     endTime: '',
     format: 'csv',
     layout: 'wide',
-    sql: ''
+    sql: '',
+    columns: []
 })
 
 const isConnecting = ref(false)
 const isImporting = ref(false)
 const isExporting = ref(false)
+const exportColumns = ref([])
+const isLoadingExportColumns = ref(false)
+
+const pickAllExportColumns = () => {
+    exportForm.columns = exportColumns.value.map(column => column.name).filter(Boolean)
+}
+
+const clearExportColumns = () => {
+    exportForm.columns = []
+}
+
+const loadExportColumns = async (node) => {
+    if (!node?.sourceId || !node?.schema || !node?.table) {
+        exportColumns.value = []
+        exportForm.columns = []
+        return
+    }
+    isLoadingExportColumns.value = true
+    try {
+        const columns = await dataStore.fetchTableColumns(node.sourceId, node.schema, node.table)
+        exportColumns.value = Array.isArray(columns) ? columns : []
+        exportForm.columns = []
+    } catch (e) {
+        console.error('Failed to load export columns', e)
+        exportColumns.value = []
+        exportForm.columns = []
+    } finally {
+        isLoadingExportColumns.value = false
+    }
+}
 
 watch(() => addSourceForm.type, (val, oldVal) => {
     const nextPort = portDefaults[val] || ''
@@ -254,12 +285,77 @@ const normalizeTime = (value) => {
     return text.length === 16 ? `${text}:00` : text
 }
 
-watch(() => dataStore.showExportModal, (val) => {
-    if (val && ['point', 'ts'].includes(dataStore.currentNode.type)) {
+const splitPathSegments = (value) => String(value || '')
+    .split('.')
+    .map(item => item.trim())
+    .filter(Boolean)
+
+const startsWithSegments = (segments, prefix) => {
+    if (!prefix.length) return true
+    if (segments.length < prefix.length) return false
+    for (let i = 0; i < prefix.length; i += 1) {
+        if (String(segments[i]).toLowerCase() !== String(prefix[i]).toLowerCase()) {
+            return false
+        }
+    }
+    return true
+}
+
+const quoteIdentifier = (identifier) => {
+    const text = String(identifier || '').trim()
+    if (!text) return ''
+    if (/^[A-Za-z0-9_]+$/.test(text)) {
+        return text
+    }
+    return `\`${text.replace(/\\/g, '\\\\').replace(/`/g, '\\`')}\``
+}
+
+const buildStructuredExportSql = (node, selectedColumns) => {
+    const mountSegments = splitPathSegments(node.mountPath)
+    const schemaSegments = splitPathSegments(node.schema)
+    const tableSegments = splitPathSegments(node.table)
+    if (!tableSegments.length || !selectedColumns.length) {
+        return ''
+    }
+    const pathSegments = []
+    if (schemaSegments.length) {
+        if (startsWithSegments(schemaSegments, mountSegments)) {
+            pathSegments.push(...schemaSegments)
+        } else {
+            pathSegments.push(...mountSegments, ...schemaSegments)
+        }
+    } else {
+        pathSegments.push(...mountSegments)
+    }
+    pathSegments.push(...tableSegments)
+    const tablePath = pathSegments.map(quoteIdentifier).filter(Boolean).join('.')
+    const selectList = selectedColumns.map(quoteIdentifier).filter(Boolean).join(', ')
+    if (!tablePath || !selectList) {
+        return ''
+    }
+    return `SELECT ${selectList} FROM ${tablePath}`
+}
+
+watch(() => dataStore.showExportModal, async (val) => {
+    if (!val) {
+        return
+    }
+    const node = dataStore.currentNode
+    exportForm.sql = ''
+    if (['point', 'ts'].includes(node.type)) {
         if (!exportForm.startTime || !exportForm.endTime) {
             setDefaultRange(exportForm)
         }
+        exportColumns.value = []
+        exportForm.columns = []
+        return
     }
+    if (node.type === 'table') {
+        await loadExportColumns(node)
+        return
+    }
+    exportColumns.value = []
+    exportForm.columns = []
 })
 
 watch(() => dataStore.showMaintenanceModal, (val) => {
@@ -324,8 +420,22 @@ const handleExport = async () => {
             payload.type = 'STRUCT'
             payload.schema = node.schema
             payload.table = node.table
-            if (exportForm.sql) {
-                payload.sql = exportForm.sql
+            const selectedColumns = exportForm.columns.filter(Boolean)
+            if (selectedColumns.length === 0) {
+                alert('请至少选择一列后再导出')
+                return
+            }
+            payload.columns = selectedColumns
+            const sqlText = (exportForm.sql || '').trim()
+            if (sqlText) {
+                payload.sql = sqlText
+            } else {
+                const autoSql = buildStructuredExportSql(node, selectedColumns)
+                if (!autoSql) {
+                    alert('导出 SQL 生成失败，请检查表路径后重试')
+                    return
+                }
+                payload.sql = autoSql
             }
         } else {
             alert('请选择具体测点或数据表再导出')
@@ -755,7 +865,25 @@ const handleMaintenance = async () => {
                      </div>
                      <div>
                          <label class="block text-xs font-bold text-gray-700 mb-1">自定义 SQL（可选）</label>
-                         <textarea v-model="exportForm.sql" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="SELECT * FROM ..."></textarea>
+                        <div class="mb-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-bold text-gray-700">导出列（可多选）</label>
+                                <div class="flex items-center space-x-2">
+                                    <button @click="pickAllExportColumns" :disabled="isLoadingExportColumns || !exportColumns.length" class="text-xs text-blue-600 disabled:text-gray-300">全选</button>
+                                    <button @click="clearExportColumns" :disabled="isLoadingExportColumns || !exportColumns.length" class="text-xs text-gray-500 disabled:text-gray-300">清空</button>
+                                </div>
+                            </div>
+                            <div class="max-h-36 overflow-y-auto border border-gray-300 rounded px-2 py-1 space-y-1">
+                                <div v-if="isLoadingExportColumns" class="text-xs text-gray-400 py-2">正在加载列信息...</div>
+                                <div v-else-if="!exportColumns.length" class="text-xs text-gray-400 py-2">暂无可选列</div>
+                                <label v-else v-for="column in exportColumns" :key="column.name" class="flex items-center text-xs py-1">
+                                    <input type="checkbox" v-model="exportForm.columns" :value="column.name" class="mr-2">
+                                    <span class="text-gray-700">{{ column.name }}</span>
+                                    <span class="ml-auto text-gray-400">{{ column.type || '-' }}</span>
+                                </label>
+                            </div>
+                        </div>
+                        <textarea v-model="exportForm.sql" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="SELECT * FROM ..."></textarea>
                      </div>
                  </div>
              </div>

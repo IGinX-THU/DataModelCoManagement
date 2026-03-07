@@ -39,7 +39,16 @@ SQL alternative:
 - File: examples/model/io_schema.json
   - Can be pasted into the IO Schema field during model upload
 
-## Association Example\n- File: examples/association_rule.json\n\n## Quick Usage Notes
+## External API Examples
+- Directory: examples/external
+  - `README.md`: cURL 指令与运行步骤
+  - `java/ExternalApiJavaExample.java`: Java 端到端调用示例
+  - `python/external_api_example.py`: Python 端到端调用示例
+
+## Association Example
+- File: examples/association_rule.json
+
+## Quick Usage Notes
 1. Create a data source for IoTDB/IGinX (for time series) and PostgreSQL (for structured).
 2. Use the import wizard in Data Editor to upload CSV/SQL files.
 3. Use Model Assets to upload the model file and verify parsed schema.

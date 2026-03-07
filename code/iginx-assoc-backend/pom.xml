@@ -18,6 +18,7 @@
         <iginx.version>0.8.0</iginx.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <openapi.generator.skip>true</openapi.generator.skip>
     </properties>
     <dependencies>
         <!-- Web -->
@@ -119,5 +120,62 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>sdk-generation</id>
+            <activation>
+                <property>
+                    <name>generateSdk</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.openapitools</groupId>
+                        <artifactId>openapi-generator-maven-plugin</artifactId>
+                        <version>7.10.0</version>
+                        <executions>
+                            <execution>
+                                <id>generate-java-sdk</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>generate</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${openapi.generator.skip}</skip>
+                                    <inputSpec>${project.basedir}/docs/openapi.yaml</inputSpec>
+                                    <generatorName>java</generatorName>
+                                    <output>${project.basedir}/../sdks/openapi/generated/java</output>
+                                    <configOptions>
+                                        <dateLibrary>java8</dateLibrary>
+                                        <serializationLibrary>jackson</serializationLibrary>
+                                        <library>native</library>
+                                    </configOptions>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>generate-python-sdk</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>generate</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${openapi.generator.skip}</skip>
+                                    <inputSpec>${project.basedir}/docs/openapi.yaml</inputSpec>
+                                    <generatorName>python</generatorName>
+                                    <output>${project.basedir}/../sdks/openapi/generated/python</output>
+                                    <configOptions>
+                                        <packageName>iginx_assoc_generated_client</packageName>
+                                    </configOptions>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

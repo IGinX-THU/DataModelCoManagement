@@ -177,7 +177,7 @@ const navigate = async (tab) => {
                 <div class="icon-box bg-orange-50 text-orange-600 group-hover:bg-orange-100"><i class="ri-edit-box-line text-2xl"></i></div>
                 <span>元模型编辑器</span>
             </div>
-            <div @click="modelStore.showDeleteModal = true" :class="{'opacity-50 pointer-events-none': !modelStore.selectedModel}" class="ribbon-btn group">
+            <div @click="modelStore.showDeleteModal = true" :class="{'opacity-50 pointer-events-none': !modelStore.selectedModel && (modelStore.selectedModelIds?.length || 0) === 0}" class="ribbon-btn group">
                 <div class="icon-box bg-red-50 text-red-600 group-hover:bg-red-100"><i class="ri-delete-bin-line text-2xl"></i></div>
                 <span>移除模型</span>
             </div>

@@ -6,7 +6,9 @@ import com.xmu.iginx.assoc.modules.model.dto.ModelUploadRequest;
 import com.xmu.iginx.assoc.modules.model.entity.ModelAssetEntity;
 import com.xmu.iginx.assoc.modules.model.service.ModelAssetService;
 import com.xmu.iginx.assoc.modules.model.util.ModelFileStorageService;
+import com.xmu.iginx.assoc.modules.model.vo.ModelFunctionOptionVO;
 import com.xmu.iginx.assoc.modules.model.vo.ModelProfileVO;
+import com.xmu.iginx.assoc.modules.model.vo.ModelSchemaParseVO;
 import com.xmu.iginx.assoc.modules.model.vo.ModelVersionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -101,5 +103,16 @@ public class ModelAssetController {
     @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<ModelVersionVO> parse(@RequestPart("file") MultipartFile file) {
         return Result.success(modelAssetService.parseSchema(file));
+    }
+
+    @PostMapping(value = "/parse/functions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<List<ModelFunctionOptionVO>> listFunctions(@RequestPart("file") MultipartFile file) {
+        return Result.success(modelAssetService.listFunctions(file));
+    }
+
+    @PostMapping(value = "/parse/schema", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<ModelSchemaParseVO> parseByFunction(@RequestPart("file") MultipartFile file,
+                                                      @RequestPart("functionName") String functionName) {
+        return Result.success(modelAssetService.parseSchemaByFunction(file, functionName));
     }
 }

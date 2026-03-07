@@ -30,6 +30,8 @@ public class DataExportRequest {
 
     private String table;
 
+    private List<String> columns;
+
     private List<StructuredQueryCondition> conditions;
 
     private String sql;

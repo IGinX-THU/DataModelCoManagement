@@ -87,3 +87,18 @@ CREATE TABLE IF NOT EXISTS data_export_task (
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- External Jobs
+CREATE TABLE IF NOT EXISTS external_job (
+    id VARCHAR(32) PRIMARY KEY,
+    job_type VARCHAR(32) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    request_json TEXT,
+    result_json TEXT,
+    error_code VARCHAR(64),
+    error_message TEXT,
+    trace_id VARCHAR(128),
+    submit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    start_time TIMESTAMP,
+    finish_time TIMESTAMP
+);

@@ -13,8 +13,11 @@ import com.xmu.iginx.assoc.modules.model.repository.MetaModelProfileRepository;
 import com.xmu.iginx.assoc.modules.model.repository.ModelAssetRepository;
 import com.xmu.iginx.assoc.modules.model.service.ModelAssetService;
 import com.xmu.iginx.assoc.modules.model.util.ModelFileStorageService;
+import com.xmu.iginx.assoc.modules.model.util.ModelFunctionSchemaParser;
 import com.xmu.iginx.assoc.modules.model.util.ModelSchemaParser;
+import com.xmu.iginx.assoc.modules.model.vo.ModelFunctionOptionVO;
 import com.xmu.iginx.assoc.modules.model.vo.ModelProfileVO;
+import com.xmu.iginx.assoc.modules.model.vo.ModelSchemaParseVO;
 import com.xmu.iginx.assoc.modules.model.vo.ModelVersionVO;
 import com.xmu.iginx.assoc.modules.relation.repository.AssociationRuleRepository;
 import jakarta.transaction.Transactional;
@@ -30,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +48,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
     private final AssociationRuleRepository associationRuleRepository;
     private final ModelFileStorageService fileStorageService;
     private final ModelSchemaParser schemaParser;
+    private final ModelFunctionSchemaParser functionSchemaParser;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -200,6 +205,58 @@ public class ModelAssetServiceImpl implements ModelAssetService {
     }
 
     @Override
+    public List<ModelFunctionOptionVO> listFunctions(MultipartFile file) {
+        validateFile(file);
+        String fileType = normalizeType(getExtension(file.getOriginalFilename()));
+        if (!"PY".equals(fileType) && !"MAT".equals(fileType)) {
+            return Collections.emptyList();
+        }
+        byte[] fileBytes = readFileBytes(file);
+        return functionSchemaParser.listFunctions(fileBytes, fileType).stream()
+            .map(item -> {
+                ModelFunctionOptionVO vo = new ModelFunctionOptionVO();
+                vo.setName(item.name());
+                vo.setDisplayName(item.displayName());
+                vo.setSignature(item.signature());
+                vo.setLineNumber(item.lineNumber());
+                return vo;
+            })
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public ModelSchemaParseVO parseSchemaByFunction(MultipartFile file, String functionName) {
+        validateFile(file);
+        if (!StringUtils.hasText(functionName)) {
+            throw BizException.badRequest("Function name cannot be empty");
+        }
+        String fileType = normalizeType(getExtension(file.getOriginalFilename()));
+        ModelSchemaParseVO vo = new ModelSchemaParseVO();
+        if (!"PY".equals(fileType) && !"MAT".equals(fileType)) {
+            vo.setInputs(Collections.emptyList());
+            vo.setOutputs(Collections.emptyList());
+            vo.setParseMode(ModelFunctionSchemaParser.PARSE_MODE_COMMENT_FALLBACK);
+            vo.setMessage("Unsupported file type for function parsing");
+            return vo;
+        }
+
+        byte[] fileBytes = readFileBytes(file);
+        List<ModelFunctionSchemaParser.FunctionMeta> functions = functionSchemaParser.listFunctions(fileBytes, fileType);
+        boolean exists = functions.stream().anyMatch(item -> item.name().equals(functionName));
+        if (!exists) {
+            throw BizException.badRequest("Function not found: " + functionName);
+        }
+
+        ModelFunctionSchemaParser.ParseSchemaResult result =
+            functionSchemaParser.parseByFunction(fileBytes, fileType, functionName);
+        vo.setInputs(defaultList(result.schema().getInputs()));
+        vo.setOutputs(defaultList(result.schema().getOutputs()));
+        vo.setParseMode(result.parseMode());
+        vo.setMessage(result.message());
+        return vo;
+    }
+
+    @Override
     public ModelAssetEntity getAsset(Long assetId) {
         return findAsset(assetId);
     }
@@ -309,6 +366,14 @@ public class ModelAssetServiceImpl implements ModelAssetService {
             return schemaParser.parse(file.getBytes());
         } catch (IOException e) {
             throw BizException.internal("模型文件解析失败");
+        }
+    }
+
+    private byte[] readFileBytes(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException e) {
+            throw BizException.internal("Failed to read model file");
         }
     }
 

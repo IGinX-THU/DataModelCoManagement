@@ -13,6 +13,7 @@ tags:
 - name: 关联规则管理（AssociationRuleController）
 - name: 任务管理（TaskController）
 - name: 分析与报告（AnalysisController）
+- name: External
 paths:
   /:
     get:
@@ -3183,6 +3184,219 @@ paths:
         required: true
         schema:
           type: string
+  /api/v1/external/model-jobs:
+    post:
+      summary: 提交模型调用任务
+      operationId: external_01
+      tags:
+      - External
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalModelJobRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ExternalJobCreateResponse'
+                  timestamp:
+                    type: integer
+                    format: int64
+        '400':
+          description: Validation or business error
+        '500':
+          description: Internal server error
+  /api/v1/external/algorithm-jobs:
+    post:
+      summary: 提交算法调用任务
+      operationId: external_02
+      tags:
+      - External
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalAlgorithmJobRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ExternalJobCreateResponse'
+                  timestamp:
+                    type: integer
+                    format: int64
+        '400':
+          description: Validation or business error
+        '500':
+          description: Internal server error
+  /api/v1/external/data-import-jobs:
+    post:
+      summary: 提交数据导入任务
+      operationId: external_03
+      tags:
+      - External
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - request
+              - file
+              properties:
+                request:
+                  $ref: '#/components/schemas/ExternalDataImportJobRequest'
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ExternalJobCreateResponse'
+                  timestamp:
+                    type: integer
+                    format: int64
+        '400':
+          description: Validation or business error
+        '500':
+          description: Internal server error
+  /api/v1/external/data-export-jobs:
+    post:
+      summary: 提交数据导出任务
+      operationId: external_04
+      tags:
+      - External
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalDataExportJobRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ExternalJobCreateResponse'
+                  timestamp:
+                    type: integer
+                    format: int64
+        '400':
+          description: Validation or business error
+        '500':
+          description: Internal server error
+  /api/v1/external/jobs/{jobId}:
+    get:
+      summary: ????????
+      operationId: external_05
+      tags:
+      - External
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ExternalJobStatusResponse'
+                  timestamp:
+                    type: integer
+                    format: int64
+        '400':
+          description: Validation or business error
+        '500':
+          description: Internal server error
+  /api/v1/external/jobs/{jobId}/result:
+    get:
+      summary: 查询外部任务结果
+      operationId: external_06
+      tags:
+      - External
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    format: int32
+                  msg:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ExternalJobResultResponse'
+                  timestamp:
+                    type: integer
+                    format: int64
+        '400':
+          description: Validation or business error
+        '500':
+          description: Internal server error
 components:
   schemas:
     Void:
@@ -3966,3 +4180,154 @@ components:
     ModelUploadRequest:
       type: object
       description: See API docs
+    ExternalJobCreateRequest:
+      type: object
+      properties:
+        jobType:
+          type: string
+          description: MODEL_CALL / ALGORITHM_CALL / DATA_IMPORT / DATA_EXPORT
+        modelJob:
+          $ref: '#/components/schemas/ExternalModelJobRequest'
+        algorithmJob:
+          $ref: '#/components/schemas/ExternalAlgorithmJobRequest'
+        dataImportJob:
+          $ref: '#/components/schemas/ExternalDataImportJobRequest'
+        dataExportJob:
+          $ref: '#/components/schemas/ExternalDataExportJobRequest'
+    TaskTimeRange:
+      type: object
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+      required:
+      - start
+      - end
+    ExternalModelJobRequest:
+      type: object
+      properties:
+        ruleId:
+          type: integer
+          format: int64
+        timeRange:
+          $ref: '#/components/schemas/TaskTimeRange'
+        pollIntervalSeconds:
+          type: integer
+          format: int32
+          default: 1
+        timeoutSeconds:
+          type: integer
+          format: int32
+          default: 1800
+      required:
+      - ruleId
+      - timeRange
+    ExternalAlgorithmJobRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          description: TASK_SERIES / TASK_COMPARE / TASK_EXPORT / TASK_REPORT
+        taskId:
+          type: string
+        relative:
+          type: boolean
+        taskIds:
+          type: array
+          items:
+            type: string
+        mode:
+          type: string
+        includeModel:
+          type: boolean
+        includeInput:
+          type: boolean
+        includeOutput:
+          type: boolean
+        format:
+          type: string
+        includeStats:
+          type: boolean
+        includeCharts:
+          type: boolean
+      required:
+      - action
+    ExternalDataImportJobRequest:
+      type: object
+      properties:
+        importType:
+          type: string
+          description: TIME_SERIES / STRUCTURED
+        timeSeriesRequest:
+          $ref: '#/components/schemas/TimeSeriesImportRequest'
+        structuredRequest:
+          $ref: '#/components/schemas/StructuredImportRequest'
+      required:
+      - importType
+    ExternalDataExportJobRequest:
+      type: object
+      properties:
+        exportRequest:
+          $ref: '#/components/schemas/DataExportRequest'
+      required:
+      - exportRequest
+    ExternalJobCreateResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+        submitTime:
+          type: string
+          format: date-time
+    ExternalErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        traceId:
+          type: string
+    ExternalJobStatusResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+        jobType:
+          type: string
+        status:
+          type: string
+        submitTime:
+          type: string
+          format: date-time
+        startTime:
+          type: string
+          format: date-time
+        finishTime:
+          type: string
+          format: date-time
+        error:
+          $ref: '#/components/schemas/ExternalErrorResponse'
+    ExternalJobResultResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+        result:
+          type: object
+          additionalProperties: true
+          nullable: true
+        downloadUrl:
+          type: string
+        finishTime:
+          type: string
+          format: date-time
+        error:
+          $ref: '#/components/schemas/ExternalErrorResponse'

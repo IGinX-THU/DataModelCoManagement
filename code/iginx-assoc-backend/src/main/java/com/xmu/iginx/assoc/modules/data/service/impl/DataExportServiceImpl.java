@@ -38,9 +38,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -154,19 +156,21 @@ public class DataExportServiceImpl implements DataExportService {
         try {
             Map<String, DataType> columnTypes = null;
             String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
+            List<String> selectedColumns = normalizeExportColumns(request.getColumns());
             if (request.getSql() == null || request.getSql().isBlank()) {
                 columnTypes = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
+                validateExportColumns(selectedColumns, columnTypes);
             }
             StructuredSqlBuilder.SqlWithParams sqlWithParams = buildStructuredQuery(request, columnTypes, schemaWithMount);
             String finalSql = IginxStructuredUtils.renderSqlWithParams(sqlWithParams.sql(), sqlWithParams.params());
             QueryDataSet dataSet = structuredQueryHelper.executeQuery(finalSql, 1000);
             try {
                 if ("EXCEL".equals(format)) {
-                    writeStructuredExcel(file, dataSet);
+                    writeStructuredExcel(file, dataSet, selectedColumns);
                 } else if ("JSON".equals(format)) {
-                    writeStructuredJson(file, dataSet);
+                    writeStructuredJson(file, dataSet, selectedColumns);
                 } else {
-                    writeStructuredCsv(file, dataSet);
+                    writeStructuredCsv(file, dataSet, selectedColumns);
                 }
             } finally {
                 closeQuietly(dataSet);
@@ -252,8 +256,10 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
-    private void writeStructuredCsv(DataFileStorageService.StoredFile file, QueryDataSet dataSet) throws Exception {
-        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet);
+    private void writeStructuredCsv(DataFileStorageService.StoredFile file,
+                                    QueryDataSet dataSet,
+                                    List<String> selectedColumns) throws Exception {
+        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet, selectedColumns);
         List<String> headers = meta.headers();
         List<Integer> indices = meta.indices();
         try (BufferedWriter writer = Files.newBufferedWriter(file.path(), StandardCharsets.UTF_8)) {
@@ -263,7 +269,7 @@ public class DataExportServiceImpl implements DataExportService {
             Object[] row;
             int columnCount = indices.size();
             while ((row = nextRowQuietly(dataSet)) != null) {
-                if (isDeletedStructuredRow(row, indices)) {
+                if (isDeletedStructuredRow(row, meta.visibleDataIndices())) {
                     continue;
                 }
                 List<String> values = new ArrayList<>();
@@ -279,8 +285,10 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
-    private void writeStructuredExcel(DataFileStorageService.StoredFile file, QueryDataSet dataSet) throws Exception {
-        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet);
+    private void writeStructuredExcel(DataFileStorageService.StoredFile file,
+                                      QueryDataSet dataSet,
+                                      List<String> selectedColumns) throws Exception {
+        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet, selectedColumns);
         List<String> headers = meta.headers();
         List<Integer> indices = meta.indices();
         List<List<String>> header = new ArrayList<>();
@@ -293,7 +301,7 @@ public class DataExportServiceImpl implements DataExportService {
             Object[] row;
             int columnCount = indices.size();
             while ((row = nextRowQuietly(dataSet)) != null) {
-                if (isDeletedStructuredRow(row, indices)) {
+                if (isDeletedStructuredRow(row, meta.visibleDataIndices())) {
                     continue;
                 }
                 List<Object> values = new ArrayList<>();
@@ -314,8 +322,10 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
-    private void writeStructuredJson(DataFileStorageService.StoredFile file, QueryDataSet dataSet) throws Exception {
-        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet);
+    private void writeStructuredJson(DataFileStorageService.StoredFile file,
+                                     QueryDataSet dataSet,
+                                     List<String> selectedColumns) throws Exception {
+        StructuredExportMeta meta = resolveStructuredExportMeta(dataSet, selectedColumns);
         List<String> headers = meta.headers();
         List<Integer> indices = meta.indices();
         try (OutputStream outputStream = Files.newOutputStream(file.path());
@@ -324,7 +334,7 @@ public class DataExportServiceImpl implements DataExportService {
             Object[] row;
             int columnCount = indices.size();
             while ((row = nextRowQuietly(dataSet)) != null) {
-                if (isDeletedStructuredRow(row, indices)) {
+                if (isDeletedStructuredRow(row, meta.visibleDataIndices())) {
                     continue;
                 }
                 generator.writeStartObject();
@@ -367,22 +377,98 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
-    private StructuredExportMeta resolveStructuredExportMeta(QueryDataSet dataSet) {
+    private StructuredExportMeta resolveStructuredExportMeta(QueryDataSet dataSet, List<String> selectedColumns) {
         List<String> headers = IginxStructuredUtils.normalizeStructuredHeaders(dataSet.getColumnList());
         List<String> visibleHeaders = new ArrayList<>();
-        List<Integer> indices = new ArrayList<>();
+        List<Integer> visibleIndices = new ArrayList<>();
+        Map<String, Integer> exactIndexMap = new java.util.LinkedHashMap<>();
+        Map<String, Integer> lowerIndexMap = new java.util.LinkedHashMap<>();
         for (int i = 0; i < headers.size(); i++) {
             String header = headers.get(i);
             if (IginxStructuredUtils.isInternalKey(header)) {
                 continue;
             }
             visibleHeaders.add(header);
-            indices.add(i);
+            visibleIndices.add(i);
+            exactIndexMap.putIfAbsent(header, i);
+            lowerIndexMap.putIfAbsent(header.toLowerCase(Locale.ROOT), i);
         }
-        return new StructuredExportMeta(visibleHeaders, indices);
+        if (visibleHeaders.isEmpty()) {
+            throw BizException.badRequest("Table columns not found");
+        }
+        if (selectedColumns == null || selectedColumns.isEmpty()) {
+            return new StructuredExportMeta(visibleHeaders, visibleIndices, visibleIndices);
+        }
+        List<String> outputHeaders = new ArrayList<>();
+        List<Integer> outputIndices = new ArrayList<>();
+        for (String requested : selectedColumns) {
+            Integer index = resolveColumnIndex(requested, exactIndexMap, lowerIndexMap);
+            if (index == null) {
+                throw BizException.badRequest("Export column not found: " + requested);
+            }
+            outputHeaders.add(headers.get(index));
+            outputIndices.add(index);
+        }
+        if (outputHeaders.isEmpty()) {
+            throw BizException.badRequest("No export columns selected");
+        }
+        return new StructuredExportMeta(outputHeaders, outputIndices, visibleIndices);
     }
 
-    private record StructuredExportMeta(List<String> headers, List<Integer> indices) {
+    private Integer resolveColumnIndex(String column,
+                                       Map<String, Integer> exactIndexMap,
+                                       Map<String, Integer> lowerIndexMap) {
+        if (column == null || column.isBlank()) {
+            return null;
+        }
+        String trimmed = column.trim();
+        Integer exact = exactIndexMap.get(trimmed);
+        if (exact != null) {
+            return exact;
+        }
+        return lowerIndexMap.get(trimmed.toLowerCase(Locale.ROOT));
+    }
+
+    private List<String> normalizeExportColumns(List<String> requestedColumns) {
+        if (requestedColumns == null || requestedColumns.isEmpty()) {
+            return List.of();
+        }
+        Set<String> deduplicated = new LinkedHashSet<>();
+        for (String column : requestedColumns) {
+            if (column == null || column.isBlank()) {
+                continue;
+            }
+            String trimmed = column.trim();
+            if (IginxStructuredUtils.isInternalKey(trimmed)) {
+                continue;
+            }
+            deduplicated.add(trimmed);
+        }
+        if (deduplicated.isEmpty()) {
+            return List.of();
+        }
+        return new ArrayList<>(deduplicated);
+    }
+
+    private void validateExportColumns(List<String> selectedColumns, Map<String, DataType> columnTypes) {
+        if (selectedColumns == null || selectedColumns.isEmpty()) {
+            return;
+        }
+        if (columnTypes == null || columnTypes.isEmpty()) {
+            throw BizException.badRequest("Table columns not found");
+        }
+        Set<String> allowedLowerCase = columnTypes.keySet().stream()
+            .filter(name -> name != null && !name.isBlank())
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+        for (String column : selectedColumns) {
+            if (!allowedLowerCase.contains(column.toLowerCase(Locale.ROOT))) {
+                throw BizException.badRequest("Export column not found: " + column);
+            }
+        }
+    }
+
+    private record StructuredExportMeta(List<String> headers, List<Integer> indices, List<Integer> visibleDataIndices) {
     }
 
     private StructuredSqlBuilder.SqlWithParams buildStructuredQuery(DataExportRequest request,
@@ -480,6 +566,10 @@ public class DataExportServiceImpl implements DataExportService {
                     }
                 }
                 int columns = Math.max(1, columnTypes.size());
+                List<String> selectedColumns = normalizeExportColumns(request.getColumns());
+                if (!selectedColumns.isEmpty()) {
+                    columns = selectedColumns.size();
+                }
                 return rows * columns * 16L;
             } finally {
                 closeQuietly(dataSet);

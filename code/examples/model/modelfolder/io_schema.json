@@ -1,0 +1,35 @@
+{
+  "inputs": [
+    {
+      "name": "temperature",
+      "type": "FLOAT",
+      "description": "ambient temperature",
+      "unit": "C",
+      "required": true
+    },
+    {
+      "name": "pressure",
+      "type": "FLOAT",
+      "description": "inlet pressure",
+      "unit": "kPa",
+      "required": true
+    },
+    {
+      "name": "flow",
+      "type": "FLOAT",
+      "description": "flow rate",
+      "unit": "m3s",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "power",
+      "type": "FLOAT",
+      "description": "predicted power",
+      "unit": "kW",
+      "required": false
+    }
+  ],
+  "dependencies": []
+}
