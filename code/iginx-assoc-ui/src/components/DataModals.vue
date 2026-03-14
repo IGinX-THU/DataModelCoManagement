@@ -257,9 +257,36 @@ const handleRemoveSource = async () => {
 
 const selectedSourceId = ref('')
 const selectedDetailSourceId = ref('')
+const detailLoading = ref(false)
+const detailError = ref('')
+const detailLimit = 200
 
 const selectedDetailSource = computed(() => {
     return dataStore.dataSourceTree.find(s => s.id === selectedDetailSourceId.value)
+})
+
+const selectedDetailData = computed(() => {
+    if (!selectedDetailSourceId.value) return null
+    return dataStore.detailMap[String(selectedDetailSourceId.value)]
+})
+
+const selectedDetailMeta = computed(() => selectedDetailData.value?.meta || selectedDetailSource.value)
+const detailEngines = computed(() => selectedDetailData.value?.engines || [])
+const detailColumns = computed(() => selectedDetailData.value?.columns || [])
+
+watch(() => selectedDetailSourceId.value, async (val) => {
+    detailError.value = ''
+    if (!val) {
+        return
+    }
+    detailLoading.value = true
+    try {
+        await dataStore.loadDataSourceDetail(val, detailLimit)
+    } catch (e) {
+        detailError.value = e?.message || '加载详情失败'
+    } finally {
+        detailLoading.value = false
+    }
 })
 
 const toLocalInput = (date) => {
@@ -773,21 +800,26 @@ const handleMaintenance = async () => {
                      </select>
                  </div>
                  
-                 <div v-if="selectedDetailSource" class="space-y-4">
+                 <div v-if="detailLoading" class="text-xs text-gray-400">正在加载详情...</div>
+                 <div v-if="detailError" class="text-xs text-red-600 bg-red-50 border border-red-100 rounded px-3 py-2">
+                     {{ detailError }}
+                 </div>
+
+                 <div v-if="selectedDetailMeta" class="space-y-4">
                      <div class="flex items-center space-x-4 mb-6">
                          <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
                              <i class="ri-database-2-line text-2xl"></i>
                          </div>
                          <div>
-                             <h4 class="font-bold text-lg text-gray-800">{{ selectedDetailSource.name }}</h4>
+                             <h4 class="font-bold text-lg text-gray-800">{{ selectedDetailMeta.name }}</h4>
                              <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full border border-green-200">已连接</span>
                          </div>
                      </div>
                      <div class="grid grid-cols-2 gap-y-4 text-sm">
                          <div class="text-gray-500">类型</div>
-                         <div class="font-mono text-gray-800">{{ resolveSourceTypeLabel(selectedDetailSource) }}</div>
+                         <div class="font-mono text-gray-800">{{ resolveSourceTypeLabel(selectedDetailMeta) }}</div>
                          <div class="text-gray-500">节点 ID</div>
-                         <div class="font-mono text-gray-800">{{ selectedDetailSource.id }}</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.id }}</div>
                          <div class="text-gray-500">存储规模</div>
                          <div class="font-mono text-gray-800">-</div>
                          <div class="text-gray-500">运行时长</div>
@@ -795,17 +827,46 @@ const handleMaintenance = async () => {
                      </div>
                      <div class="grid grid-cols-2 gap-y-4 text-sm">
                          <div class="text-gray-500">挂载路径</div>
-                         <div class="font-mono text-gray-800">{{ selectedDetailSource.mountPath || '-' }}</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.mountPath || '-' }}</div>
                          <div class="text-gray-500">主机</div>
-                         <div class="font-mono text-gray-800">{{ selectedDetailSource.connectionConfig?.host || '-' }}</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.host || '-' }}</div>
                          <div class="text-gray-500">端口</div>
-                         <div class="font-mono text-gray-800">{{ selectedDetailSource.connectionConfig?.port || '-' }}</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.port || '-' }}</div>
                          <div class="text-gray-500">数据库</div>
-                         <div class="font-mono text-gray-800">{{ selectedDetailSource.connectionConfig?.database || '-' }}</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.database || '-' }}</div>
                          <div class="text-gray-500">用户名</div>
-                         <div class="font-mono text-gray-800">{{ selectedDetailSource.connectionConfig?.username || '-' }}</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.username || '-' }}</div>
                          <div class="text-gray-500">创建时间</div>
-                         <div class="font-mono text-gray-800">{{ selectedDetailSource.createTime || '-' }}</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.createTime || '-' }}</div>
+                     </div>
+
+                     <div>
+                         <div class="flex items-center justify-between mb-2">
+                             <h5 class="text-sm font-bold text-gray-700">存储引擎列表</h5>
+                             <span class="text-[10px] text-gray-400">共 {{ detailEngines.length }} 条</span>
+                         </div>
+                         <div class="max-h-36 overflow-y-auto border border-gray-200 rounded px-3 py-2 text-xs space-y-2">
+                             <div v-if="!detailEngines.length" class="text-gray-400 text-center py-2">暂无存储引擎信息</div>
+                             <div v-else v-for="(engine, index) in detailEngines" :key="`${engine.ip}-${engine.port}-${index}`" class="border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
+                                 <div class="font-mono text-gray-800">{{ engine.ip || '-' }}:{{ engine.port ?? '-' }}</div>
+                                 <div class="text-gray-500">类型：{{ engine.type || '-' }}</div>
+                                 <div class="text-gray-500">schema: {{ engine.schemaPrefix || '-' }} | data: {{ engine.dataPrefix || '-' }}</div>
+                             </div>
+                         </div>
+                     </div>
+
+                     <div>
+                         <div class="flex items-center justify-between mb-2">
+                             <h5 class="text-sm font-bold text-gray-700">路径列表（SHOW COLUMNS）</h5>
+                             <span class="text-[10px] text-gray-400">最多 {{ detailLimit }} 条</span>
+                         </div>
+                         <div class="max-h-36 overflow-y-auto border border-gray-200 rounded px-3 py-2 text-xs space-y-2">
+                             <div v-if="!detailColumns.length" class="text-gray-400 text-center py-2">暂无路径信息</div>
+                             <div v-else v-for="(column, index) in detailColumns" :key="`${column.path}-${index}`" class="flex items-center justify-between border-b border-gray-100 pb-1 last:border-b-0 last:pb-0">
+                                 <span class="font-mono text-gray-800">{{ column.path || '-' }}</span>
+                                 <span class="text-gray-500 ml-4">{{ column.dataType || '-' }}</span>
+                             </div>
+                         </div>
                      </div>
                  </div>
                  <div v-else class="text-center text-gray-400 py-8">

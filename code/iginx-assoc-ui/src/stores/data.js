@@ -5,7 +5,8 @@ import {
   createDataSource,
   deleteDataSource,
   testDataSourceConnection,
-  fetchDataSourceStructure
+  fetchDataSourceStructure,
+  fetchDataSourceDetail
 } from '../api/dataSource'
 import {
   importTimeSeries,
@@ -30,6 +31,7 @@ import {
 
 export const useDataStore = defineStore('data', () => {
   const dataSourceTree = ref([])
+  const detailMap = reactive({})
 
   const currentNode = reactive({
     id: '',
@@ -202,6 +204,13 @@ export const useDataStore = defineStore('data', () => {
   const loadDataSources = async () => {
     const page = await fetchDataSourcePage({ pageNum: 1, pageSize: 100 })
     dataSourceTree.value = (page.records || []).map(toTreeNode)
+  }
+
+  const loadDataSourceDetail = async (id, limit = 200) => {
+    if (!id) return null
+    const detail = await fetchDataSourceDetail(id, limit)
+    detailMap[String(id)] = detail
+    return detail
   }
 
   const loadDataSourceStructure = async (sourceId, force = false) => {
@@ -473,6 +482,7 @@ export const useDataStore = defineStore('data', () => {
 
   return {
     dataSourceTree,
+    detailMap,
     currentNode,
     selectNode,
     showTopology,
@@ -494,6 +504,7 @@ export const useDataStore = defineStore('data', () => {
     removeSource,
     testConnection,
     loadDataSources,
+    loadDataSourceDetail,
     loadDataSourceStructure,
     refreshStructure,
     importTimeSeriesData,
