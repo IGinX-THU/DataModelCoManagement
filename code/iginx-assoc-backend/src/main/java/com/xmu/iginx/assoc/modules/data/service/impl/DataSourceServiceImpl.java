@@ -75,25 +75,27 @@ public class DataSourceServiceImpl implements DataSourceService {
         DataSourceType sourceType = resolveSourceType(request.getSourceType());
         // 解析并规范化挂载路径
         String mountPath = resolveMountPathForCreate(request.getMountPath(), sourceType, request.getConnectionConfig());
-        validateMountPath(mountPath, null);
-        // 检查是否存在残留或冲突的存储引擎，避免挂载冲突
-        ensureNoConflictingResidualEngines(sourceType, mountPath);
+        boolean hasMountPath = mountPath != null && !mountPath.isBlank();
+        if (hasMountPath) {
+            validateMountPath(mountPath, null);
+            // 检查是否存在残留或冲突的存储引擎，避免挂载冲突
+            ensureNoConflictingResidualEngines(sourceType, mountPath);
+        }
 
-        if (isTimeSeriesSource(sourceType)) {
-            if (!storageEngineExists(sourceType, request.getConnectionConfig(), mountPath)) {
-                // 仅当 IGinX 未注册该引擎时才执行注册
-                String addSql = storageEngineHelper.buildAddStorageEngineSql(
-                    sourceType,
-                    request.getConnectionConfig(),
-                    mountPath);
-                iginxStorageWrapper.executeSql(addSql);
-            }
+        String normalizedMountPath = hasMountPath ? mountPath : "";
+        if (!storageEngineExists(sourceType, request.getConnectionConfig(), normalizedMountPath)) {
+            // 仅当 IGinX 未注册该引擎时才执行注册
+            String addSql = storageEngineHelper.buildAddStorageEngineSql(
+                sourceType,
+                request.getConnectionConfig(),
+                normalizedMountPath);
+            iginxStorageWrapper.executeSql(addSql);
         }
 
         DataResourceEntity entity = new DataResourceEntity();
         entity.setName(request.getName());
         entity.setSourceType(request.getSourceType().toUpperCase());
-        entity.setMountPath(mountPath);
+        entity.setMountPath(hasMountPath ? mountPath : null);
         entity.setDescription(request.getDescription());
         entity.setConnConfig(connectionConfigCipher.encrypt(request.getConnectionConfig()));
         entity.setCreateTime(LocalDateTime.now());
@@ -295,10 +297,13 @@ public class DataSourceServiceImpl implements DataSourceService {
     private String resolveMountPathForCreate(String mountPath,
                                              DataSourceType sourceType,
                                              DataSourceConnectionConfig config) {
+        if (mountPath == null || mountPath.isBlank()) {
+            return "";
+        }
         // 先统一路径格式，避免空格或多余分隔符影响判断
         String normalized = TimeSeriesPathUtils.normalizePath(mountPath);
         if (normalized.isBlank()) {
-            throw BizException.badRequest("挂载路径不能为空");
+            return "";
         }
         if (sourceType == DataSourceType.IOTDB) {
             String lower = normalized.trim().toLowerCase(Locale.ROOT);
