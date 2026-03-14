@@ -1,37 +1,24 @@
-﻿# IDE/编辑器
+﻿# 构建产物与缓存
+node_modules/
+dist/
+*.log
+*.tmp
+*.cache
+
+# Python
+__pycache__/
+*.pyc
+
+# Java / Maven
+*.class
+target/
+
+# IDE
 .idea/
-.vscode/
 *.iml
 
-# Node 生成物
-**/node_modules/
-**/dist/
-**/.vite/
-**/.cache/
+# 本地数据/导出物
+storage/
 
-# Java/构建产物
-**/target/
-**/*.class
-**/out/
-
-# Python 生成物
-**/__pycache__/
-**/*.py[cod]
-**/.pytest_cache/
-
-# 日志与临时
-**/*.log
-**/*.log.gz
-**/logs/
-**/tmp/
-**/.tmp_iginx/
-**/gc.log
-
-# 运行期数据/导出
-**/storage/data/
-
-# 文档中间产物
+# 临时导出文本
 .docx_text/
-
-# 本工具生成的计划
-docs/plans/
