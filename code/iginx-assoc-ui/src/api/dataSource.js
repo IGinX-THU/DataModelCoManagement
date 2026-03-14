@@ -39,3 +39,7 @@ export function testDataSourceConnection(payload) {
 export function fetchDataSourceStructure(id) {
   return request(`/api/v1/data/sources/${id}/structure`)
 }
+
+export function fetchDataSourceDetail(id, limit = 200) {
+  return request(`/api/v1/data/sources/${id}/detail?limit=${limit}`)
+}

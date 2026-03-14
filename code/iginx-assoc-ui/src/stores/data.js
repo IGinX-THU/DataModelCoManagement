@@ -5,7 +5,8 @@ import {
   createDataSource,
   deleteDataSource,
   testDataSourceConnection,
-  fetchDataSourceStructure
+  fetchDataSourceStructure,
+  fetchDataSourceDetail
 } from '../api/dataSource'
 import {
   importTimeSeries,
@@ -30,6 +31,7 @@ import {
 
 export const useDataStore = defineStore('data', () => {
   const dataSourceTree = ref([])
+  const detailMap = reactive({})
 
   const currentNode = reactive({
     id: '',
@@ -132,23 +134,6 @@ export const useDataStore = defineStore('data', () => {
     return 'rel'
   }
 
-  const normalizeMountPath = (sourceType, rawMountPath, fallbackName) => {
-    let mountPath = (rawMountPath || fallbackName || '').trim()
-    mountPath = mountPath.replace(/\.+$/, '')
-    if (!mountPath) return ''
-    if (['INFLUXDB', 'IOTDB'].includes(sourceType)) {
-      const lower = mountPath.toLowerCase()
-      if (lower === 'root') {
-        throw new Error('挂载路径必须为 root.xxx，不能仅 root')
-      }
-      if (lower.startsWith('root.')) {
-        mountPath = `root.${mountPath.substring(mountPath.indexOf('.') + 1)}`
-      } else {
-        mountPath = `root.${mountPath}`
-      }
-    }
-    return mountPath
-  }
 
   const toTreeNode = (source) => ({
     id: String(source.id),
@@ -221,6 +206,13 @@ export const useDataStore = defineStore('data', () => {
     dataSourceTree.value = (page.records || []).map(toTreeNode)
   }
 
+  const loadDataSourceDetail = async (id, limit = 200) => {
+    if (!id) return null
+    const detail = await fetchDataSourceDetail(id, limit)
+    detailMap[String(id)] = detail
+    return detail
+  }
+
   const loadDataSourceStructure = async (sourceId, force = false) => {
     const source = dataSourceTree.value.find(item => item.id === String(sourceId))
     if (!source || source.loadingStructure) return
@@ -282,10 +274,6 @@ export const useDataStore = defineStore('data', () => {
       throw new Error(`不支持的数据源类型: ${sourceConfig.type}`)
     }
 
-    const mountPath = normalizeMountPath(sourceType, sourceConfig.mountPath, sourceConfig.name)
-    if (!mountPath) {
-      throw new Error('挂载路径不能为空')
-    }
     const database = sourceType === 'POSTGRESQL'
       ? (sourceConfig.database || sourceConfig.schema || 'postgres')
       : (sourceConfig.database || 'default')
@@ -293,7 +281,6 @@ export const useDataStore = defineStore('data', () => {
     await createDataSource({
       name: sourceConfig.name,
       sourceType,
-      mountPath,
       description: '',
       connectionConfig: {
         host: sourceConfig.host,
@@ -495,6 +482,7 @@ export const useDataStore = defineStore('data', () => {
 
   return {
     dataSourceTree,
+    detailMap,
     currentNode,
     selectNode,
     showTopology,
@@ -516,6 +504,7 @@ export const useDataStore = defineStore('data', () => {
     removeSource,
     testConnection,
     loadDataSources,
+    loadDataSourceDetail,
     loadDataSourceStructure,
     refreshStructure,
     importTimeSeriesData,

@@ -2,6 +2,7 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import com.xmu.iginx.assoc.common.PageResult;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
+import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
@@ -20,8 +21,11 @@ import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StorageEngineFlagsValidator;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceConnectionConfigVO;
+import com.xmu.iginx.assoc.modules.data.vo.ColumnVO;
+import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceStructureNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
+import com.xmu.iginx.assoc.modules.data.vo.StorageEngineVO;
 import com.xmu.iginx.assoc.modules.relation.repository.AssociationRuleRepository;
 import cn.edu.tsinghua.iginx.session.Column;
 import cn.edu.tsinghua.iginx.session.ClusterInfo;
@@ -75,25 +79,27 @@ public class DataSourceServiceImpl implements DataSourceService {
         DataSourceType sourceType = resolveSourceType(request.getSourceType());
         // 解析并规范化挂载路径
         String mountPath = resolveMountPathForCreate(request.getMountPath(), sourceType, request.getConnectionConfig());
-        validateMountPath(mountPath, null);
-        // 检查是否存在残留或冲突的存储引擎，避免挂载冲突
-        ensureNoConflictingResidualEngines(sourceType, mountPath);
+        boolean hasMountPath = mountPath != null && !mountPath.isBlank();
+        if (hasMountPath) {
+            validateMountPath(mountPath, null);
+            // 检查是否存在残留或冲突的存储引擎，避免挂载冲突
+            ensureNoConflictingResidualEngines(sourceType, mountPath);
+        }
 
-        if (isTimeSeriesSource(sourceType)) {
-            if (!storageEngineExists(sourceType, request.getConnectionConfig(), mountPath)) {
-                // 仅当 IGinX 未注册该引擎时才执行注册
-                String addSql = storageEngineHelper.buildAddStorageEngineSql(
-                    sourceType,
-                    request.getConnectionConfig(),
-                    mountPath);
-                iginxStorageWrapper.executeSql(addSql);
-            }
+        String normalizedMountPath = hasMountPath ? mountPath : "";
+        if (!storageEngineExists(sourceType, request.getConnectionConfig(), normalizedMountPath)) {
+            // 仅当 IGinX 未注册该引擎时才执行注册
+            String addSql = storageEngineHelper.buildAddStorageEngineSql(
+                sourceType,
+                request.getConnectionConfig(),
+                normalizedMountPath);
+            iginxStorageWrapper.executeSql(addSql);
         }
 
         DataResourceEntity entity = new DataResourceEntity();
         entity.setName(request.getName());
         entity.setSourceType(request.getSourceType().toUpperCase());
-        entity.setMountPath(mountPath);
+        entity.setMountPath(hasMountPath ? mountPath : null);
         entity.setDescription(request.getDescription());
         entity.setConnConfig(connectionConfigCipher.encrypt(request.getConnectionConfig()));
         entity.setCreateTime(LocalDateTime.now());
@@ -141,6 +147,26 @@ public class DataSourceServiceImpl implements DataSourceService {
     public DataSourceVO getDataSource(Long id) {
         DataResourceEntity entity = findById(id);
         return toVO(entity);
+    }
+
+    /**
+     * 获取数据源详情（聚合）。
+     *
+     * @param id 数据源 ID
+     * @param limit SHOW COLUMNS 结果限制条数
+     * @return 详情聚合视图
+     */
+    @Override
+    public DataSourceDetailVO getDetail(Long id, Integer limit) {
+        DataSourceVO meta = getDataSource(id);
+        List<StorageEngineVO> engines = listStorageEngines();
+        List<ColumnVO> columns = listShowColumns(limit);
+
+        DataSourceDetailVO detail = new DataSourceDetailVO();
+        detail.setMeta(meta);
+        detail.setEngines(engines);
+        detail.setColumns(columns);
+        return detail;
     }
 
     /**
@@ -236,6 +262,56 @@ public class DataSourceServiceImpl implements DataSourceService {
         return listTimeSeriesStructure(normalizedMount);
     }
 
+    private List<StorageEngineVO> listStorageEngines() {
+        return iginxStorageWrapper.executeWithSession(session -> {
+            ClusterInfo clusterInfo = session.getClusterInfo();
+            List<StorageEngineInfo> infos = clusterInfo == null ? List.of() : clusterInfo.getStorageEngineInfos();
+            if (infos == null || infos.isEmpty()) {
+                return List.of();
+            }
+            List<StorageEngineVO> engines = new ArrayList<>();
+            for (StorageEngineInfo info : infos) {
+                if (info == null) {
+                    continue;
+                }
+                StorageEngineVO engine = new StorageEngineVO();
+                engine.setIp(info.getIp());
+                engine.setPort(info.getPort());
+                engine.setType(info.getType() == null ? "" : info.getType().toString());
+                engine.setSchemaPrefix(info.getSchemaPrefix());
+                engine.setDataPrefix(info.getDataPrefix());
+                engines.add(engine);
+            }
+            return engines;
+        });
+    }
+
+    private List<ColumnVO> listShowColumns(Integer limit) {
+        int safeLimit = normalizeLimit(limit);
+        SessionExecuteSqlResult result = iginxStorageWrapper.executeSql("SHOW COLUMNS");
+        if (result.getParseErrorMsg() != null && !result.getParseErrorMsg().isBlank()) {
+            throw BizException.badRequest(result.getParseErrorMsg().trim());
+        }
+        List<String> paths = result.getPaths() == null ? List.of() : result.getPaths();
+        List<?> dataTypes = result.getDataTypeList() == null ? List.of() : result.getDataTypeList();
+        int size = Math.min(paths.size(), safeLimit);
+        List<ColumnVO> columns = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            ColumnVO column = new ColumnVO();
+            column.setPath(paths.get(i));
+            column.setDataType(i < dataTypes.size() ? String.valueOf(dataTypes.get(i)) : "");
+            columns.add(column);
+        }
+        return columns;
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 200;
+        }
+        return Math.min(limit, 1000);
+    }
+
     /**
      * 校验数据源类型与连接配置的基本合法性。
      *
@@ -295,10 +371,13 @@ public class DataSourceServiceImpl implements DataSourceService {
     private String resolveMountPathForCreate(String mountPath,
                                              DataSourceType sourceType,
                                              DataSourceConnectionConfig config) {
+        if (mountPath == null || mountPath.isBlank()) {
+            return "";
+        }
         // 先统一路径格式，避免空格或多余分隔符影响判断
         String normalized = TimeSeriesPathUtils.normalizePath(mountPath);
         if (normalized.isBlank()) {
-            throw BizException.badRequest("挂载路径不能为空");
+            return "";
         }
         if (sourceType == DataSourceType.IOTDB) {
             String lower = normalized.trim().toLowerCase(Locale.ROOT);
