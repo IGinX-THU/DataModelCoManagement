@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 任务对比请求。
+ */
 @Data
 public class TaskCompareRequest {
 

@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 任务曲线视图对象。
+ */
 @Data
 public class TaskSeriesVO {
 

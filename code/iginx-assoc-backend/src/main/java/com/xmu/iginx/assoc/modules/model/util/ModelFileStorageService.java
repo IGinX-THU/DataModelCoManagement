@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * 模型文件存储服务，基于 Iginx 存储文件分块。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -36,6 +39,16 @@ public class ModelFileStorageService {
     private final IginxStorageWrapper iginxStorageWrapper;
     private final IginxFileSystemRegistrar fileSystemRegistrar;
 
+    /**
+     * 存储模型文件并生成存储元信息。
+     *
+     * @param file 模型文件
+     * @param framework 文件类型或框架
+     * @param profileId 档案 ID
+     * @param version 版本号
+     * @return 存储信息
+     * @throws IOException 读取文件失败
+     */
     public StoredFile store(MultipartFile file, String framework, Long profileId, String version) throws IOException {
         ensureFileSystemReady();
         String fileName = resolveFileName(file);
@@ -56,6 +69,7 @@ public class ModelFileStorageService {
                 keys.add(index++);
                 rows.add(new Object[]{chunk});
                 if (keys.size() >= INSERT_BATCH_SIZE) {
+                    // 分批写入，避免单次请求过大
                     flushInsert(iginxPath, keys, rows);
                 }
             }
@@ -69,6 +83,11 @@ public class ModelFileStorageService {
         return new StoredFile(storageUri, iginxPath, fileName, md5);
     }
 
+    /**
+     * 校验文件是否存在（通过查询首块数据判断）。
+     *
+     * @param storageUri 存储地址
+     */
     public void ensureExists(String storageUri) {
         ensureFileSystemReady();
         String iginxPath = toIginxPath(storageUri);
@@ -82,6 +101,14 @@ public class ModelFileStorageService {
         }
     }
 
+    /**
+     * 将存储文件按块输出到指定流。
+     *
+     * @param storageUri 存储地址
+     * @param fileSize 文件大小
+     * @param outputStream 输出流
+     * @throws IOException 写入失败
+     */
     public void writeTo(String storageUri, Long fileSize, OutputStream outputStream) throws IOException {
         ensureFileSystemReady();
         String iginxPath = toIginxPath(storageUri);
@@ -107,11 +134,19 @@ public class ModelFileStorageService {
                 break;
             }
             hasAny = true;
+            // 将查询到的分块按顺序写入输出流
             writeChunks(keys, dataSet.getValues(), queryStart, queryEndExclusive, totalChunks, outputStream);
             start = queryEndExclusive;
         }
     }
 
+    /**
+     * 将存储文件读取为字节数组。
+     *
+     * @param storageUri 存储地址
+     * @param fileSize 文件大小
+     * @return 文件字节
+     */
     public byte[] readAsBytes(String storageUri, Long fileSize) {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             writeTo(storageUri, fileSize, outputStream);
@@ -121,6 +156,11 @@ public class ModelFileStorageService {
         }
     }
 
+    /**
+     * 删除存储文件。
+     *
+     * @param storageUri 存储地址
+     */
     public void delete(String storageUri) {
         ensureFileSystemReady();
         if (!StringUtils.hasText(storageUri)) {
@@ -145,6 +185,9 @@ public class ModelFileStorageService {
         }
     }
 
+    /**
+     * 将查询结果按顺序写入输出流。
+     */
     private void writeChunks(long[] keys,
                              List<List<Object>> values,
                              long startInclusive,
@@ -194,6 +237,9 @@ public class ModelFileStorageService {
         outputStream.flush();
     }
 
+    /**
+     * 将分块数据批量写入 Iginx。
+     */
     private void flushInsert(String iginxPath, List<Long> keys, List<Object[]> rows) {
         if (keys.isEmpty()) {
             return;
@@ -212,6 +258,9 @@ public class ModelFileStorageService {
         rows.clear();
     }
 
+    /**
+     * 解析文件名并清理路径信息。
+     */
     private String resolveFileName(MultipartFile file) {
         String original = file.getOriginalFilename();
         if (!StringUtils.hasText(original)) {
@@ -226,6 +275,9 @@ public class ModelFileStorageService {
         return fileName;
     }
 
+    /**
+     * 构建存储地址。
+     */
     private String buildStorageUri(String framework, Long profileId, String version, String fileName) {
         String modelRoot = resolveModelRoot();
         String safeFramework = sanitizeUriSegment(framework).toLowerCase(Locale.ROOT);
@@ -234,6 +286,9 @@ public class ModelFileStorageService {
         return URI_PREFIX + modelRoot + "/" + safeFramework + "/" + profileId + "/" + safeVersion + "/" + safeFileName;
     }
 
+    /**
+     * 清理 URI 段，避免非法字符。
+     */
     private String sanitizeUriSegment(String value) {
         if (!StringUtils.hasText(value)) {
             return "unknown";
@@ -246,6 +301,9 @@ public class ModelFileStorageService {
         return replaced;
     }
 
+    /**
+     * 获取模型文件存储根路径配置。
+     */
     private String resolveModelRoot() {
         String root = fileSystemRegistrar.getDataPrefix();
         if (!StringUtils.hasText(root)) {
@@ -254,6 +312,9 @@ public class ModelFileStorageService {
         return sanitizeUriSegment(root);
     }
 
+    /**
+     * 将存储地址转换为 Iginx 路径。
+     */
     private String toIginxPath(String storageUri) {
         String raw = storageUri == null ? "" : storageUri.trim();
         if (!raw.startsWith(URI_PREFIX)) {
@@ -274,10 +335,16 @@ public class ModelFileStorageService {
         return String.join(".", sanitized);
     }
 
+    /**
+     * 确保 Iginx 文件系统已注册。
+     */
     private void ensureFileSystemReady() {
         fileSystemRegistrar.ensureRegistered();
     }
 
+    /**
+     * 清理路径片段，仅保留字母数字与下划线。
+     */
     private String sanitizeSegment(String segment) {
         String trimmed = segment.trim();
         StringBuilder builder = new StringBuilder();
@@ -293,6 +360,9 @@ public class ModelFileStorageService {
         return result.isBlank() ? "unknown" : result;
     }
 
+    /**
+     * 计算总分块数，未知时返回 -1。
+     */
     private long resolveTotalChunks(Long fileSize) {
         if (fileSize == null || fileSize <= 0) {
             return -1;
@@ -300,6 +370,9 @@ public class ModelFileStorageService {
         return (fileSize + CHUNK_SIZE - 1) / CHUNK_SIZE;
     }
 
+    /**
+     * 创建 MD5 摘要器。
+     */
     private MessageDigest createMd5Digest() {
         try {
             return MessageDigest.getInstance("MD5");
@@ -308,6 +381,9 @@ public class ModelFileStorageService {
         }
     }
 
+    /**
+     * 转换为十六进制字符串。
+     */
     private String toHex(byte[] hash) {
         StringBuilder builder = new StringBuilder();
         for (byte b : hash) {
@@ -316,6 +392,14 @@ public class ModelFileStorageService {
         return builder.toString();
     }
 
+    /**
+     * 存储结果信息。
+     *
+     * @param storageUri 存储地址
+     * @param iginxPath Iginx 路径
+     * @param fileName 文件名
+     * @param md5 文件摘要
+     */
     public record StoredFile(String storageUri, String iginxPath, String fileName, String md5) {
     }
 }

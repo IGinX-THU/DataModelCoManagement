@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 系统日志缓冲区，捕获并保存最近的日志记录。
+ */
 @Component
 public class SystemLogBuffer {
 
@@ -33,6 +36,9 @@ public class SystemLogBuffer {
     private final Deque<SystemLogEntryVO> buffer = new ArrayDeque<>();
     private final AtomicLong sequence = new AtomicLong();
 
+    /**
+     * 初始化日志缓冲并挂载到根 Logger。
+     */
     @PostConstruct
     public void init() {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -45,6 +51,14 @@ public class SystemLogBuffer {
         appendInternal(Level.INFO, "SystemLogBuffer", "系统日志缓冲已启用");
     }
 
+    /**
+     * 获取日志快照。
+     *
+     * @param limit 最大返回数量
+     * @param level 日志级别过滤
+     * @param keyword 关键字过滤
+     * @return 日志列表
+     */
     public List<SystemLogEntryVO> snapshot(int limit, String level, String keyword) {
         String normalizedLevel = normalize(level);
         String normalizedKeyword = normalizeKeyword(keyword);
@@ -63,9 +77,15 @@ public class SystemLogBuffer {
         if (result.size() <= limit) {
             return result;
         }
+        // 只保留最近的 limit 条记录
         return new ArrayList<>(result.subList(result.size() - limit, result.size()));
     }
 
+    /**
+     * 追加日志事件到内存缓冲。
+     *
+     * @param event 日志事件
+     */
     void appendEvent(ILoggingEvent event) {
         if (event == null) {
             return;
@@ -82,6 +102,9 @@ public class SystemLogBuffer {
         }
     }
 
+    /**
+     * 写入系统内部日志到缓冲区。
+     */
     private void appendInternal(Level level, String component, String message) {
         SystemLogEntryVO entry = buildEntry(System.currentTimeMillis(), level, component, message);
         synchronized (lock) {
@@ -92,6 +115,9 @@ public class SystemLogBuffer {
         }
     }
 
+    /**
+     * 构建日志条目对象。
+     */
     private SystemLogEntryVO buildEntry(long timestamp, Level level, String component, String message) {
         SystemLogEntryVO entry = new SystemLogEntryVO();
         entry.setId(timestamp + "-" + sequence.incrementAndGet());
@@ -102,6 +128,9 @@ public class SystemLogBuffer {
         return entry;
     }
 
+    /**
+     * 日志级别过滤匹配。
+     */
     private boolean matchLevel(SystemLogEntryVO entry, String level) {
         if (!StringUtils.hasText(level)) {
             return true;
@@ -109,6 +138,9 @@ public class SystemLogBuffer {
         return level.equalsIgnoreCase(entry.getLevel());
     }
 
+    /**
+     * 关键字过滤匹配。
+     */
     private boolean matchKeyword(SystemLogEntryVO entry, String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return true;
@@ -118,6 +150,9 @@ public class SystemLogBuffer {
         return message.contains(keyword) || component.contains(keyword);
     }
 
+    /**
+     * 规范化日志级别。
+     */
     private String normalize(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -125,6 +160,9 @@ public class SystemLogBuffer {
         return value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 规范化关键字。
+     */
     private String normalizeKeyword(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return null;
@@ -140,6 +178,9 @@ public class SystemLogBuffer {
             this.buffer = buffer;
         }
 
+        /**
+         * 收集日志事件并写入缓冲区。
+         */
         @Override
         protected void append(ILoggingEvent eventObject) {
             buffer.appendEvent(eventObject);

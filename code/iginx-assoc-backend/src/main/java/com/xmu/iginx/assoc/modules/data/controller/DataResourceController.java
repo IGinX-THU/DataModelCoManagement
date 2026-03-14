@@ -48,6 +48,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * 数据资源相关接口，负责数据导入、导出、查询与结构维护。
+ */
 @Tag(name = "Data Resource Operations")
 @Validated
 @RestController
@@ -62,121 +65,227 @@ public class DataResourceController {
     private final StructureService structureService;
     private final DataFileStorageService fileStorageService;
 
-    @Operation(summary = "\u5bfc\u5165\u65f6\u5e8f\u6570\u636e")
+    /**
+     * 导入时序数据文件。
+     *
+     * @param request 导入参数
+     * @param file 数据文件
+     * @return 导入结果
+     */
+    @Operation(summary = "导入时序数据")
     @PostMapping(value = "/import/ts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<DataImportResultVO> importTimeSeries(@Valid @RequestPart("request") TimeSeriesImportRequest request,
                                                        @RequestPart("file") MultipartFile file) {
         return Result.success(dataImportService.importTimeSeries(request, file));
     }
 
-    @Operation(summary = "\u5bfc\u5165\u7ed3\u6784\u5316\u6570\u636e")
+    /**
+     * 导入结构化数据文件。
+     *
+     * @param request 导入参数
+     * @param file 数据文件
+     * @return 导入结果
+     */
+    @Operation(summary = "导入结构化数据")
     @PostMapping(value = "/import/struct", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<DataImportResultVO> importStructured(@Valid @RequestPart("request") StructuredImportRequest request,
                                                        @RequestPart("file") MultipartFile file) {
         return Result.success(dataImportService.importStructured(request, file));
     }
 
-    @Operation(summary = "\u5bfc\u51fa\u6570\u636e")
+    /**
+     * 提交数据导出任务。
+     *
+     * @param request 导出请求
+     * @return 导出任务结果
+     */
+    @Operation(summary = "导出数据")
     @PostMapping("/export")
     public Result<DataExportResultVO> exportData(@Valid @RequestBody DataExportRequest request) {
         return Result.success(dataExportService.exportData(request));
     }
 
-    @Operation(summary = "\u67e5\u8be2\u5bfc\u51fa\u4efb\u52a1")
+    /**
+     * 查询导出任务结果。
+     *
+     * @param taskId 导出任务 ID
+     * @return 导出结果
+     */
+    @Operation(summary = "查询导出任务")
     @GetMapping("/export/tasks/{taskId}")
     public Result<DataExportResultVO> exportTask(@PathVariable Long taskId) {
         return Result.success(dataExportService.queryExportTask(taskId));
     }
 
-    @Operation(summary = "\u65f6\u5e8f\u6570\u636e\u67e5\u8be2")
+    /**
+     * 按条件查询时序数据。
+     *
+     * @param request 查询条件
+     * @return 查询结果
+     */
+    @Operation(summary = "时序数据查询")
     @PostMapping("/query/ts")
     public Result<TimeSeriesQueryResultVO> queryTimeSeries(@Valid @RequestBody TimeSeriesQueryRequest request) {
         return Result.success(dataQueryService.queryTimeSeries(request));
     }
 
-    @Operation(summary = "\u7ed3\u6784\u5316\u6570\u636e\u67e5\u8be2")
+    /**
+     * 按条件查询结构化数据。
+     *
+     * @param request 查询条件
+     * @return 查询结果
+     */
+    @Operation(summary = "结构化数据查询")
     @PostMapping("/query/struct")
     public Result<StructuredQueryResultVO> queryStructured(@Valid @RequestBody StructuredQueryRequest request) {
         return Result.success(dataQueryService.queryStructured(request));
     }
 
-    @Operation(summary = "\u65f6\u5e8f\u6570\u636e\u7ef4\u62a4")
+    /**
+     * 删除时序数据。
+     *
+     * @param request 删除条件
+     * @return 操作结果
+     */
+    @Operation(summary = "时序数据维护")
     @PostMapping("/ts/delete")
     public Result<Void> deleteTimeSeries(@Valid @RequestBody TimeSeriesDeleteRequest request) {
         dataMaintainService.deleteTimeSeries(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u65b0\u589e\u7ed3\u6784\u5316\u6570\u636e")
+    /**
+     * 新增结构化数据行。
+     *
+     * @param request 新增参数
+     * @return 操作结果
+     */
+    @Operation(summary = "新增结构化数据")
     @PostMapping("/struct/rows")
     public Result<Void> createStructuredRow(@Valid @RequestBody StructuredRowCreateRequest request) {
         dataMaintainService.createStructuredRow(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u66f4\u65b0\u7ed3\u6784\u5316\u6570\u636e")
+    /**
+     * 更新结构化数据行。
+     *
+     * @param request 更新参数
+     * @return 操作结果
+     */
+    @Operation(summary = "更新结构化数据")
     @PutMapping("/struct/rows")
     public Result<Void> updateStructuredRow(@Valid @RequestBody StructuredRowUpdateRequest request) {
         dataMaintainService.updateStructuredRow(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u5220\u9664\u7ed3\u6784\u5316\u6570\u636e")
+    /**
+     * 删除结构化数据行。
+     *
+     * @param request 删除参数
+     * @return 操作结果
+     */
+    @Operation(summary = "删除结构化数据")
     @DeleteMapping("/struct/rows")
     public Result<Void> deleteStructuredRow(@Valid @RequestBody StructuredRowDeleteRequest request) {
         dataMaintainService.deleteStructuredRow(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u521b\u5efa\u5b58\u50a8\u7ec4")
+    /**
+     * 创建存储组。
+     *
+     * @param request 创建参数
+     * @return 操作结果
+     */
+    @Operation(summary = "创建存储组")
     @PostMapping("/structures/storage-groups")
     public Result<Void> createStorageGroup(@Valid @RequestBody StorageGroupRequest request) {
         structureService.createStorageGroup(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u5220\u9664\u5b58\u50a8\u7ec4")
+    /**
+     * 删除存储组。
+     *
+     * @param request 删除参数
+     * @return 操作结果
+     */
+    @Operation(summary = "删除存储组")
     @PostMapping("/structures/storage-groups/drop")
     public Result<Void> dropStorageGroup(@Valid @RequestBody StorageGroupRequest request) {
         structureService.dropStorageGroup(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u521b\u5efa\u6d4b\u70b9")
+    /**
+     * 创建测点。
+     *
+     * @param request 创建参数
+     * @return 操作结果
+     */
+    @Operation(summary = "创建测点")
     @PostMapping("/structures/measurements")
     public Result<Void> createMeasurement(@Valid @RequestBody MeasurementRequest request) {
         structureService.createMeasurement(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u5220\u9664\u6d4b\u70b9")
+    /**
+     * 删除测点。
+     *
+     * @param request 删除参数
+     * @return 操作结果
+     */
+    @Operation(summary = "删除测点")
     @PostMapping("/structures/measurements/drop")
     public Result<Void> dropMeasurement(@Valid @RequestBody MeasurementRequest request) {
         structureService.dropMeasurement(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u521b\u5efa\u8868")
+    /**
+     * 创建结构化表。
+     *
+     * @param request 创建参数
+     * @return 操作结果
+     */
+    @Operation(summary = "创建表")
     @PostMapping("/structures/tables")
     public Result<Void> createTable(@Valid @RequestBody TableCreateRequest request) {
         structureService.createTable(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u5220\u9664\u8868")
+    /**
+     * 删除结构化表。
+     *
+     * @param request 删除参数
+     * @return 操作结果
+     */
+    @Operation(summary = "删除表")
     @PostMapping("/structures/tables/drop")
     public Result<Void> dropTable(@Valid @RequestBody TableDropRequest request) {
         structureService.dropTable(request);
         return Result.success();
     }
 
-    @Operation(summary = "\u4e0b\u8f7d\u5bfc\u51fa\u6587\u4ef6")
+    /**
+     * 下载导出文件。
+     *
+     * @param fileName 文件名
+     * @param response 响应对象
+     */
+    @Operation(summary = "下载导出文件")
     @GetMapping("/files/{fileName}")
     public void downloadFile(@PathVariable String fileName, HttpServletResponse response) {
+        // 防止路径穿越攻击
         if (fileName.contains("..")) {
             throw BizException.badRequest("非法文件路径");
         }
         Path path = fileStorageService.resolveFile(fileName);
+        // 强制校验文件在受控目录内
         if (!path.startsWith(fileStorageService.resolveRoot())) {
             throw BizException.badRequest("非法文件路径");
         }
@@ -186,10 +295,12 @@ public class DataResourceController {
         try {
             response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
             String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
+            // 通过 Content-Disposition 提示浏览器下载
             response.setHeader("Content-Disposition", "attachment; filename=\"" + encoded + "\"");
             Files.copy(path, response.getOutputStream());
             response.flushBuffer();
         } catch (Exception ex) {
+            // 下载失败统一转换为业务异常，避免泄露内部堆栈
             throw BizException.internal("文件下载失败: " + ex.getMessage());
         }
     }

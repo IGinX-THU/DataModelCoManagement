@@ -3,6 +3,9 @@ package com.xmu.iginx.assoc.modules.data.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/**
+ * 表字段定义 DTO。
+ */
 @Data
 public class TableColumnDefinitionDTO {
 

@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * IGinX 结构化数据工具类，提供路径与类型相关工具方法。
+ */
 public final class IginxStructuredUtils {
 
     public static final String INTERNAL_KEY = "_iginx_key";
@@ -26,6 +29,12 @@ public final class IginxStructuredUtils {
     private IginxStructuredUtils() {
     }
 
+    /**
+     * 判断字段是否为内部键字段。
+     *
+     * @param column 字段名
+     * @return 是否内部键
+     */
     public static boolean isInternalKey(String column) {
         if (column == null) {
             return false;
@@ -36,10 +45,22 @@ public final class IginxStructuredUtils {
             || "RELATIONAL+KEY".equalsIgnoreCase(trimmed);
     }
 
+    /**
+     * 判断是否为保留键。
+     *
+     * @param key 键值
+     * @return 是否保留键
+     */
     public static boolean isReservedKey(long key) {
         return key == DUMMY_KEY || key == Long.MAX_VALUE;
     }
 
+    /**
+     * 为 SQL 标识符添加必要的反引号。
+     *
+     * @param identifier 标识符
+     * @return 处理后的标识符
+     */
     public static String quoteIdentifier(String identifier) {
         if (identifier == null) {
             return "";
@@ -55,6 +76,13 @@ public final class IginxStructuredUtils {
         return "`" + escaped + "`";
     }
 
+    /**
+     * 构建表路径。
+     *
+     * @param schema schema 路径
+     * @param table 表名
+     * @return 表路径
+     */
     public static String buildTablePath(String schema, String table) {
         List<String> schemaSegments = splitPathSegments(schema);
         List<String> tableSegments = splitPathSegments(table);
@@ -75,6 +103,13 @@ public final class IginxStructuredUtils {
         return segments.stream().map(IginxStructuredUtils::quoteIdentifier).collect(java.util.stream.Collectors.joining("."));
     }
 
+    /**
+     * 合并挂载路径与 schema。
+     *
+     * @param mountPath 挂载路径
+     * @param schema schema 路径
+     * @return 合并后的 schema
+     */
     public static String mergeMountPath(String mountPath, String schema) {
         List<String> mountSegments = splitPathSegments(mountPath);
         if (mountSegments.isEmpty()) {
@@ -92,19 +127,50 @@ public final class IginxStructuredUtils {
         return String.join(".", combined);
     }
 
+    /**
+     * 构建包含挂载路径的表路径。
+     *
+     * @param mountPath 挂载路径
+     * @param schema schema 路径
+     * @param table 表名
+     * @return 表路径
+     */
     public static String buildTablePathWithMount(String mountPath, String schema, String table) {
         String mergedSchema = mergeMountPath(mountPath, schema);
         return buildTablePath(mergedSchema, table);
     }
 
+    /**
+     * 构建包含挂载路径的列路径。
+     *
+     * @param mountPath 挂载路径
+     * @param schema schema 路径
+     * @param table 表名
+     * @param column 列名
+     * @return 列路径
+     */
     public static String buildColumnPathWithMount(String mountPath, String schema, String table, String column) {
         return buildTablePathWithMount(mountPath, schema, table) + "." + quoteIdentifier(column);
     }
 
+    /**
+     * 构建列路径。
+     *
+     * @param schema schema 路径
+     * @param table 表名
+     * @param column 列名
+     * @return 列路径
+     */
     public static String buildColumnPath(String schema, String table, String column) {
         return buildTablePath(schema, table) + "." + quoteIdentifier(column);
     }
 
+    /**
+     * 构建 INSERT 字段列表中的列。
+     *
+     * @param column 列名
+     * @return 处理后的列名
+     */
     public static String buildInsertColumn(String column) {
         if (column == null || column.isBlank()) {
             return "";
@@ -118,10 +184,29 @@ public final class IginxStructuredUtils {
             .collect(java.util.stream.Collectors.joining("."));
     }
 
+    /**
+     * 构建 SELECT 列表。
+     *
+     * @param schema schema 路径
+     * @param table 表名
+     * @param columns 列名列表
+     * @param includeKey 是否包含内部键
+     * @return SELECT 列表
+     */
     public static String buildSelectList(String schema, String table, List<String> columns, boolean includeKey) {
         return buildSelectList(schema, table, columns, includeKey, true);
     }
 
+    /**
+     * 构建 SELECT 列表（支持别名）。
+     *
+     * @param schema schema 路径
+     * @param table 表名
+     * @param columns 列名列表
+     * @param includeKey 是否包含内部键
+     * @param useAlias 是否使用别名
+     * @return SELECT 列表
+     */
     public static String buildSelectList(String schema,
                                          String table,
                                          List<String> columns,
@@ -154,6 +239,13 @@ public final class IginxStructuredUtils {
         return String.join(", ", parts);
     }
 
+    /**
+     * 将参数替换为 SQL 字面量。
+     *
+     * @param sql SQL 模板
+     * @param params 参数列表
+     * @return 替换后的 SQL
+     */
     public static String renderSqlWithParams(String sql, List<Object> params) {
         if (params == null || params.isEmpty() || sql == null || sql.isBlank()) {
             return sql;
@@ -171,6 +263,12 @@ public final class IginxStructuredUtils {
         return builder.toString();
     }
 
+    /**
+     * 将值转换为 SQL 字面量。
+     *
+     * @param value 值
+     * @return SQL 字面量
+     */
     public static String toSqlLiteral(Object value) {
         if (value == null) {
             return "NULL";
@@ -205,11 +303,23 @@ public final class IginxStructuredUtils {
         return quoteString(value.toString());
     }
 
+    /**
+     * 生成带引号的字符串字面量。
+     *
+     * @param value 字符串
+     * @return SQL 字符串字面量
+     */
     private static String quoteString(String value) {
         String escaped = value == null ? "" : value.replace("\\", "\\\\").replace("'", "\\'");
         return "'" + escaped + "'";
     }
 
+    /**
+     * 将 IGinX 类型映射为 JDBC 类型。
+     *
+     * @param columnTypes 列类型映射
+     * @return JDBC 类型映射
+     */
     public static Map<String, Integer> mapIginxTypesToSqlTypes(Map<String, DataType> columnTypes) {
         if (columnTypes == null || columnTypes.isEmpty()) {
             return Map.of();
@@ -221,6 +331,12 @@ public final class IginxStructuredUtils {
         return result;
     }
 
+    /**
+     * 将 IGinX 类型转换为 JDBC 类型。
+     *
+     * @param type IGinX 类型
+     * @return JDBC 类型
+     */
     public static int toSqlType(DataType type) {
         if (type == null) {
             return Types.VARCHAR;
@@ -235,6 +351,12 @@ public final class IginxStructuredUtils {
         };
     }
 
+    /**
+     * 规范化结构化查询的表头。
+     *
+     * @param headers 原始表头
+     * @return 规范化后的表头
+     */
     public static List<String> normalizeStructuredHeaders(List<String> headers) {
         if (headers == null || headers.isEmpty()) {
             return List.of();
@@ -255,6 +377,12 @@ public final class IginxStructuredUtils {
         return result;
     }
 
+    /**
+     * 从路径中提取列名。
+     *
+     * @param path 路径
+     * @return 列名
+     */
     public static String extractColumnName(String path) {
         if (path == null) {
             return null;
@@ -269,6 +397,12 @@ public final class IginxStructuredUtils {
         return stripBackticks(name);
     }
 
+    /**
+     * 去除反引号并还原转义。
+     *
+     * @param value 字符串
+     * @return 处理后的字符串
+     */
     public static String stripBackticks(String value) {
         if (value == null) {
             return null;
@@ -281,6 +415,12 @@ public final class IginxStructuredUtils {
         return trimmed;
     }
 
+    /**
+     * 按路径段拆分，支持反引号包裹的段。
+     *
+     * @param path 路径
+     * @return 段列表
+     */
     public static List<String> splitPathSegments(String path) {
         List<String> parts = new ArrayList<>();
         if (path == null || path.isBlank()) {
@@ -313,6 +453,13 @@ public final class IginxStructuredUtils {
         return parts;
     }
 
+    /**
+     * 判断路径段是否以前缀段开始。
+     *
+     * @param pathSegments 路径段
+     * @param prefixSegments 前缀段
+     * @return 是否匹配
+     */
     public static boolean startsWithSegments(List<String> pathSegments, List<String> prefixSegments) {
         if (prefixSegments == null || prefixSegments.isEmpty()) {
             return true;
@@ -328,6 +475,12 @@ public final class IginxStructuredUtils {
         return true;
     }
 
+    /**
+     * 规范化排序方向。
+     *
+     * @param direction 排序方向
+     * @return 规范化后的排序方向
+     */
     public static String normalizeOrderDirection(String direction) {
         if (direction == null) {
             return "ASC";

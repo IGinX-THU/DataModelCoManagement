@@ -12,6 +12,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * IGinX FileSystem 存储引擎注册器，负责在启动阶段自动注册存储引擎。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -22,19 +25,32 @@ public class IginxFileSystemRegistrar {
     private final IginxFileSystemConfig fileSystemConfig;
     private final AtomicBoolean registered = new AtomicBoolean(false);
 
+    /**
+     * 容器启动后触发注册逻辑。
+     */
     @PostConstruct
     public void init() {
         ensureRegistered();
     }
 
+    /**
+     * 获取 FileSystem 数据前缀。
+     *
+     * @return 数据前缀
+     */
     public String getDataPrefix() {
         return fileSystemConfig.getDataPrefix();
     }
 
+    /**
+     * 确保存储引擎已注册，未满足条件时直接返回。
+     */
     public void ensureRegistered() {
+        // 配置未启用或不允许自动注册时直接跳过
         if (!fileSystemConfig.isEnabled() || !fileSystemConfig.isAutoRegister()) {
             return;
         }
+        // 已注册则避免重复执行
         if (registered.get()) {
             return;
         }
@@ -53,6 +69,11 @@ public class IginxFileSystemRegistrar {
         }
     }
 
+    /**
+     * 构建添加存储引擎的 SQL。
+     *
+     * @return SQL 字符串；若参数不完整则返回 null
+     */
     private String buildAddStorageEngineSql() {
         String host = fileSystemConfig.getHost();
         int port = fileSystemConfig.getPort();
@@ -62,6 +83,7 @@ public class IginxFileSystemRegistrar {
         }
         String extra = fileSystemConfig.getExtra();
         List<String> params = new ArrayList<>();
+        // 按需补齐默认参数，避免覆盖用户显式配置
         appendParamIfAbsent(params, extra, "has_data", "false");
         appendParamIfAbsent(params, extra, "is_read_only", "false");
         if (StringUtils.hasText(fileSystemConfig.getDataPrefix()) && !containsParam(extra, "data_prefix")) {
@@ -83,6 +105,14 @@ public class IginxFileSystemRegistrar {
             host.trim(), port, escape(paramString));
     }
 
+    /**
+     * 若参数未出现，则追加默认参数。
+     *
+     * @param params 已收集参数
+     * @param extra 额外参数字符串
+     * @param key 参数名
+     * @param value 参数值
+     */
     private void appendParamIfAbsent(List<String> params, String extra, String key, String value) {
         if (containsParam(extra, key)) {
             return;
@@ -90,6 +120,13 @@ public class IginxFileSystemRegistrar {
         params.add(key + "=" + value);
     }
 
+    /**
+     * 判断 extra 字符串中是否已包含指定参数。
+     *
+     * @param extra 额外参数字符串
+     * @param key 参数名
+     * @return 是否存在
+     */
     private boolean containsParam(String extra, String key) {
         if (!StringUtils.hasText(extra) || !StringUtils.hasText(key)) {
             return false;
@@ -97,6 +134,12 @@ public class IginxFileSystemRegistrar {
         return extra.toLowerCase(Locale.ROOT).contains(key.toLowerCase(Locale.ROOT) + "=");
     }
 
+    /**
+     * 对 SQL 字符串中的特殊字符进行转义。
+     *
+     * @param value 原始字符串
+     * @return 转义后字符串
+     */
     private String escape(String value) {
         if (value == null) {
             return "";

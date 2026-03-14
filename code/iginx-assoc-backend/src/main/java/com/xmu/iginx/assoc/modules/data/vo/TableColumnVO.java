@@ -2,6 +2,9 @@ package com.xmu.iginx.assoc.modules.data.vo;
 
 import lombok.Data;
 
+/**
+ * 表字段视图对象。
+ */
 @Data
 public class TableColumnVO {
 

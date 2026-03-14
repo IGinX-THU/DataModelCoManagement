@@ -10,6 +10,9 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 系统日志服务实现。
+ */
 @Service
 @RequiredArgsConstructor
 public class SystemLogServiceImpl implements SystemLogService {
@@ -19,6 +22,14 @@ public class SystemLogServiceImpl implements SystemLogService {
 
     private final SystemLogBuffer logBuffer;
 
+    /**
+     * 按条件查询日志并做参数归一化。
+     *
+     * @param limit 返回数量上限
+     * @param level 日志级别过滤
+     * @param keyword 关键字过滤
+     * @return 日志列表
+     */
     @Override
     public List<SystemLogEntryVO> listLogs(Integer limit, String level, String keyword) {
         int safeLimit = normalizeLimit(limit);
@@ -27,6 +38,9 @@ public class SystemLogServiceImpl implements SystemLogService {
         return logBuffer.snapshot(safeLimit, normalizedLevel, normalizedKeyword);
     }
 
+    /**
+     * 归一化数量限制。
+     */
     private int normalizeLimit(Integer limit) {
         if (limit == null) {
             return DEFAULT_LIMIT;
@@ -37,6 +51,9 @@ public class SystemLogServiceImpl implements SystemLogService {
         return Math.min(limit, MAX_LIMIT);
     }
 
+    /**
+     * 归一化日志级别。
+     */
     private String normalizeLevel(String level) {
         if (!StringUtils.hasText(level)) {
             return null;
@@ -48,6 +65,9 @@ public class SystemLogServiceImpl implements SystemLogService {
         return normalized;
     }
 
+    /**
+     * 归一化关键字。
+     */
     private String normalizeKeyword(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return null;

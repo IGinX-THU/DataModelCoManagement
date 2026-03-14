@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 任务视图对象。
+ */
 @Data
 public class TaskVO {
 

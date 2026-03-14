@@ -16,6 +16,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 模型函数结构解析器，支持从脚本语法或注释中提取输入输出结构。
+ */
 @Component
 @RequiredArgsConstructor
 public class ModelFunctionSchemaParser {
@@ -30,6 +33,13 @@ public class ModelFunctionSchemaParser {
 
     private final ModelSchemaParser commentParser;
 
+    /**
+     * 列出脚本中的函数元信息。
+     *
+     * @param fileBytes 文件内容
+     * @param fileType 文件类型
+     * @return 函数列表
+     */
     public List<FunctionMeta> listFunctions(byte[] fileBytes, String fileType) {
         String text = toText(fileBytes);
         String normalizedType = normalizeFileType(fileType);
@@ -46,11 +56,19 @@ public class ModelFunctionSchemaParser {
         return Collections.emptyList();
     }
 
+    /**
+     * 按函数名解析输入输出结构。
+     *
+     * @param fileBytes 文件内容
+     * @param fileType 文件类型
+     * @param functionName 函数名
+     * @return 解析结果
+     */
     public ParseSchemaResult parseByFunction(byte[] fileBytes, String fileType, String functionName) {
         String normalizedType = normalizeFileType(fileType);
         ModelIoSchema fallbackSchema = safeCommentSchema(fileBytes);
         if (!"PY".equals(normalizedType) && !"MAT".equals(normalizedType)) {
-            return fallbackResult(fallbackSchema, "Unsupported file type for syntax parsing, fallback to comments.");
+            return fallbackResult(fallbackSchema, "文件类型不支持语法解析，已回退到注释解析。") ;
         }
         try {
             String text = toText(fileBytes);
@@ -58,22 +76,25 @@ public class ModelFunctionSchemaParser {
                 ? parsePythonSchema(text, functionName, fallbackSchema)
                 : parseMatlabSchema(text, functionName, fallbackSchema);
             if (shouldFallback(syntaxSchema, fallbackSchema)) {
-                return fallbackResult(fallbackSchema, "No IO extracted from syntax, fallback to comments.");
+                return fallbackResult(fallbackSchema, "语法未提取到输入输出，已回退到注释解析。") ;
             }
-            return syntaxResult(syntaxSchema, "Parsed from function syntax.");
+            return syntaxResult(syntaxSchema, "基于函数语法解析成功。");
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (Exception ex) {
-            return fallbackResult(fallbackSchema, "Syntax parsing failed, fallback to comments.");
+            return fallbackResult(fallbackSchema, "语法解析失败，已回退到注释解析。");
         }
     }
 
+    /**
+     * 解析 Python 函数的输入输出结构。
+     */
     private ModelIoSchema parsePythonSchema(String text, String functionName, ModelIoSchema fallbackSchema) {
         List<PythonFunction> functions = parsePythonFunctions(text);
         PythonFunction target = functions.stream()
             .filter(item -> item.name().equals(functionName))
             .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Function not found: " + functionName));
+            .orElseThrow(() -> new IllegalArgumentException("未找到函数: " + functionName));
 
         List<ModelSchemaParam> inputs = buildPythonInputs(target, toParamMap(fallbackSchema.getInputs()));
         List<ModelSchemaParam> outputs = buildPythonOutputs(text, target, safeList(fallbackSchema.getOutputs()), toParamMap(fallbackSchema.getOutputs()));
@@ -84,12 +105,15 @@ public class ModelFunctionSchemaParser {
         return schema;
     }
 
+    /**
+     * 解析 MATLAB 函数的输入输出结构。
+     */
     private ModelIoSchema parseMatlabSchema(String text, String functionName, ModelIoSchema fallbackSchema) {
         List<MatlabFunction> functions = parseMatlabFunctions(text);
         MatlabFunction target = functions.stream()
             .filter(item -> item.name().equals(functionName))
             .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Function not found: " + functionName));
+            .orElseThrow(() -> new IllegalArgumentException("未找到函数: " + functionName));
 
         Map<String, ModelSchemaParam> inputComments = toParamMap(fallbackSchema.getInputs());
         List<ModelSchemaParam> outputComments = safeList(fallbackSchema.getOutputs());
@@ -122,6 +146,9 @@ public class ModelFunctionSchemaParser {
         return schema;
     }
 
+    /**
+     * 构建 Python 函数输入参数列表。
+     */
     private List<ModelSchemaParam> buildPythonInputs(PythonFunction function, Map<String, ModelSchemaParam> commentMap) {
         List<ModelSchemaParam> params = new ArrayList<>();
         for (String rawArg : splitTopLevel(function.argsText(), ',')) {
@@ -158,6 +185,9 @@ public class ModelFunctionSchemaParser {
         return params;
     }
 
+    /**
+     * 构建 Python 函数输出参数列表。
+     */
     private List<ModelSchemaParam> buildPythonOutputs(String text,
                                                       PythonFunction function,
                                                       List<ModelSchemaParam> commentOutputs,
@@ -200,6 +230,9 @@ public class ModelFunctionSchemaParser {
         return outputs;
     }
 
+    /**
+     * 构建输出参数对象。
+     */
     private ModelSchemaParam buildOutputParam(String name, String type, ModelSchemaParam comment) {
         ModelSchemaParam output = new ModelSchemaParam();
         output.setName(name);
@@ -210,6 +243,9 @@ public class ModelFunctionSchemaParser {
         return output;
     }
 
+    /**
+     * 解析 MATLAB 输入参数类型。
+     */
     private String resolveMatlabInputType(String name, Map<String, String> argTypes, ModelSchemaParam comment) {
         String type = argTypes.get(name.toLowerCase(Locale.ROOT));
         if (StringUtils.hasText(type)) {
@@ -221,6 +257,9 @@ public class ModelFunctionSchemaParser {
         return "STRING";
     }
 
+    /**
+     * 解析输出类型优先级：注解 > 推断 > 注释。
+     */
     private String resolveOutputType(int index, String name, List<String> annotatedTypes, String inferredType,
                                      List<ModelSchemaParam> commentOutputs, Map<String, ModelSchemaParam> commentOutputMap) {
         if (index < annotatedTypes.size() && StringUtils.hasText(annotatedTypes.get(index))) {
@@ -239,6 +278,9 @@ public class ModelFunctionSchemaParser {
         return "STRING";
     }
 
+    /**
+     * 解析 MATLAB arguments 块中的参数类型。
+     */
     private Map<String, String> parseMatlabArgumentTypes(String text, MatlabFunction function) {
         String[] lines = text.split("\\R", -1);
         Map<String, String> types = new LinkedHashMap<>();
@@ -275,6 +317,9 @@ public class ModelFunctionSchemaParser {
         return types;
     }
 
+    /**
+     * 解析 Python 函数定义列表（支持多行签名）。
+     */
     private List<PythonFunction> parsePythonFunctions(String text) {
         List<PythonFunction> functions = new ArrayList<>();
         String[] lines = text.split("\\R", -1);
@@ -316,6 +361,9 @@ public class ModelFunctionSchemaParser {
         return functions;
     }
 
+    /**
+     * 解析 Python 函数签名。
+     */
     private PythonFunction parsePythonFunction(String signature, int lineNumber) {
         String normalized = signature.trim().replaceAll("\\s+", " ");
         if (!normalized.startsWith("def ")) {
@@ -343,6 +391,9 @@ public class ModelFunctionSchemaParser {
         return new PythonFunction(name, normalized, lineNumber, args, annotation, 0, 0);
     }
 
+    /**
+     * 解析 MATLAB 函数定义列表。
+     */
     private List<MatlabFunction> parseMatlabFunctions(String text) {
         List<MatlabFunction> functions = new ArrayList<>();
         String[] lines = text.split("\\R", -1);
@@ -376,6 +427,9 @@ public class ModelFunctionSchemaParser {
         return functions;
     }
 
+    /**
+     * 解析 MATLAB 函数签名。
+     */
     private MatlabFunction parseMatlabFunction(String signature, int lineNumber) {
         Matcher matcher = MATLAB_FUNCTION_PATTERN.matcher(signature.trim());
         if (!matcher.find()) {
@@ -412,6 +466,9 @@ public class ModelFunctionSchemaParser {
         return new MatlabFunction(functionName, signature, lineNumber, inputs, outputs, 0, 0);
     }
 
+    /**
+     * 解析 MATLAB 函数输出变量列表。
+     */
     private List<String> parseMatlabOutputNames(String outputPart) {
         if (!StringUtils.hasText(outputPart)) {
             return Collections.emptyList();
@@ -427,6 +484,9 @@ public class ModelFunctionSchemaParser {
         return StringUtils.hasText(single) ? List.of(single) : Collections.emptyList();
     }
 
+    /**
+     * 解析 Python 参数信息。
+     */
     private ParsedArgument parsePythonArgument(String token) {
         String cleaned = token.replaceAll("^\\*\\*?", "").trim();
         int assignIndex = findTopLevelChar(cleaned, '=');
@@ -439,6 +499,9 @@ public class ModelFunctionSchemaParser {
         return new ParsedArgument(left, "", defaultValue);
     }
 
+    /**
+     * 从 Python 函数体中提取 return 表达式。
+     */
     private String extractPythonReturnExpression(String text, PythonFunction function) {
         String[] lines = text.split("\\R", -1);
         for (int lineIndex = function.bodyStartIndex(); lineIndex < function.bodyEndIndex() && lineIndex < lines.length; lineIndex++) {
@@ -464,6 +527,9 @@ public class ModelFunctionSchemaParser {
         return "";
     }
 
+    /**
+     * 解析 Python 返回注解的类型列表。
+     */
     private List<String> parsePythonReturnTypes(String annotation) {
         if (!StringUtils.hasText(annotation)) {
             return Collections.emptyList();
@@ -484,6 +550,9 @@ public class ModelFunctionSchemaParser {
         return List.of(normalizeType(value));
     }
 
+    /**
+     * 解析 Python 字典字面量中的键值对。
+     */
     private List<Map.Entry<String, String>> parseDictEntries(String expression) {
         String body = expression.trim();
         if (body.startsWith("{") && body.endsWith("}")) {
@@ -500,6 +569,9 @@ public class ModelFunctionSchemaParser {
         return entries;
     }
 
+    /**
+     * 解析 Python 返回表达式的元组或列表。
+     */
     private List<String> parseTupleOrListExpressions(String expression) {
         String trimmed = expression.trim();
         if (trimmed.startsWith("(") && trimmed.endsWith(")")) {
@@ -514,6 +586,9 @@ public class ModelFunctionSchemaParser {
         return direct.size() > 1 ? direct : Collections.singletonList(trimmed);
     }
 
+    /**
+     * 按顶层分隔符拆分字符串，忽略括号与引号内部。
+     */
     private List<String> splitTopLevel(String text, char splitChar) {
         if (!StringUtils.hasText(text)) {
             return Collections.emptyList();
@@ -569,6 +644,9 @@ public class ModelFunctionSchemaParser {
         return parts;
     }
 
+    /**
+     * 寻找顶层字符位置，忽略括号与引号内部。
+     */
     private int findTopLevelChar(String text, char target) {
         int round = 0;
         int square = 0;
@@ -597,6 +675,9 @@ public class ModelFunctionSchemaParser {
         return -1;
     }
 
+    /**
+     * 查找匹配括号位置。
+     */
     private int findMatchingBracket(String text, int openIndex, char open, char close) {
         if (openIndex < 0 || openIndex >= text.length() || text.charAt(openIndex) != open) {
             return -1;
@@ -624,6 +705,9 @@ public class ModelFunctionSchemaParser {
         return -1;
     }
 
+    /**
+     * 计算括号增量。
+     */
     private int bracketDelta(String text) {
         int delta = 0;
         for (int index = 0; index < text.length(); index++) {
@@ -634,6 +718,9 @@ public class ModelFunctionSchemaParser {
         return delta;
     }
 
+    /**
+     * 统计缩进空格数。
+     */
     private int countLeadingSpaces(String line) {
         int count = 0;
         for (int index = 0; index < line.length(); index++) {
@@ -645,21 +732,33 @@ public class ModelFunctionSchemaParser {
         return count;
     }
 
+    /**
+     * 提取首个标识符。
+     */
     private String extractPrefixIdentifier(String text) {
         Matcher matcher = MATLAB_IDENTIFIER_PREFIX_PATTERN.matcher(text == null ? "" : text.trim());
         return matcher.find() ? matcher.group(1) : "";
     }
 
+    /**
+     * 去除 Python 行内注释。
+     */
     private String stripInlineComment(String token) {
         int commentIndex = findTopLevelChar(token, '#');
         return commentIndex >= 0 ? token.substring(0, commentIndex) : token;
     }
 
+    /**
+     * 去除 MATLAB 行内注释。
+     */
     private String stripMatlabComment(String line) {
         int commentIndex = line.indexOf('%');
         return commentIndex >= 0 ? line.substring(0, commentIndex) : line;
     }
 
+    /**
+     * 去除首尾引号。
+     */
     private String stripQuote(String text) {
         if (!StringUtils.hasText(text)) return "";
         if ((text.startsWith("\"") && text.endsWith("\"")) || (text.startsWith("'") && text.endsWith("'"))) {
@@ -668,11 +767,17 @@ public class ModelFunctionSchemaParser {
         return text;
     }
 
+    /**
+     * 提取泛型内部定义。
+     */
     private String extractGenericInner(String annotation) {
         int openIndex = annotation.indexOf('[');
         return openIndex >= 0 && annotation.endsWith("]") ? annotation.substring(openIndex + 1, annotation.length() - 1).trim() : "";
     }
 
+    /**
+     * 根据表达式推断类型。
+     */
     private String inferExpressionType(String expression) {
         if (!StringUtils.hasText(expression)) return "";
         String value = expression.trim();
@@ -685,6 +790,9 @@ public class ModelFunctionSchemaParser {
         return "";
     }
 
+    /**
+     * 归一化类型名称。
+     */
     private String normalizeType(String raw) {
         if (!StringUtils.hasText(raw)) return "STRING";
         String value = raw.trim().toUpperCase(Locale.ROOT);
@@ -697,19 +805,31 @@ public class ModelFunctionSchemaParser {
         };
     }
 
+    /**
+     * 归一化文件类型。
+     */
     private String normalizeFileType(String fileType) {
         return fileType == null ? "" : fileType.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 判断是否为字典字面量。
+     */
     private boolean isDictLiteral(String expression) {
         String value = expression == null ? "" : expression.trim();
         return value.startsWith("{") && value.endsWith("}");
     }
 
+    /**
+     * 判断是否为合法标识符。
+     */
     private boolean isIdentifier(String name) {
         return IDENTIFIER_PATTERN.matcher(name == null ? "" : name).matches();
     }
 
+    /**
+     * 构建参数名到参数对象的映射。
+     */
     private Map<String, ModelSchemaParam> toParamMap(List<ModelSchemaParam> params) {
         Map<String, ModelSchemaParam> map = new LinkedHashMap<>();
         for (ModelSchemaParam param : safeList(params)) {
@@ -719,10 +839,16 @@ public class ModelFunctionSchemaParser {
         return map;
     }
 
+    /**
+     * 兜底空列表。
+     */
     private List<ModelSchemaParam> safeList(List<ModelSchemaParam> params) {
         return params == null ? Collections.emptyList() : params;
     }
 
+    /**
+     * 复制注释参数，并统一 required 标记。
+     */
     private List<ModelSchemaParam> copyParams(List<ModelSchemaParam> params, boolean required) {
         List<ModelSchemaParam> copied = new ArrayList<>();
         for (ModelSchemaParam source : safeList(params)) {
@@ -737,6 +863,9 @@ public class ModelFunctionSchemaParser {
         return copied;
     }
 
+    /**
+     * 通过索引或名称匹配输出注释。
+     */
     private ModelSchemaParam resolveCommentOutputByIndexOrName(List<ModelSchemaParam> comments,
                                                                Map<String, ModelSchemaParam> commentMap,
                                                                int index,
@@ -746,6 +875,9 @@ public class ModelFunctionSchemaParser {
         return index >= 0 && index < comments.size() ? comments.get(index) : null;
     }
 
+    /**
+     * 判断语法解析结果是否需要回退到注释。
+     */
     private boolean shouldFallback(ModelIoSchema syntaxSchema, ModelIoSchema fallbackSchema) {
         if (isSchemaEmpty(fallbackSchema)) {
             return false;
@@ -757,10 +889,16 @@ public class ModelFunctionSchemaParser {
         return isSchemaEmpty(syntaxSchema) || missingInput || missingOutput;
     }
 
+    /**
+     * 判断结构是否为空。
+     */
     private boolean isSchemaEmpty(ModelIoSchema schema) {
         return schema == null || (safeList(schema.getInputs()).isEmpty() && safeList(schema.getOutputs()).isEmpty());
     }
 
+    /**
+     * 安全解析注释中的结构定义。
+     */
     private ModelIoSchema safeCommentSchema(byte[] fileBytes) {
         try {
             ModelIoSchema schema = commentParser.parse(fileBytes);
@@ -775,6 +913,9 @@ public class ModelFunctionSchemaParser {
         }
     }
 
+    /**
+     * 构造回退结果。
+     */
     private ParseSchemaResult fallbackResult(ModelIoSchema schema, String message) {
         if (schema.getInputs() == null) schema.setInputs(Collections.emptyList());
         if (schema.getOutputs() == null) schema.setOutputs(Collections.emptyList());
@@ -782,11 +923,17 @@ public class ModelFunctionSchemaParser {
         return new ParseSchemaResult(schema, PARSE_MODE_COMMENT_FALLBACK, message);
     }
 
+    /**
+     * 构造语法解析结果。
+     */
     private ParseSchemaResult syntaxResult(ModelIoSchema schema, String message) {
         if (schema.getDependencies() == null) schema.setDependencies(Collections.emptyList());
         return new ParseSchemaResult(schema, PARSE_MODE_SYNTAX, message);
     }
 
+    /**
+     * 将字节数组转换为 UTF-8 文本。
+     */
     private String toText(byte[] fileBytes) {
         return new String(fileBytes == null ? new byte[0] : fileBytes, StandardCharsets.UTF_8);
     }

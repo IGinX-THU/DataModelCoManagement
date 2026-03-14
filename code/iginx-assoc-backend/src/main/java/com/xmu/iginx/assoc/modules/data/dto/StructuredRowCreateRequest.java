@@ -6,6 +6,9 @@ import lombok.Data;
 
 import java.util.Map;
 
+/**
+ * 结构化行新增请求。
+ */
 @Data
 public class StructuredRowCreateRequest {
 

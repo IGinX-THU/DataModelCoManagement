@@ -49,6 +49,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 外部任务服务实现，负责任务提交、执行与结果封装。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -71,6 +74,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
     private final DataFileStorageService dataFileStorageService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 提交模型调用任务。
+     */
     @Override
     public ExternalJobCreateResponse submitModelJob(ExternalModelJobRequest request, String traceId) {
         ExternalJobCreateRequest payload = new ExternalJobCreateRequest();
@@ -79,6 +85,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return submitAndSchedule(payload, traceId);
     }
 
+    /**
+     * 提交算法调用任务。
+     */
     @Override
     public ExternalJobCreateResponse submitAlgorithmJob(ExternalAlgorithmJobRequest request, String traceId) {
         ExternalJobCreateRequest payload = new ExternalJobCreateRequest();
@@ -87,6 +96,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return submitAndSchedule(payload, traceId);
     }
 
+    /**
+     * 提交数据导入任务。
+     */
     @Override
     public ExternalJobCreateResponse submitDataImportJob(ExternalDataImportJobRequest request,
                                                          MultipartFile file,
@@ -97,6 +109,7 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         ExternalJobCreateRequest payload = new ExternalJobCreateRequest();
         payload.setJobType(ExternalJobType.DATA_IMPORT);
         payload.setDataImportJob(request);
+        // 将导入文件暂存到本地，便于异步任务读取
         Path stagedPath = stageImportFile(file);
         payload.setStagedFilePath(stagedPath.toAbsolutePath().toString());
         payload.setStagedFileName(resolveStagedFileName(file));
@@ -104,6 +117,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return submitAndSchedule(payload, traceId);
     }
 
+    /**
+     * 提交数据导出任务。
+     */
     @Override
     public ExternalJobCreateResponse submitDataExportJob(ExternalDataExportJobRequest request, String traceId) {
         ExternalJobCreateRequest payload = new ExternalJobCreateRequest();
@@ -112,6 +128,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return submitAndSchedule(payload, traceId);
     }
 
+    /**
+     * 查询外部任务状态。
+     */
     @Override
     public ExternalJobStatusResponse getJobStatus(String jobId) {
         ExternalJobEntity entity = findJob(jobId);
@@ -126,6 +145,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return response;
     }
 
+    /**
+     * 查询外部任务结果。
+     */
     @Override
     public ExternalJobResultResponse getJobResult(String jobId) {
         ExternalJobEntity entity = findJob(jobId);
@@ -140,10 +162,14 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return response;
     }
 
+    /**
+     * 持久化任务并提交到调度器。
+     */
     private ExternalJobCreateResponse submitAndSchedule(ExternalJobCreateRequest payload, String traceId) {
         ExternalJobEntity job = buildPendingJob(payload, traceId);
         externalJobRepository.save(job);
         try {
+            // 交由调度器异步执行
             taskScheduler.submit(job.getId(), () -> executeJob(job.getId(), payload));
         } catch (BizException ex) {
             markFailed(job.getId(), ERROR_CODE_EXECUTION_FAILED, ex.getMessage());
@@ -155,6 +181,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return toCreateResponse(job);
     }
 
+    /**
+     * 构建待执行的任务记录。
+     */
     private ExternalJobEntity buildPendingJob(ExternalJobCreateRequest payload, String traceId) {
         ExternalJobEntity job = new ExternalJobEntity();
         job.setId(UUID.randomUUID().toString().replace("-", ""));
@@ -170,6 +199,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return job;
     }
 
+    /**
+     * 执行任务并更新任务状态。
+     */
     private void executeJob(String jobId, ExternalJobCreateRequest payload) {
         ExternalJobEntity job = findJob(jobId);
         job.setStatus(ExternalJobStatus.RUNNING.name());
@@ -200,6 +232,7 @@ public class ExternalJobServiceImpl implements ExternalJobService {
             job.setErrorCode(ERROR_CODE_INTERNAL);
             job.setErrorMessage(ex.getMessage());
         } finally {
+            // 任务结束后更新状态并清理临时文件
             job.setFinishTime(LocalDateTime.now());
             externalJobRepository.save(job);
             taskScheduler.clear(jobId);
@@ -207,6 +240,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         }
     }
 
+    /**
+     * 执行模型调用任务，并轮询内部任务状态。
+     */
     private Object executeModelJob(ExternalModelJobRequest request) throws InterruptedException {
         if (request == null) {
             throw BizException.badRequest("模型任务请求不能为空");
@@ -240,6 +276,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         throw BizException.internal("模型任务执行超时");
     }
 
+    /**
+     * 执行算法类任务。
+     */
     private Object executeAlgorithmJob(ExternalAlgorithmJobRequest request) {
         if (request == null) {
             throw BizException.badRequest("算法任务请求不能为空");
@@ -254,6 +293,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         };
     }
 
+    /**
+     * 执行时序曲线查询。
+     */
     private Object executeTaskSeries(ExternalAlgorithmJobRequest request) {
         if (!StringUtils.hasText(request.getTaskId())) {
             throw BizException.badRequest("taskId 不能为空");
@@ -268,6 +310,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return result;
     }
 
+    /**
+     * 执行任务对比。
+     */
     private Object executeTaskCompare(ExternalAlgorithmJobRequest request) {
         if (request.getTaskIds() == null || request.getTaskIds().isEmpty()) {
             throw BizException.badRequest("taskIds 不能为空");
@@ -285,6 +330,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return result;
     }
 
+    /**
+     * 执行任务结果导出。
+     */
     private Object executeTaskExport(ExternalAlgorithmJobRequest request) {
         if (!StringUtils.hasText(request.getTaskId())) {
             throw BizException.badRequest("taskId 不能为空");
@@ -310,6 +358,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return result;
     }
 
+    /**
+     * 执行任务报告生成。
+     */
     private Object executeTaskReport(ExternalAlgorithmJobRequest request) {
         if (!StringUtils.hasText(request.getTaskId())) {
             throw BizException.badRequest("taskId 不能为空");
@@ -329,6 +380,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return result;
     }
 
+    /**
+     * 执行数据导入任务。
+     */
     private Object executeDataImportJob(ExternalJobCreateRequest payload) {
         ExternalDataImportJobRequest request = payload.getDataImportJob();
         if (request == null) {
@@ -361,6 +415,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return wrappedResult;
     }
 
+    /**
+     * 执行数据导出任务。
+     */
     private Object executeDataExportJob(ExternalDataExportJobRequest request) {
         if (request == null || request.getExportRequest() == null) {
             throw BizException.badRequest("导出请求不能为空");
@@ -371,6 +428,7 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         } catch (Exception ex) {
             throw BizException.badRequest("导出参数格式错误");
         }
+        // 外部导出任务统一走同步模式
         exportRequest.setAsync(false);
         DataExportResultVO result = dataExportService.exportData(exportRequest);
         Map<String, Object> wrappedResult = new LinkedHashMap<>();
@@ -379,11 +437,17 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return wrappedResult;
     }
 
+    /**
+     * 查找外部任务。
+     */
     private ExternalJobEntity findJob(String jobId) {
         return externalJobRepository.findById(jobId)
             .orElseThrow(() -> BizException.badRequest("外部任务不存在: " + jobId));
     }
 
+    /**
+     * 标记任务失败。
+     */
     private void markFailed(String jobId, String code, String message) {
         try {
             ExternalJobEntity entity = findJob(jobId);
@@ -396,6 +460,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         }
     }
 
+    /**
+     * 构建任务创建响应。
+     */
     private ExternalJobCreateResponse toCreateResponse(ExternalJobEntity entity) {
         ExternalJobCreateResponse response = new ExternalJobCreateResponse();
         response.setJobId(entity.getId());
@@ -404,6 +471,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return response;
     }
 
+    /**
+     * 序列化结果为 JSON。
+     */
     private String writeJson(Object obj) {
         if (obj == null) {
             return null;
@@ -415,6 +485,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         }
     }
 
+    /**
+     * 解析 JSON 字符串为对象。
+     */
     private Object parseJson(String text) {
         if (!StringUtils.hasText(text)) {
             return null;
@@ -426,6 +499,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         }
     }
 
+    /**
+     * 构建错误响应。
+     */
     private ExternalErrorResponse buildError(ExternalJobEntity entity) {
         if (!StringUtils.hasText(entity.getErrorCode()) && !StringUtils.hasText(entity.getErrorMessage())) {
             return null;
@@ -437,6 +513,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return error;
     }
 
+    /**
+     * 从结果对象中提取下载链接。
+     */
     private String extractDownloadUrl(Object result) {
         if (!(result instanceof Map<?, ?> resultMap)) {
             return null;
@@ -455,6 +534,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return null;
     }
 
+    /**
+     * 将导入文件暂存到本地。
+     */
     private Path stageImportFile(MultipartFile file) {
         String extension = extractExtension(file.getOriginalFilename());
         DataFileStorageService.StoredFile storedFile = dataFileStorageService.createFile("external_import",
@@ -467,6 +549,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         }
     }
 
+    /**
+     * 解析暂存文件名。
+     */
     private String resolveStagedFileName(MultipartFile file) {
         if (!StringUtils.hasText(file.getOriginalFilename())) {
             return "external_import.dat";
@@ -474,6 +559,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return file.getOriginalFilename();
     }
 
+    /**
+     * 提取文件扩展名。
+     */
     private String extractExtension(String fileName) {
         if (!StringUtils.hasText(fileName)) {
             return "";
@@ -485,6 +573,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         return fileName.substring(index + 1).trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 清理暂存文件。
+     */
     private void cleanupStagedFile(String stagedFilePath) {
         if (!StringUtils.hasText(stagedFilePath)) {
             return;
@@ -496,6 +587,9 @@ public class ExternalJobServiceImpl implements ExternalJobService {
         }
     }
 
+    /**
+     * 映射业务异常为错误码。
+     */
     private String resolveBizErrorCode(BizException ex) {
         if (ex == null || ex.getCode() == null) {
             return ERROR_CODE_EXECUTION_FAILED;

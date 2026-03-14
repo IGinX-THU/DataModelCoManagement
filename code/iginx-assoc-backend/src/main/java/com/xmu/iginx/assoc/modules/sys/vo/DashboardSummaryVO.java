@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 仪表盘总览视图对象。
+ */
 @Data
 public class DashboardSummaryVO {
 

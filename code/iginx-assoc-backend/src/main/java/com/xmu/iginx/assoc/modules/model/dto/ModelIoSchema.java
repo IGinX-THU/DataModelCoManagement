@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 模型输入输出结构定义。
+ */
 @Data
 public class ModelIoSchema {
 

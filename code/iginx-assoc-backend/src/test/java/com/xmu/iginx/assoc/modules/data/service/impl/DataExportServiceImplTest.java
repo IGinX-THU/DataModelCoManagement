@@ -43,6 +43,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 数据导出服务测试。
+ */
 @ExtendWith(MockitoExtension.class)
 class DataExportServiceImplTest {
 
@@ -66,12 +69,18 @@ class DataExportServiceImplTest {
     @TempDir
     Path tempDir;
 
+    /**
+     * 初始化测试依赖与公共 Mock 行为。
+     */
     @BeforeEach
     void setUp() {
         when(dataSourceAccessor.getDetail(anyLong(), any(DataSourceType[].class)))
             .thenReturn(buildStructuredSourceDetail());
     }
 
+    /**
+     * 验证结构化 CSV 仅输出选择的列。
+     */
     @Test
     void exportData_shouldOnlyOutputSelectedColumnsForStructuredCsv() throws Exception {
         DataExportRequest request = buildStructuredRequest();
@@ -87,6 +96,7 @@ class DataExportServiceImplTest {
         QueryDataSet dataSet = mock(QueryDataSet.class);
         when(structuredQueryHelper.executeQuery(anyString(), anyInt())).thenReturn(dataSet);
         when(dataSet.getColumnList()).thenReturn(List.of("KEY", "temperature", "pressure", "status"));
+        // 模拟查询结果，并以异常结束迭代
         when(dataSet.nextRow())
             .thenReturn(new Object[]{1L, 21.5d, 101.3d, "ok".getBytes(StandardCharsets.UTF_8)})
             .thenReturn(new Object[]{2L, 22.0d, null, "running".getBytes(StandardCharsets.UTF_8)})
@@ -103,6 +113,9 @@ class DataExportServiceImplTest {
         assertEquals(3, lines.size());
     }
 
+    /**
+     * 验证未知列会被拒绝导出。
+     */
     @Test
     void exportData_shouldRejectUnknownStructuredColumns() {
         DataExportRequest request = buildStructuredRequest();
@@ -120,6 +133,9 @@ class DataExportServiceImplTest {
         verify(structuredQueryHelper, never()).executeQuery(anyString(), anyInt());
     }
 
+    /**
+     * 验证提供 SQL 时仍按列选择输出。
+     */
     @Test
     void exportData_shouldFilterSelectedColumnsWhenSqlProvided() throws Exception {
         DataExportRequest request = buildStructuredRequest();
@@ -133,6 +149,7 @@ class DataExportServiceImplTest {
         QueryDataSet dataSet = mock(QueryDataSet.class);
         when(structuredQueryHelper.executeQuery(anyString(), anyInt())).thenReturn(dataSet);
         when(dataSet.getColumnList()).thenReturn(List.of("KEY", "temperature", "pressure", "status"));
+        // 模拟单行数据并终止迭代
         when(dataSet.nextRow())
             .thenReturn(new Object[]{1L, 21.5d, 101.3d, "ok".getBytes(StandardCharsets.UTF_8)})
             .thenThrow(new RuntimeException("END"));
@@ -147,6 +164,9 @@ class DataExportServiceImplTest {
         verify(structuredQueryHelper, never()).loadColumnTypes(anyString(), anyString());
     }
 
+    /**
+     * 构造结构化导出请求。
+     */
     private DataExportRequest buildStructuredRequest() {
         DataExportRequest request = new DataExportRequest();
         request.setType("STRUCT");
@@ -158,6 +178,9 @@ class DataExportServiceImplTest {
         return request;
     }
 
+    /**
+     * 构造列类型映射。
+     */
     private Map<String, DataType> buildColumnTypes() {
         Map<String, DataType> columnTypes = new LinkedHashMap<>();
         columnTypes.put("temperature", DataType.DOUBLE);
@@ -166,6 +189,9 @@ class DataExportServiceImplTest {
         return columnTypes;
     }
 
+    /**
+     * 构造结构化数据源详情。
+     */
     private DataSourceDetail buildStructuredSourceDetail() {
         DataResourceEntity entity = new DataResourceEntity();
         entity.setId(1L);

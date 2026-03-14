@@ -11,11 +11,28 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 结构化查询 SQL 构造器。
+ */
 public class StructuredSqlBuilder {
 
+    /**
+     * SQL 与参数封装。
+     *
+     * @param sql SQL 字符串
+     * @param params 参数列表
+     */
     public record SqlWithParams(String sql, List<Object> params) {
     }
 
+    /**
+     * 构建 WHERE 子句与参数列表。
+     *
+     * @param conditions 查询条件
+     * @param allowedColumns 允许的列
+     * @param columnTypes 列类型映射
+     * @return SQL 与参数
+     */
     public SqlWithParams buildWhereClause(List<StructuredQueryCondition> conditions,
                                           Set<String> allowedColumns,
                                           Map<String, Integer> columnTypes) {
@@ -63,10 +80,25 @@ public class StructuredSqlBuilder {
         return new SqlWithParams(first ? "" : " WHERE " + where, params);
     }
 
+    /**
+     * 构建 WHERE 子句（不带类型映射）。
+     *
+     * @param conditions 查询条件
+     * @param allowedColumns 允许的列
+     * @return SQL 与参数
+     */
     public SqlWithParams buildWhereClause(List<StructuredQueryCondition> conditions, Set<String> allowedColumns) {
         return buildWhereClause(conditions, allowedColumns, null);
     }
 
+    /**
+     * 按字段类型转换参数值。
+     *
+     * @param field 字段名
+     * @param value 原始值
+     * @param sqlType JDBC 类型
+     * @return 转换后的值
+     */
     private Object convertParam(String field, String value, Integer sqlType) {
         if (sqlType == null) {
             return value;
@@ -74,10 +106,16 @@ public class StructuredSqlBuilder {
         try {
             return JdbcValueConverter.convert(value, sqlType);
         } catch (Exception ex) {
-            throw BizException.badRequest("鏉′欢瀛楁 " + field + " 鍊兼牸寮忎笉姝ｇ‘");
+            throw BizException.badRequest("条件字段 " + field + " 值格式不正确");
         }
     }
 
+    /**
+     * 规范化比较运算符。
+     *
+     * @param op 原始运算符
+     * @return 规范化运算符
+     */
     private String normalizeOperator(String op) {
         if (op == null) {
             return "=";
@@ -89,6 +127,12 @@ public class StructuredSqlBuilder {
         };
     }
 
+    /**
+     * 规范化逻辑运算符。
+     *
+     * @param logic 原始逻辑
+     * @return 规范化逻辑
+     */
     private String normalizeLogic(String logic) {
         if (logic == null) {
             return "AND";
@@ -97,6 +141,12 @@ public class StructuredSqlBuilder {
         return "OR".equals(normalized) ? "OR" : "AND";
     }
 
+    /**
+     * 拆分 IN 条件的值列表。
+     *
+     * @param raw 原始字符串
+     * @return 值列表
+     */
     private List<String> splitValues(String raw) {
         if (raw == null || raw.isBlank()) {
             return List.of();

@@ -31,6 +31,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 数据查询服务实现，支持时序与结构化数据查询。
+ */
 @Service
 @RequiredArgsConstructor
 public class DataQueryServiceImpl implements DataQueryService {
@@ -40,6 +43,12 @@ public class DataQueryServiceImpl implements DataQueryService {
     private final IginxStorageWrapper iginxStorageWrapper;
     private final StructuredSqlBuilder structuredSqlBuilder = new StructuredSqlBuilder();
 
+    /**
+     * 查询时序数据，支持可选的降采样聚合。
+     *
+     * @param request 查询请求
+     * @return 时序查询结果
+     */
     @Override
     public TimeSeriesQueryResultVO queryTimeSeries(TimeSeriesQueryRequest request) {
         DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
@@ -49,11 +58,14 @@ public class DataQueryServiceImpl implements DataQueryService {
         if (request.getTimeRange() == null) {
             throw BizException.badRequest("时间范围不能为空");
         }
+        // 统一挂载路径，避免路径不一致导致查询失败
         List<String> resolvedPaths = TimeSeriesPathUtils.resolvePathsUnderMount(request.getPaths(), detail.entity().getMountPath(), true);
+        // 将毫秒时间转换为纳秒，匹配 Iginx 查询接口
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
         SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session -> {
             if (request.isDownsample() && request.getPrecisionMs() != null) {
+                // 降采样查询，按聚合方式与精度返回结果
                 AggregateType aggregateType = mapAggregateType(request.getAggregator());
                 return session.downsampleQuery(resolvedPaths, startNs, endNs, aggregateType,
                     TimeParser.toNano(request.getPrecisionMs()));
@@ -73,6 +85,7 @@ public class DataQueryServiceImpl implements DataQueryService {
             List<Object> columnValues = new ArrayList<>();
             for (List<Object> row : values) {
                 Object value = row.get(i);
+                // 二进制值按字符串展示，避免前端无法解析
                 if (value instanceof byte[] bytes) {
                     columnValues.add(new String(bytes));
                 } else {
@@ -88,10 +101,17 @@ public class DataQueryServiceImpl implements DataQueryService {
         return result;
     }
 
+    /**
+     * 查询结构化数据，支持条件过滤与分页。
+     *
+     * @param request 查询请求
+     * @return 结构化查询结果
+     */
     @Override
     public StructuredQueryResultVO queryStructured(StructuredQueryRequest request) {
         DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         try {
+            // 统一挂载路径，保证 schema 与真实表路径一致
             String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
             Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
             if (columnTypes == null || columnTypes.isEmpty()) {
@@ -105,6 +125,7 @@ public class DataQueryServiceImpl implements DataQueryService {
                 request.getConditions(), sqlTypeMap.keySet(), sqlTypeMap);
             String selectList = "*";
             String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
+            // 追加 KEY 过滤条件，避免查询内部占位行
             String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
             String orderBy = buildOrderBy(request.getOrderBy(), request.getOrderDirection(), columns);
             String sql = "SELECT " + selectList + " FROM " + tablePath + whereClause + orderBy;
@@ -114,7 +135,9 @@ public class DataQueryServiceImpl implements DataQueryService {
                 List<String> rawHeader = dataSet.getColumnList();
                 List<String> header = IginxStructuredUtils.normalizeStructuredHeaders(rawHeader);
                 List<Map<String, Object>> records = structuredQueryHelper.readAll(dataSet, header);
+                // 将内部键统一转换为字符串，保持前端展示一致
                 normalizeInternalKey(records);
+                // 过滤逻辑删除行，避免前端展示空记录
                 List<Map<String, Object>> visibleRecords = filterDeletedStructuredRecords(records, header);
                 List<Map<String, Object>> pageRecords = paginateStructuredRecords(
                     visibleRecords, request.getPageNum(), request.getPageSize());
@@ -132,6 +155,13 @@ public class DataQueryServiceImpl implements DataQueryService {
         }
     }
 
+    /**
+     * 过滤结构化数据中的逻辑删除行。
+     *
+     * @param records 原始记录
+     * @param headers 表头
+     * @return 过滤后的记录
+     */
     private List<Map<String, Object>> filterDeletedStructuredRecords(List<Map<String, Object>> records,
                                                                      List<String> headers) {
         if (records == null || records.isEmpty()) {
@@ -143,6 +173,7 @@ public class DataQueryServiceImpl implements DataQueryService {
                 if (IginxStructuredUtils.isInternalKey(header)) {
                     continue;
                 }
+                // 仅关注业务列是否有值
                 dataColumns.add(header);
             }
         }
@@ -161,6 +192,13 @@ public class DataQueryServiceImpl implements DataQueryService {
         return filtered;
     }
 
+    /**
+     * 判断结构化记录是否为逻辑删除行。
+     *
+     * @param record 记录
+     * @param dataColumns 业务列
+     * @return 是否删除
+     */
     private boolean isDeletedStructuredRecord(Map<String, Object> record, List<String> dataColumns) {
         for (String column : dataColumns) {
             if (record.get(column) != null) {
@@ -170,6 +208,14 @@ public class DataQueryServiceImpl implements DataQueryService {
         return true;
     }
 
+    /**
+     * 对结构化记录进行内存分页。
+     *
+     * @param records 记录列表
+     * @param pageNum 页码
+     * @param pageSize 页大小
+     * @return 分页结果
+     */
     private List<Map<String, Object>> paginateStructuredRecords(List<Map<String, Object>> records,
                                                                 int pageNum,
                                                                 int pageSize) {
@@ -187,11 +233,20 @@ public class DataQueryServiceImpl implements DataQueryService {
         return new ArrayList<>(records.subList(fromIndex, toIndex));
     }
 
+    /**
+     * 构建 ORDER BY 子句。
+     *
+     * @param orderBy 排序列
+     * @param direction 排序方向
+     * @param columns 有效列集合
+     * @return ORDER BY 子句（含前导空格）
+     */
     private String buildOrderBy(String orderBy, String direction, Set<String> columns) {
         if (orderBy == null || orderBy.isBlank()) {
             return "";
         }
         if (IginxStructuredUtils.isInternalKey(orderBy)) {
+            // 内部键列统一映射为 KEY
             return " ORDER BY KEY " + IginxStructuredUtils.normalizeOrderDirection(direction);
         }
         if (!columns.contains(orderBy)) {
@@ -201,6 +256,12 @@ public class DataQueryServiceImpl implements DataQueryService {
         return " ORDER BY " + IginxStructuredUtils.quoteIdentifier(orderBy) + " " + dir;
     }
 
+    /**
+     * 追加 KEY 过滤条件，排除虚拟占位行。
+     *
+     * @param whereSql 原始条件
+     * @return 追加后的条件
+     */
     private String appendKeyFilter(String whereSql) {
         String keyFilter = "KEY <> " + IginxStructuredUtils.DUMMY_KEY;
         if (whereSql == null || whereSql.isBlank()) {
@@ -209,6 +270,12 @@ public class DataQueryServiceImpl implements DataQueryService {
         return whereSql + " AND " + keyFilter;
     }
 
+    /**
+     * 将内部键字段重写为 KEY。
+     *
+     * @param whereSql 原始条件
+     * @return 重写后的条件
+     */
     private String rewriteInternalKey(String whereSql) {
         if (whereSql == null || whereSql.isBlank()) {
             return whereSql;
@@ -220,6 +287,11 @@ public class DataQueryServiceImpl implements DataQueryService {
         return normalized;
     }
 
+    /**
+     * 统一内部键字段为字符串类型，避免前端类型不一致。
+     *
+     * @param records 记录列表
+     */
     private void normalizeInternalKey(List<Map<String, Object>> records) {
         if (records == null || records.isEmpty()) {
             return;
@@ -240,6 +312,11 @@ public class DataQueryServiceImpl implements DataQueryService {
         }
     }
 
+    /**
+     * 安静关闭查询结果集。
+     *
+     * @param dataSet 查询结果
+     */
     private void closeQuietly(QueryDataSet dataSet) {
         if (dataSet == null) {
             return;
@@ -250,6 +327,12 @@ public class DataQueryServiceImpl implements DataQueryService {
         }
     }
 
+    /**
+     * 将聚合器字符串映射为 Iginx 聚合类型。
+     *
+     * @param aggregator 聚合器名称
+     * @return 聚合类型
+     */
     private AggregateType mapAggregateType(String aggregator) {
         if (aggregator == null) {
             return AggregateType.AVG;

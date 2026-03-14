@@ -5,43 +5,52 @@ import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IginxStorageEngineHelperTest {
 
     @Test
-    void buildAddStorageEngineSql_shouldUseHasDataTrueForPostgresqlWhenMountPathProvided() {
-        IginxConfig iginxConfig = new IginxConfig();
-        iginxConfig.setStorageHostOverride(null);
-        IginxStorageEngineHelper helper = new IginxStorageEngineHelper(iginxConfig);
+    void buildAddStorageEngineSql_shouldRespectHasDataAndReadOnly() {
+        IginxConfig config = new IginxConfig();
+        config.setStorageHostOverride("");
+        IginxStorageEngineHelper helper = new IginxStorageEngineHelper(config);
 
-        DataSourceConnectionConfig config = buildPostgresConfig();
-        String sql = helper.buildAddStorageEngineSql(DataSourceType.POSTGRESQL, config, "tett");
+        DataSourceConnectionConfig connection = new DataSourceConnectionConfig();
+        connection.setHost("127.0.0.1");
+        connection.setPort(6667);
+        connection.setDatabase("default");
+        connection.setUsername("root");
+        connection.setPassword("root");
+        connection.setHasData(false);
+        connection.setReadOnly(false);
 
-        assertTrue(sql.contains("has_data=true"));
-        assertTrue(sql.contains("data_prefix=tett"));
+        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.demo");
+
+        assertTrue(sql.contains("has_data=false"));
+        assertTrue(sql.contains("is_read_only=false"));
+        assertFalse(sql.contains("data_prefix="));
     }
 
     @Test
-    void buildAddStorageEngineSql_shouldUseHasDataFalseWhenMountPathBlank() {
-        IginxConfig iginxConfig = new IginxConfig();
-        iginxConfig.setStorageHostOverride(null);
-        IginxStorageEngineHelper helper = new IginxStorageEngineHelper(iginxConfig);
+    void buildAddStorageEngineSql_shouldIncludePrefixWhenHasDataTrue() {
+        IginxConfig config = new IginxConfig();
+        config.setStorageHostOverride("");
+        IginxStorageEngineHelper helper = new IginxStorageEngineHelper(config);
 
-        DataSourceConnectionConfig config = buildPostgresConfig();
-        String sql = helper.buildAddStorageEngineSql(DataSourceType.POSTGRESQL, config, "");
+        DataSourceConnectionConfig connection = new DataSourceConnectionConfig();
+        connection.setHost("127.0.0.1");
+        connection.setPort(6667);
+        connection.setDatabase("default");
+        connection.setUsername("root");
+        connection.setPassword("root");
+        connection.setHasData(true);
+        connection.setReadOnly(true);
 
-        assertTrue(sql.contains("has_data=false"));
-    }
+        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.demo");
 
-    private DataSourceConnectionConfig buildPostgresConfig() {
-        DataSourceConnectionConfig config = new DataSourceConnectionConfig();
-        config.setHost("127.0.0.1");
-        config.setPort(5433);
-        config.setUsername("postgres");
-        config.setPassword("postgres");
-        config.setDatabase("postgres");
-        config.setExtra("");
-        return config;
+        assertTrue(sql.contains("has_data=true"));
+        assertTrue(sql.contains("is_read_only=true"));
+        assertTrue(sql.contains("data_prefix=root.demo"));
     }
 }

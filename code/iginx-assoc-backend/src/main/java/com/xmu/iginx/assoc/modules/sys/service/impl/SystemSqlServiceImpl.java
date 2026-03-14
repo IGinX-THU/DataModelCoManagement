@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * 系统 SQL 执行服务实现。
+ */
 @Service
 @RequiredArgsConstructor
 public class SystemSqlServiceImpl implements SystemSqlService {
@@ -29,6 +32,12 @@ public class SystemSqlServiceImpl implements SystemSqlService {
 
     private final IginxStorageWrapper iginxStorageWrapper;
 
+    /**
+     * 执行 SQL 并根据结果类型组织返回结构。
+     *
+     * @param request SQL 请求
+     * @return 执行结果
+     */
     @Override
     public SqlExecuteResultVO execute(SqlExecuteRequest request) {
         String sql = request == null ? null : request.getSql();
@@ -73,6 +82,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         return response;
     }
 
+    /**
+     * 填充查询类 SQL 的结果。
+     */
     private void fillQueryResult(SessionExecuteSqlResult result,
                                  SqlExecuteResultVO response,
                                  int limit,
@@ -86,6 +98,7 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         }
         for (int i = 0; i < rawPaths.size(); i++) {
             String path = rawPaths.get(i);
+            // 隐藏 title.description 列
             if (TITLE_DESCRIPTION.equals(path)) {
                 continue;
             }
@@ -116,6 +129,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         }
     }
 
+    /**
+     * 填充 ShowColumns 结果。
+     */
     private void fillShowColumns(SessionExecuteSqlResult result, SqlExecuteResultVO response, int limit) {
         List<String> paths = result.getPaths() == null ? List.of() : result.getPaths();
         List<?> dataTypes = result.getDataTypeList() == null ? List.of() : result.getDataTypeList();
@@ -132,6 +148,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         response.setRows(rows);
     }
 
+    /**
+     * 填充单值结果。
+     */
     private void fillSingleValue(SqlExecuteResultVO response, String name, Object value) {
         response.setColumns(List.of(name));
         Map<String, Object> row = new LinkedHashMap<>();
@@ -139,6 +158,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         response.setRows(List.of(row));
     }
 
+    /**
+     * 填充键值对结果。
+     */
     private void fillKeyValue(SqlExecuteResultVO response, Map<String, String> configs, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
         int count = 0;
@@ -155,6 +177,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         response.setRows(rows);
     }
 
+    /**
+     * 填充会话 ID 列表结果。
+     */
     private void fillSessionIds(SqlExecuteResultVO response, List<Long> sessionIds, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
         int count = 0;
@@ -170,6 +195,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         response.setRows(rows);
     }
 
+    /**
+     * 填充注册任务列表结果。
+     */
     private void fillRegisterTasks(SqlExecuteResultVO response, List<?> tasks, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
         int count = 0;
@@ -185,6 +213,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         response.setRows(rows);
     }
 
+    /**
+     * 判断结果是否包含行数据。
+     */
     private boolean hasValues(SessionExecuteSqlResult result) {
         if (result.getValues() != null && !result.getValues().isEmpty()) {
             return true;
@@ -195,6 +226,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         return result.getPaths() != null && !result.getPaths().isEmpty();
     }
 
+    /**
+     * 归一化值类型（处理二进制字段）。
+     */
     private Object normalizeValue(Object value) {
         if (value instanceof byte[] bytes) {
             return new String(bytes, StandardCharsets.UTF_8);
@@ -202,6 +236,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         return value;
     }
 
+    /**
+     * 格式化时间键。
+     */
     private Object formatKey(long key, boolean formatTime) {
         if (!formatTime) {
             return String.valueOf(key);
@@ -209,6 +246,9 @@ public class SystemSqlServiceImpl implements SystemSqlService {
         return TimeParser.formatMillis(TimeParser.toMillis(key));
     }
 
+    /**
+     * 归一化行数限制。
+     */
     private int normalizeLimit(Integer limit) {
         if (limit == null) {
             return DEFAULT_LIMIT;

@@ -8,6 +8,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 结构化查询请求。
+ */
 @Data
 public class StructuredQueryRequest {
 

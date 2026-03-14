@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 模型结构解析结果视图对象。
+ */
 @Data
 public class ModelSchemaParseVO {
 

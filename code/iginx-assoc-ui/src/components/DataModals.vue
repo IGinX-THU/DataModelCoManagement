@@ -14,7 +14,9 @@ const addSourceForm = reactive({
     password: '',
     database: 'root',
     schema: 'public',
-    mountPath: 'root.demo'
+    mountPath: 'root.demo',
+    hasData: true,
+    readOnly: false
 })
 
 const portDefaults = {
@@ -115,6 +117,12 @@ watch(() => addSourceForm.type, (val, oldVal) => {
     const prevMountPath = mountPathDefaults[oldVal] || ''
     if (!addSourceForm.mountPath || addSourceForm.mountPath === prevMountPath) {
         addSourceForm.mountPath = nextMountPath
+    }
+})
+
+watch(() => addSourceForm.hasData, (val) => {
+    if (!val) {
+        addSourceForm.readOnly = false
     }
 })
 
@@ -224,6 +232,8 @@ const handleAddSource = async () => {
     addSourceForm.name = ''
     addSourceForm.username = ''
     addSourceForm.password = ''
+    addSourceForm.hasData = true
+    addSourceForm.readOnly = false
     dataStore.showAddSourceModal = false
 }
 
@@ -706,6 +716,23 @@ const handleMaintenance = async () => {
                      <div>
                          <label class="block text-xs font-bold text-gray-700 mb-1">密码</label>
                          <input v-model="addSourceForm.password" type="password" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                     </div>
+                 </div>
+                 <div class="grid grid-cols-2 gap-4">
+                     <div>
+                         <label class="block text-xs font-bold text-gray-700 mb-1">是否已有数据 (has_data)</label>
+                         <select v-model="addSourceForm.hasData" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                             <option :value="true">是</option>
+                             <option :value="false">否</option>
+                         </select>
+                     </div>
+                     <div>
+                         <label class="block text-xs font-bold text-gray-700 mb-1">是否只读 (is_read_only)</label>
+                         <select v-model="addSourceForm.readOnly" :disabled="!addSourceForm.hasData" class="w-full border border-gray-300 rounded px-3 py-2 text-sm disabled:opacity-60">
+                             <option :value="true">是</option>
+                             <option :value="false">否</option>
+                         </select>
+                         <p v-if="!addSourceForm.hasData" class="text-[10px] text-gray-400 mt-1">无数据不可只读</p>
                      </div>
                  </div>
              </div>

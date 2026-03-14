@@ -45,6 +45,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 数据导出服务实现，支持同步与异步导出。
+ */
 @Service
 @RequiredArgsConstructor
 public class DataExportServiceImpl implements DataExportService {
@@ -59,10 +62,17 @@ public class DataExportServiceImpl implements DataExportService {
     private final ObjectMapper objectMapper;
     private final StructuredSqlBuilder structuredSqlBuilder = new StructuredSqlBuilder();
 
+    /**
+     * 导出数据，支持同步或异步执行。
+     *
+     * @param request 导出请求
+     * @return 导出结果
+     */
     @Override
     public DataExportResultVO exportData(DataExportRequest request) {
         boolean async = Boolean.TRUE.equals(request.getAsync());
         if (request.getAsync() == null) {
+            // 未显式指定时，根据数据规模估算是否采用异步导出
             async = estimateAsync(request);
         }
         if (async) {
@@ -78,6 +88,12 @@ public class DataExportServiceImpl implements DataExportService {
         return result;
     }
 
+    /**
+     * 查询导出任务结果。
+     *
+     * @param taskId 任务 ID
+     * @return 导出结果
+     */
     @Override
     public DataExportResultVO queryExportTask(Long taskId) {
         DataExportTaskEntity task = taskRepository.findById(taskId)
@@ -92,6 +108,12 @@ public class DataExportServiceImpl implements DataExportService {
         return result;
     }
 
+    /**
+     * 异步执行导出任务。
+     *
+     * @param taskId 任务 ID
+     * @param request 导出请求
+     */
     @Async
     public void runAsyncExport(Long taskId, DataExportRequest request) {
         DataExportTaskEntity task = taskRepository.findById(taskId).orElse(null);
@@ -116,6 +138,12 @@ public class DataExportServiceImpl implements DataExportService {
         taskRepository.save(task);
     }
 
+    /**
+     * 执行导出流程并返回结果文件。
+     *
+     * @param request 导出请求
+     * @return 存储文件
+     */
     private DataFileStorageService.StoredFile performExport(DataExportRequest request) {
         String type = request.getType().trim().toUpperCase(Locale.ROOT);
         return switch (type) {
@@ -125,6 +153,12 @@ public class DataExportServiceImpl implements DataExportService {
         };
     }
 
+    /**
+     * 导出时序数据。
+     *
+     * @param request 导出请求
+     * @return 存储文件
+     */
     private DataFileStorageService.StoredFile exportTimeSeries(DataExportRequest request) {
         DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
         if (request.getPaths() == null || request.getPaths().isEmpty()) {
@@ -133,7 +167,9 @@ public class DataExportServiceImpl implements DataExportService {
         if (request.getTimeRange() == null) {
             throw BizException.badRequest("时间范围不能为空");
         }
+        // 统一挂载路径，避免路径不一致导致查询失败
         List<String> paths = TimeSeriesPathUtils.resolvePathsUnderMount(request.getPaths(), detail.entity().getMountPath(), true);
+        // 将毫秒时间转换为纳秒，匹配 Iginx 查询接口
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
         SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session ->
@@ -148,6 +184,12 @@ public class DataExportServiceImpl implements DataExportService {
         return file;
     }
 
+    /**
+     * 导出结构化数据。
+     *
+     * @param request 导出请求
+     * @return 存储文件
+     */
     private DataFileStorageService.StoredFile exportStructured(DataExportRequest request) {
         DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         String format = request.getFormat().trim().toUpperCase(Locale.ROOT);
@@ -158,6 +200,7 @@ public class DataExportServiceImpl implements DataExportService {
             String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
             List<String> selectedColumns = normalizeExportColumns(request.getColumns());
             if (request.getSql() == null || request.getSql().isBlank()) {
+                // 未提供 SQL 时，需要读取表结构并校验导出列
                 columnTypes = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
                 validateExportColumns(selectedColumns, columnTypes);
             }
@@ -181,6 +224,13 @@ public class DataExportServiceImpl implements DataExportService {
         return file;
     }
 
+    /**
+     * 写出时序数据为 CSV。
+     *
+     * @param file 目标文件
+     * @param dataSet 时序数据
+     * @param layout 输出布局
+     */
     private void writeTimeSeriesCsv(DataFileStorageService.StoredFile file, SessionQueryDataSet dataSet, @Nullable String layout) {
         List<String> paths = dataSet.getPaths();
         long[] keys = dataSet.getKeys();
@@ -188,6 +238,7 @@ public class DataExportServiceImpl implements DataExportService {
         String mode = layout == null ? "wide" : layout.trim().toLowerCase(Locale.ROOT);
         try (BufferedWriter writer = Files.newBufferedWriter(file.path(), StandardCharsets.UTF_8)) {
             if ("long".equals(mode)) {
+                // 长表模式：每行包含时间戳、路径和值
                 writer.write("timestamp,path,value");
                 writer.newLine();
                 for (int i = 0; i < keys.length; i++) {
@@ -203,6 +254,7 @@ public class DataExportServiceImpl implements DataExportService {
                     }
                 }
             } else {
+                // 宽表模式：每行对应一个时间戳，多列对应不同序列
                 List<String> header = new ArrayList<>();
                 header.add("timestamp");
                 header.addAll(paths);
@@ -212,6 +264,7 @@ public class DataExportServiceImpl implements DataExportService {
                     List<String> row = new ArrayList<>();
                     row.add(TimeParser.formatMillis(TimeParser.toMillis(keys[i])));
                     for (Object value : values.get(i)) {
+                        // 统一处理二进制值，避免输出不可读字符
                         if (value instanceof byte[] bytes) {
                             row.add(new String(bytes, StandardCharsets.UTF_8));
                         } else {
@@ -227,6 +280,12 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
+    /**
+     * 写出时序数据为 JSON。
+     *
+     * @param file 目标文件
+     * @param dataSet 时序数据
+     */
     private void writeTimeSeriesJson(DataFileStorageService.StoredFile file, SessionQueryDataSet dataSet) {
         try (OutputStream outputStream = Files.newOutputStream(file.path());
              JsonGenerator generator = objectMapper.getFactory().createGenerator(outputStream)) {
@@ -256,6 +315,13 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
+    /**
+     * 写出结构化数据为 CSV。
+     *
+     * @param file 目标文件
+     * @param dataSet 查询结果
+     * @param selectedColumns 导出列
+     */
     private void writeStructuredCsv(DataFileStorageService.StoredFile file,
                                     QueryDataSet dataSet,
                                     List<String> selectedColumns) throws Exception {
@@ -263,6 +329,7 @@ public class DataExportServiceImpl implements DataExportService {
         List<String> headers = meta.headers();
         List<Integer> indices = meta.indices();
         try (BufferedWriter writer = Files.newBufferedWriter(file.path(), StandardCharsets.UTF_8)) {
+            // 写入 BOM，提升 Excel 对 UTF-8 CSV 的识别
             writer.write('\uFEFF');
             writer.write(headers.stream().map(CsvUtils::toCsvValue).collect(Collectors.joining(",")));
             writer.newLine();
@@ -270,6 +337,7 @@ public class DataExportServiceImpl implements DataExportService {
             int columnCount = indices.size();
             while ((row = nextRowQuietly(dataSet)) != null) {
                 if (isDeletedStructuredRow(row, meta.visibleDataIndices())) {
+                    // 跳过已删除的逻辑行
                     continue;
                 }
                 List<String> values = new ArrayList<>();
@@ -285,6 +353,13 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
+    /**
+     * 写出结构化数据为 Excel。
+     *
+     * @param file 目标文件
+     * @param dataSet 查询结果
+     * @param selectedColumns 导出列
+     */
     private void writeStructuredExcel(DataFileStorageService.StoredFile file,
                                       QueryDataSet dataSet,
                                       List<String> selectedColumns) throws Exception {
@@ -302,6 +377,7 @@ public class DataExportServiceImpl implements DataExportService {
             int columnCount = indices.size();
             while ((row = nextRowQuietly(dataSet)) != null) {
                 if (isDeletedStructuredRow(row, meta.visibleDataIndices())) {
+                    // 跳过已删除的逻辑行
                     continue;
                 }
                 List<Object> values = new ArrayList<>();
@@ -312,6 +388,7 @@ public class DataExportServiceImpl implements DataExportService {
                 }
                 buffer.add(values);
                 if (buffer.size() >= 2000) {
+                    // 分批写入，避免一次性占用过多内存
                     writer.write(buffer, sheet);
                     buffer.clear();
                 }
@@ -322,6 +399,13 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
+    /**
+     * 写出结构化数据为 JSON。
+     *
+     * @param file 目标文件
+     * @param dataSet 查询结果
+     * @param selectedColumns 导出列
+     */
     private void writeStructuredJson(DataFileStorageService.StoredFile file,
                                      QueryDataSet dataSet,
                                      List<String> selectedColumns) throws Exception {
@@ -335,6 +419,7 @@ public class DataExportServiceImpl implements DataExportService {
             int columnCount = indices.size();
             while ((row = nextRowQuietly(dataSet)) != null) {
                 if (isDeletedStructuredRow(row, meta.visibleDataIndices())) {
+                    // 跳过已删除的逻辑行
                     continue;
                 }
                 generator.writeStartObject();
@@ -349,6 +434,12 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
+    /**
+     * 规范化结构化数据值（处理二进制类型）。
+     *
+     * @param value 原始值
+     * @return 规范化值
+     */
     private Object normalizeStructuredValue(Object value) {
         if (value instanceof byte[] bytes) {
             return new String(bytes, StandardCharsets.UTF_8);
@@ -356,6 +447,13 @@ public class DataExportServiceImpl implements DataExportService {
         return value;
     }
 
+    /**
+     * 判断结构化行是否为已删除标记行。
+     *
+     * @param row 行数据
+     * @param indices 有效列索引
+     * @return 是否已删除
+     */
     private boolean isDeletedStructuredRow(Object[] row, List<Integer> indices) {
         if (indices == null || indices.isEmpty()) {
             return false;
@@ -369,6 +467,12 @@ public class DataExportServiceImpl implements DataExportService {
         return true;
     }
 
+    /**
+     * 安静获取下一行数据。
+     *
+     * @param dataSet 查询结果
+     * @return 下一行或 null
+     */
     private Object[] nextRowQuietly(QueryDataSet dataSet) {
         try {
             return dataSet.nextRow();
@@ -377,6 +481,13 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
+    /**
+     * 解析结构化导出元信息（表头、索引映射）。
+     *
+     * @param dataSet 查询结果
+     * @param selectedColumns 选择的列
+     * @return 导出元信息
+     */
     private StructuredExportMeta resolveStructuredExportMeta(QueryDataSet dataSet, List<String> selectedColumns) {
         List<String> headers = IginxStructuredUtils.normalizeStructuredHeaders(dataSet.getColumnList());
         List<String> visibleHeaders = new ArrayList<>();
@@ -388,13 +499,14 @@ public class DataExportServiceImpl implements DataExportService {
             if (IginxStructuredUtils.isInternalKey(header)) {
                 continue;
             }
+            // 记录可见列并构建大小写索引，支持不区分大小写匹配
             visibleHeaders.add(header);
             visibleIndices.add(i);
             exactIndexMap.putIfAbsent(header, i);
             lowerIndexMap.putIfAbsent(header.toLowerCase(Locale.ROOT), i);
         }
         if (visibleHeaders.isEmpty()) {
-            throw BizException.badRequest("Table columns not found");
+            throw BizException.badRequest("表列信息不存在");
         }
         if (selectedColumns == null || selectedColumns.isEmpty()) {
             return new StructuredExportMeta(visibleHeaders, visibleIndices, visibleIndices);
@@ -404,17 +516,25 @@ public class DataExportServiceImpl implements DataExportService {
         for (String requested : selectedColumns) {
             Integer index = resolveColumnIndex(requested, exactIndexMap, lowerIndexMap);
             if (index == null) {
-                throw BizException.badRequest("Export column not found: " + requested);
+                throw BizException.badRequest("导出列不存在: " + requested);
             }
             outputHeaders.add(headers.get(index));
             outputIndices.add(index);
         }
         if (outputHeaders.isEmpty()) {
-            throw BizException.badRequest("No export columns selected");
+            throw BizException.badRequest("未选择导出列");
         }
         return new StructuredExportMeta(outputHeaders, outputIndices, visibleIndices);
     }
 
+    /**
+     * 解析列名在结果集中的索引。
+     *
+     * @param column 列名
+     * @param exactIndexMap 精确列索引
+     * @param lowerIndexMap 小写列索引
+     * @return 索引或 null
+     */
     private Integer resolveColumnIndex(String column,
                                        Map<String, Integer> exactIndexMap,
                                        Map<String, Integer> lowerIndexMap) {
@@ -426,9 +546,16 @@ public class DataExportServiceImpl implements DataExportService {
         if (exact != null) {
             return exact;
         }
+        // 精确匹配失败时，回退到不区分大小写的匹配
         return lowerIndexMap.get(trimmed.toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * 规范化导出列集合（去重并去空）。
+     *
+     * @param requestedColumns 请求列
+     * @return 规范化后的列
+     */
     private List<String> normalizeExportColumns(List<String> requestedColumns) {
         if (requestedColumns == null || requestedColumns.isEmpty()) {
             return List.of();
@@ -450,12 +577,18 @@ public class DataExportServiceImpl implements DataExportService {
         return new ArrayList<>(deduplicated);
     }
 
+    /**
+     * 校验导出列是否存在。
+     *
+     * @param selectedColumns 选择的列
+     * @param columnTypes 列类型映射
+     */
     private void validateExportColumns(List<String> selectedColumns, Map<String, DataType> columnTypes) {
         if (selectedColumns == null || selectedColumns.isEmpty()) {
             return;
         }
         if (columnTypes == null || columnTypes.isEmpty()) {
-            throw BizException.badRequest("Table columns not found");
+            throw BizException.badRequest("表列信息不存在");
         }
         Set<String> allowedLowerCase = columnTypes.keySet().stream()
             .filter(name -> name != null && !name.isBlank())
@@ -463,14 +596,29 @@ public class DataExportServiceImpl implements DataExportService {
             .collect(Collectors.toSet());
         for (String column : selectedColumns) {
             if (!allowedLowerCase.contains(column.toLowerCase(Locale.ROOT))) {
-                throw BizException.badRequest("Export column not found: " + column);
+                throw BizException.badRequest("导出列不存在: " + column);
             }
         }
     }
 
+    /**
+     * 结构化导出元信息。
+     *
+     * @param headers 表头
+     * @param indices 列索引
+     * @param visibleDataIndices 可见列索引
+     */
     private record StructuredExportMeta(List<String> headers, List<Integer> indices, List<Integer> visibleDataIndices) {
     }
 
+    /**
+     * 构建结构化查询 SQL。
+     *
+     * @param request 导出请求
+     * @param columnTypes 列类型映射
+     * @param schemaWithMount 挂载路径后的 schema
+     * @return SQL 与参数
+     */
     private StructuredSqlBuilder.SqlWithParams buildStructuredQuery(DataExportRequest request,
                                                                     Map<String, DataType> columnTypes,
                                                                     String schemaWithMount) {
@@ -497,11 +645,18 @@ public class DataExportServiceImpl implements DataExportService {
             conditions, sqlTypeMap.keySet(), sqlTypeMap);
         String selectList = "*";
         String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, table);
+        // 追加 KEY 过滤条件，避免导出内部占位行
         String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
         String sql = "SELECT " + selectList + " FROM " + tablePath + whereClause;
         return new StructuredSqlBuilder.SqlWithParams(sql, where.params());
     }
 
+    /**
+     * 追加主键过滤条件。
+     *
+     * @param whereSql 原始条件
+     * @return 追加后的条件
+     */
     private String appendKeyFilter(String whereSql) {
         String keyFilter = "KEY <> " + IginxStructuredUtils.DUMMY_KEY;
         if (whereSql == null || whereSql.isBlank()) {
@@ -510,6 +665,12 @@ public class DataExportServiceImpl implements DataExportService {
         return whereSql + " AND " + keyFilter;
     }
 
+    /**
+     * 将内部键字段重写为 KEY。
+     *
+     * @param whereSql 原始条件
+     * @return 重写后的条件
+     */
     private String rewriteInternalKey(String whereSql) {
         if (whereSql == null || whereSql.isBlank()) {
             return whereSql;
@@ -521,6 +682,12 @@ public class DataExportServiceImpl implements DataExportService {
         return normalized;
     }
 
+    /**
+     * 估算是否需要异步导出。
+     *
+     * @param request 导出请求
+     * @return 是否异步
+     */
     private boolean estimateAsync(DataExportRequest request) {
         String type = request.getType().trim().toUpperCase(Locale.ROOT);
         if (type.startsWith("STRUCT")) {
@@ -529,6 +696,12 @@ public class DataExportServiceImpl implements DataExportService {
         return false;
     }
 
+    /**
+     * 估算结构化导出数据大小。
+     *
+     * @param request 导出请求
+     * @return 估算字节数
+     */
     private long estimateStructuredSize(DataExportRequest request) {
         try {
             DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
@@ -544,6 +717,7 @@ public class DataExportServiceImpl implements DataExportService {
                 request.getConditions(), sqlTypeMap.keySet(), sqlTypeMap);
             String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
             String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
+            // 使用 COUNT(*) 估算行数，减少全量扫描
             String sql = "SELECT COUNT(*) FROM " + tablePath + whereClause;
             String finalSql = IginxStructuredUtils.renderSqlWithParams(sql, where.params());
             QueryDataSet dataSet = structuredQueryHelper.executeQuery(finalSql, 1000);
@@ -570,6 +744,7 @@ public class DataExportServiceImpl implements DataExportService {
                 if (!selectedColumns.isEmpty()) {
                     columns = selectedColumns.size();
                 }
+                // 粗略估算：行数 * 列数 * 平均单元大小
                 return rows * columns * 16L;
             } finally {
                 closeQuietly(dataSet);
@@ -579,6 +754,11 @@ public class DataExportServiceImpl implements DataExportService {
         return 0;
     }
 
+    /**
+     * 安静关闭查询结果集。
+     *
+     * @param dataSet 查询结果
+     */
     private void closeQuietly(QueryDataSet dataSet) {
         if (dataSet == null) {
             return;
@@ -589,6 +769,12 @@ public class DataExportServiceImpl implements DataExportService {
         }
     }
 
+    /**
+     * 创建导出任务并落库。
+     *
+     * @param request 导出请求
+     * @return 导出任务
+     */
     private DataExportTaskEntity createTask(DataExportRequest request) {
         DataExportTaskEntity task = new DataExportTaskEntity();
         task.setSourceId(request.getSourceId());
@@ -604,6 +790,12 @@ public class DataExportServiceImpl implements DataExportService {
         return taskRepository.save(task);
     }
 
+    /**
+     * 构建导出任务返回对象。
+     *
+     * @param task 导出任务
+     * @return 导出结果
+     */
     private DataExportResultVO buildTaskResult(DataExportTaskEntity task) {
         DataExportResultVO result = new DataExportResultVO();
         result.setTaskId(task.getId());

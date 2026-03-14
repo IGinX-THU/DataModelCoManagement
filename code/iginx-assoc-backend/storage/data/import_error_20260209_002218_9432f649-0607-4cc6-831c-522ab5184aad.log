@@ -1,6 +1,0 @@
-第1行：ERROR: column "device_id" named in key does not exist
-  位置：230
-第2行：ERROR: current transaction is aborted, commands ignored until end of transaction block
-第3行：ERROR: current transaction is aborted, commands ignored until end of transaction block
-第4行：ERROR: current transaction is aborted, commands ignored until end of transaction block
-第5行：ERROR: current transaction is aborted, commands ignored until end of transaction block

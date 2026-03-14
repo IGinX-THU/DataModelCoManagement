@@ -7,6 +7,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 时序导入请求。
+ */
 @Data
 public class TimeSeriesImportRequest {
 

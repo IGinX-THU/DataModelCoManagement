@@ -6,6 +6,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 结构化数据导入请求。
+ */
 @Data
 public class StructuredImportRequest {
 

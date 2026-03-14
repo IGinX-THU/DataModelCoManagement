@@ -9,6 +9,9 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * 外部任务实体。
+ */
 @Getter
 @Setter
 @Entity

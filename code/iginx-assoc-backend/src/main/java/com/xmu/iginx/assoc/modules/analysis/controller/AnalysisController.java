@@ -20,6 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 分析模块接口，提供任务曲线、对比、导出与报告生成能力。
+ */
 @Tag(name = "Analysis")
 @RestController
 @RequiredArgsConstructor
@@ -28,6 +31,13 @@ public class AnalysisController {
 
     private final AnalysisService analysisService;
 
+    /**
+     * 获取单个任务的时序曲线数据。
+     *
+     * @param taskId 任务 ID
+     * @param request 曲线请求参数
+     * @return 曲线数据列表
+     */
     @Operation(summary = "获取任务曲线")
     @GetMapping("/tasks/{taskId}/series")
     public Result<List<TaskSeriesVO>> series(@PathVariable String taskId,
@@ -35,12 +45,25 @@ public class AnalysisController {
         return Result.success(analysisService.queryTaskSeries(taskId, request));
     }
 
+    /**
+     * 对多个任务进行曲线对比。
+     *
+     * @param request 对比请求
+     * @return 曲线数据列表
+     */
     @Operation(summary = "任务对比曲线")
     @PostMapping("/tasks/compare")
     public Result<List<TaskSeriesVO>> compare(@Valid @RequestBody TaskCompareRequest request) {
         return Result.success(analysisService.compareTasks(request));
     }
 
+    /**
+     * 导出任务资源包（含元数据/输入输出/模型文件等）。
+     *
+     * @param taskId 任务 ID
+     * @param request 导出参数
+     * @return 下载路径
+     */
     @Operation(summary = "导出资源包")
     @PostMapping("/tasks/{taskId}/export")
     public Result<String> export(@PathVariable String taskId,
@@ -48,6 +71,13 @@ public class AnalysisController {
         return Result.success(analysisService.exportPackage(taskId, request));
     }
 
+    /**
+     * 生成任务实验报告并返回下载路径。
+     *
+     * @param taskId 任务 ID
+     * @param request 报告生成参数
+     * @return 下载路径
+     */
     @Operation(summary = "生成实验报告")
     @PostMapping("/tasks/{taskId}/report")
     public Result<String> report(@PathVariable String taskId,

@@ -7,6 +7,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * 基于文件路径的 MultipartFile 适配实现。
+ */
 public class PathMultipartFile implements MultipartFile {
 
     private final Path path;
@@ -34,6 +37,9 @@ public class PathMultipartFile implements MultipartFile {
         return contentType;
     }
 
+    /**
+     * 判断文件是否为空。
+     */
     @Override
     public boolean isEmpty() {
         try {
@@ -43,6 +49,9 @@ public class PathMultipartFile implements MultipartFile {
         }
     }
 
+    /**
+     * 获取文件大小。
+     */
     @Override
     public long getSize() {
         try {
@@ -52,16 +61,25 @@ public class PathMultipartFile implements MultipartFile {
         }
     }
 
+    /**
+     * 读取文件内容为字节数组。
+     */
     @Override
     public byte[] getBytes() throws IOException {
         return Files.readAllBytes(path);
     }
 
+    /**
+     * 打开输入流读取文件内容。
+     */
     @Override
     public InputStream getInputStream() throws IOException {
         return Files.newInputStream(path);
     }
 
+    /**
+     * 复制文件到目标位置。
+     */
     @Override
     public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
         if (dest == null) {

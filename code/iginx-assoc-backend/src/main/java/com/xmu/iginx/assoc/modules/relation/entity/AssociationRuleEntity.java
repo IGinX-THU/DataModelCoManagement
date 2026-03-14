@@ -13,6 +13,9 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
+/**
+ * 关联规则实体。
+ */
 @Getter
 @Setter
 @Entity

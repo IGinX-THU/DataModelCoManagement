@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 时序查询结果视图对象。
+ */
 @Data
 public class TimeSeriesQueryResultVO {
 

@@ -4,6 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+/**
+ * 存储组操作请求。
+ */
 @Data
 public class StorageGroupRequest {
 

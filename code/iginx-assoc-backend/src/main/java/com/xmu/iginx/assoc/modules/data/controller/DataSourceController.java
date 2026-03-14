@@ -30,6 +30,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 数据源管理接口，提供数据源的增删改查与结构预览能力。
+ */
 @Tag(name = "Data Resource Management")
 @Validated
 @RestController
@@ -40,31 +43,63 @@ public class DataSourceController {
     private final DataSourceService dataSourceService;
     private final StructureService structureService;
 
-    @Operation(summary = "\u65b0\u589e\u6570\u636e\u6e90")
+    /**
+     * 新增数据源。
+     *
+     * @param request 数据源创建参数
+     * @return 新增数据源 ID
+     */
+    @Operation(summary = "新增数据源")
     @PostMapping
     public Result<Long> create(@Valid @RequestBody DataSourceCreateRequest request) {
         return Result.success(dataSourceService.createDataSource(request));
     }
 
-    @Operation(summary = "\u5206\u9875\u67e5\u8be2\u6570\u636e\u6e90")
+    /**
+     * 分页查询数据源列表。
+     *
+     * @param request 查询条件
+     * @return 分页结果
+     */
+    @Operation(summary = "分页查询数据源")
     @GetMapping
     public Result<PageResult<DataSourceVO>> page(@Valid DataSourceQueryRequest request) {
         return Result.success(dataSourceService.pageDataSources(request));
     }
 
-    @Operation(summary = "\u67e5\u8be2\u6570\u636e\u6e90\u8be6\u60c5")
+    /**
+     * 查询数据源详情。
+     *
+     * @param id 数据源 ID
+     * @return 数据源详情
+     */
+    @Operation(summary = "查询数据源详情")
     @GetMapping("/{id}")
     public Result<DataSourceVO> detail(@PathVariable Long id) {
         return Result.success(dataSourceService.getDataSource(id));
     }
 
-    @Operation(summary = "\u67e5\u8be2\u6570\u636e\u6e90\u7ed3\u6784\u9884\u89c8")
+    /**
+     * 查询数据源结构预览。
+     *
+     * @param id 数据源 ID
+     * @return 结构节点列表
+     */
+    @Operation(summary = "查询数据源结构预览")
     @GetMapping("/{id}/structure")
     public Result<List<DataSourceStructureNodeVO>> structure(@PathVariable Long id) {
         return Result.success(dataSourceService.listStructure(id));
     }
 
-    @Operation(summary = "\u67e5\u8be2\u5173\u7cfb\u8868\u5b57\u6bb5\u5217\u8868")
+    /**
+     * 查询关系型表的字段列表。
+     *
+     * @param id 数据源 ID
+     * @param schema Schema 名称
+     * @param table 表名
+     * @return 字段列表
+     */
+    @Operation(summary = "查询关系表字段列表")
     @GetMapping("/{id}/tables/{schema}/{table}/columns")
     public Result<List<TableColumnVO>> tableColumns(@PathVariable Long id,
                                                     @PathVariable String schema,
@@ -72,14 +107,28 @@ public class DataSourceController {
         return Result.success(structureService.listTableColumns(id, schema, table));
     }
 
-    @Operation(summary = "\u66f4\u65b0\u6570\u636e\u6e90")
+    /**
+     * 更新数据源。
+     *
+     * @param id 数据源 ID
+     * @param request 更新参数
+     * @return 操作结果
+     */
+    @Operation(summary = "更新数据源")
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody DataSourceUpdateRequest request) {
         dataSourceService.updateDataSource(id, request);
         return Result.success();
     }
 
-    @Operation(summary = "\u5220\u9664\u6570\u636e\u6e90")
+    /**
+     * 删除数据源。
+     *
+     * @param id 数据源 ID
+     * @param force 是否强制删除
+     * @return 操作结果
+     */
+    @Operation(summary = "删除数据源")
     @DeleteMapping("/{id}")
     public Result<Void> remove(@PathVariable Long id,
                                @RequestParam(defaultValue = "false") boolean force) {
@@ -87,7 +136,13 @@ public class DataSourceController {
         return Result.success();
     }
 
-    @Operation(summary = "\u6d4b\u8bd5\u6570\u636e\u6e90\u8fde\u63a5")
+    /**
+     * 测试数据源连接是否可用。
+     *
+     * @param request 连接测试参数
+     * @return 操作结果
+     */
+    @Operation(summary = "测试数据源连接")
     @PostMapping("/test-connection")
     public Result<Void> testConnection(@Valid @RequestBody TestConnectionRequest request) {
         dataSourceService.testConnection(request.getSourceType(), request.getConnectionConfig());
@@ -96,7 +151,7 @@ public class DataSourceController {
 
     @Data
     public static class TestConnectionRequest {
-        @NotBlank(message = "\u6570\u636e\u6e90\u7c7b\u578b\u4e0d\u80fd\u4e3a\u7a7a")
+        @NotBlank(message = "数据源类型不能为空")
         private String sourceType;
 
         @Valid

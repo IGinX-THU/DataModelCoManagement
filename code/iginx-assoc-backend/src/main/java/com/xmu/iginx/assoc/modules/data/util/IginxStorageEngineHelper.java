@@ -12,12 +12,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * IGinX 存储引擎 SQL 构建与参数辅助工具。
+ */
 @Component
 @RequiredArgsConstructor
 public class IginxStorageEngineHelper {
 
     private final IginxConfig iginxConfig;
 
+    /**
+     * 构建添加存储引擎 SQL。
+     *
+     * @param sourceType 数据源类型
+     * @param config 连接配置
+     * @param mountPath 挂载路径
+     * @return SQL 语句
+     */
     public String buildAddStorageEngineSql(DataSourceType sourceType,
                                            DataSourceConnectionConfig config,
                                            String mountPath) {
@@ -28,6 +39,15 @@ public class IginxStorageEngineHelper {
             resolvedHost, config.getPort(), engine, escape(extraParams));
     }
 
+    /**
+     * 构建移除存储引擎 SQL。
+     *
+     * @param config 连接配置
+     * @param schemaPrefix schema 前缀
+     * @param dataPrefix data 前缀
+     * @param forAll 是否对所有分片生效
+     * @return SQL 语句
+     */
     public String buildRemoveStorageEngineSql(DataSourceConnectionConfig config,
                                               String schemaPrefix,
                                               String dataPrefix,
@@ -37,6 +57,7 @@ public class IginxStorageEngineHelper {
         String normalizedSchemaPrefix = schemaPrefix == null ? "" : schemaPrefix;
         String normalizedDataPrefix = dataPrefix == null ? "" : dataPrefix;
         if ("host.docker.internal".equalsIgnoreCase(rawHost)) {
+            // docker 场景需保留原始 host
             return String.format("REMOVE STORAGEENGINE (\"%s\", %d, \"%s\", \"%s\")%s;",
                 rawHost, config.getPort(), escape(normalizedSchemaPrefix), escape(normalizedDataPrefix),
                 forAll ? " FOR ALL" : "");
@@ -46,14 +67,35 @@ public class IginxStorageEngineHelper {
             forAll ? " FOR ALL" : "");
     }
 
+    /**
+     * 解析存储引擎主机地址。
+     *
+     * @param host 原始主机
+     * @return 解析后的主机
+     */
     public String resolveStorageHost(String host) {
         return resolveHost(host);
     }
 
+    /**
+     * 解析存储引擎类型。
+     *
+     * @param sourceType 数据源类型
+     * @return 引擎类型
+     */
     public String resolveEngineType(DataSourceType sourceType) {
         return toEngineType(sourceType);
     }
 
+    /**
+     * 构建存储引擎扩展参数。
+     *
+     * @param sourceType 数据源类型
+     * @param config 连接配置
+     * @param mountPath 挂载路径
+     * @param resolvedHost 解析后的主机
+     * @return 参数字符串
+     */
     private String buildExtraParams(DataSourceType sourceType,
                                     DataSourceConnectionConfig config,
                                     String mountPath,
@@ -63,16 +105,14 @@ public class IginxStorageEngineHelper {
             mountPath = TimeSeriesPathUtils.normalizeIotdbMountPath(mountPath);
         }
         String extra = config.getExtra();
-        boolean hasDataSpecified = containsParam(extra, "has_data");
-        boolean readOnlySpecified = containsParam(extra, "is_read_only");
-        // IGinX 0.8.0 仅在 has_data=true 时记录 data_prefix，因此有挂载路径时默认设为 true
+        Boolean hasDataValue = config.getHasData();
+        Boolean readOnlyValue = config.getReadOnly();
+        // IGinX 0.8.0 ?? has_data=true ??? data_prefix????????????? true
         boolean defaultHasData = StringUtils.hasText(mountPath);
-        if (!hasDataSpecified) {
-            params.add("has_data=" + defaultHasData);
-        }
-        if (!readOnlySpecified) {
-            params.add("is_read_only=false");
-        }
+        boolean hasData = hasDataValue != null ? hasDataValue : defaultHasData;
+        boolean readOnly = readOnlyValue != null ? readOnlyValue : false;
+        params.add("has_data=" + hasData);
+        params.add("is_read_only=" + readOnly);
         if (sourceType == DataSourceType.INFLUXDB) {
             params.add(String.format("url=http://%s:%d/", resolvedHost, config.getPort()));
         }
@@ -88,7 +128,7 @@ public class IginxStorageEngineHelper {
         if (config.getDatabase() != null && !config.getDatabase().isBlank()) {
             params.add("database=" + config.getDatabase());
         }
-        if (mountPath != null && !mountPath.isBlank()) {
+        if (hasData && mountPath != null && !mountPath.isBlank()) {
             params.add("data_prefix=" + mountPath);
         }
         if (extra != null && !extra.isBlank()) {
@@ -97,13 +137,12 @@ public class IginxStorageEngineHelper {
         return String.join(", ", params);
     }
 
-    private boolean containsParam(String extra, String key) {
-        if (extra == null || extra.isBlank() || key == null || key.isBlank()) {
-            return false;
-        }
-        return extra.toLowerCase(Locale.ROOT).contains(key.toLowerCase(Locale.ROOT) + "=");
-    }
-
+    /**
+     * 解析主机地址，支持本地替换。
+     *
+     * @param host 原始主机
+     * @return 解析后的主机
+     */
     private String resolveHost(String host) {
         if (!StringUtils.hasText(host)) {
             return host;
@@ -116,6 +155,12 @@ public class IginxStorageEngineHelper {
         return host.trim();
     }
 
+    /**
+     * 将数据源类型映射为 IGinX 引擎类型。
+     *
+     * @param sourceType 数据源类型
+     * @return 引擎类型
+     */
     private String toEngineType(DataSourceType sourceType) {
         return switch (sourceType) {
             case INFLUXDB -> "influxdb";
@@ -124,6 +169,12 @@ public class IginxStorageEngineHelper {
         };
     }
 
+    /**
+     * 转义 SQL 参数中的特殊字符。
+     *
+     * @param value 原始值
+     * @return 转义后的值
+     */
     private String escape(String value) {
         if (value == null) {
             return "";

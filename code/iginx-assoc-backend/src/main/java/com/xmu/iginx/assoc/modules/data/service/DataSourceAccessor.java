@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 
+/**
+ * 数据源访问器，用于加载数据源详情与连接配置。
+ */
 @Component
 @RequiredArgsConstructor
 public class DataSourceAccessor {
@@ -19,6 +22,12 @@ public class DataSourceAccessor {
     private final DataResourceRepository dataResourceRepository;
     private final ConnectionConfigCipher connectionConfigCipher;
 
+    /**
+     * 获取数据源详情。
+     *
+     * @param id 数据源 ID
+     * @return 数据源详情
+     */
     public DataSourceDetail getDetail(Long id) {
         DataResourceEntity entity = dataResourceRepository.findById(id)
             .orElseThrow(() -> BizException.badRequest("数据源不存在，id=" + id));
@@ -32,11 +41,19 @@ public class DataSourceAccessor {
         return new DataSourceDetail(entity, type, config);
     }
 
+    /**
+     * 获取数据源详情，并校验类型是否在允许范围内。
+     *
+     * @param id 数据源 ID
+     * @param allowedTypes 允许的数据源类型
+     * @return 数据源详情
+     */
     public DataSourceDetail getDetail(Long id, DataSourceType... allowedTypes) {
         DataSourceDetail detail = getDetail(id);
         if (allowedTypes == null || allowedTypes.length == 0) {
             return detail;
         }
+        // 类型不匹配时直接报错
         boolean match = Arrays.stream(allowedTypes).anyMatch(type -> type == detail.type());
         if (!match) {
             throw BizException.badRequest("数据源类型不匹配");

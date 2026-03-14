@@ -6,6 +6,9 @@ import lombok.Data;
 
 import java.util.Map;
 
+/**
+ * 关联规则创建请求。
+ */
 @Data
 public class AssociationRuleCreateRequest {
 

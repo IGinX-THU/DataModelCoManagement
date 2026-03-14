@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+/**
+ * 数据源连接配置。
+ */
 @Data
 public class DataSourceConnectionConfig {
 
@@ -25,6 +28,12 @@ public class DataSourceConnectionConfig {
 
     @NotBlank(message = "密码不能为空")
     private String password;
+
+    @NotNull(message = "has_data 不能为空")
+    private Boolean hasData;
+
+    @NotNull(message = "is_read_only 不能为空")
+    private Boolean readOnly;
 
     private String extra;
 }

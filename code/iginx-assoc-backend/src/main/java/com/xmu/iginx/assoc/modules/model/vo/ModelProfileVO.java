@@ -5,6 +5,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 模型档案视图对象。
+ */
 @Data
 public class ModelProfileVO {
 

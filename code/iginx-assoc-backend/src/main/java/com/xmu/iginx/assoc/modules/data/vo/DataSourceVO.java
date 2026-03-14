@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 数据源视图对象。
+ */
 @Data
 public class DataSourceVO {
 

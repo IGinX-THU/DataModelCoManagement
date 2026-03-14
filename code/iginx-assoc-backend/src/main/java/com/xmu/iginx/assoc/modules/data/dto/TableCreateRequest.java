@@ -7,6 +7,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 建表请求。
+ */
 @Data
 public class TableCreateRequest {
 

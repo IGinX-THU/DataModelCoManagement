@@ -1,0 +1,8 @@
+{
+  "groupId": "com.xmu.iginx",
+  "artifactId": "iginx-assoc-generated-client",
+  "artifactVersion": "1.0.0",
+  "library": "native",
+  "dateLibrary": "java8",
+  "serializationLibrary": "jackson"
+}

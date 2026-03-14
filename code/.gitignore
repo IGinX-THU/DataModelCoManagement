@@ -1,54 +1,37 @@
-# -----------------------------
-# 通用：IDE 与系统缓存
-# -----------------------------
+﻿# IDE/编辑器
 .idea/
+.vscode/
 *.iml
-.DS_Store
-Thumbs.db
 
-# -----------------------------
-# 通用：日志与临时文件
-# -----------------------------
-*.log
-*.err.log
-*.out.log
-*.tmp
-tmp/
-logs/
-.tmp_iginx/
+# Node 生成物
+**/node_modules/
+**/dist/
+**/.vite/
+**/.cache/
 
-# -----------------------------
-# 文档处理中间产物
-# -----------------------------
+# Java/构建产物
+**/target/
+**/*.class
+**/out/
+
+# Python 生成物
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+
+# 日志与临时
+**/*.log
+**/*.log.gz
+**/logs/
+**/tmp/
+**/.tmp_iginx/
+**/gc.log
+
+# 运行期数据/导出
+**/storage/data/
+
+# 文档中间产物
 .docx_text/
 
-# -----------------------------
-# 前端构建产物
-# -----------------------------
-iginx-assoc-ui/node_modules/
-iginx-assoc-ui/dist/
-iginx-assoc-ui/.vite/
-
-# -----------------------------
-# 后端构建与运行产物
-# -----------------------------
-iginx-assoc-backend/target/
-iginx-assoc-backend/storage/data/
-iginx-assoc-backend/storage/models/
-iginx-assoc-backend/storage/temp/
-iginx-assoc-backend/storage/upload/
-
-# -----------------------------
-# IGinX 运行产物（日志/运行数据）
-# -----------------------------
-IGinX-Server-0.8.0/logs/
-IGinX-Server-0.8.0/data/
-IGinX-Server-0.8.0/sbin/data/
-IGinX-Server-0.8.0/sbin/zk-data/
-IGinX-Server-0.8.0/gc.log
-
-# -----------------------------
-# 本地数据库/导出物
-# -----------------------------
-sys.db
-*.zip
+# 本工具生成的计划
+docs/plans/

@@ -7,6 +7,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+/**
+ * 外部模型任务请求。
+ */
 @Data
 public class ExternalModelJobRequest {
 

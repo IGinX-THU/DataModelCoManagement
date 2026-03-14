@@ -6,6 +6,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/**
+ * 外部数据导入任务请求。
+ */
 @Data
 public class ExternalDataImportJobRequest {
 

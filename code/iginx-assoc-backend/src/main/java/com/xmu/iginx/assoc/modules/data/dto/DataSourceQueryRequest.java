@@ -4,6 +4,9 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
 
+/**
+ * 数据源查询请求。
+ */
 @Data
 public class DataSourceQueryRequest {
 

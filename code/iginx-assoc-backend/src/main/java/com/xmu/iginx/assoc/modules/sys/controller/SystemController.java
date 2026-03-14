@@ -11,13 +11,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 系统管理接口，提供健康检查、日志与 SQL 执行能力。
+ */
 @Tag(name = "System Management")
 @RestController
 @RequestMapping("/api/v1/sys")
@@ -27,13 +30,26 @@ public class SystemController {
     private final SystemLogService systemLogService;
     private final SystemSqlService systemSqlService;
 
-    @Operation(summary = "Health Check")
+    /**
+     * 健康检查接口。
+     *
+     * @return 服务状态文本
+     */
+    @Operation(summary = "健康检查")
     @GetMapping("/health")
     public Result<String> health() {
         return Result.success("IGinX Association System is running.");
     }
 
-    @Operation(summary = "System Logs")
+    /**
+     * 查询系统日志。
+     *
+     * @param limit 返回数量上限
+     * @param level 日志级别过滤
+     * @param keyword 关键字过滤
+     * @return 日志列表
+     */
+    @Operation(summary = "系统日志")
     @GetMapping("/logs")
     public Result<List<SystemLogEntryVO>> logs(@RequestParam(value = "limit", required = false) Integer limit,
                                                @RequestParam(value = "level", required = false) String level,
@@ -41,7 +57,13 @@ public class SystemController {
         return Result.success(systemLogService.listLogs(limit, level, keyword));
     }
 
-    @Operation(summary = "SQL Console")
+    /**
+     * 执行 SQL 语句。
+     *
+     * @param request SQL 请求
+     * @return 执行结果
+     */
+    @Operation(summary = "SQL 控制台")
     @PostMapping("/sql")
     public Result<SqlExecuteResultVO> executeSql(@RequestBody SqlExecuteRequest request) {
         return Result.success(systemSqlService.execute(request));

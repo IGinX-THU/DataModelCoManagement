@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 外部算法任务请求。
+ */
 @Data
 public class ExternalAlgorithmJobRequest {
 

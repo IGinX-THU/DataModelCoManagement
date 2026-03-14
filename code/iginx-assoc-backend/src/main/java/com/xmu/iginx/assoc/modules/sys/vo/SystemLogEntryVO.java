@@ -2,6 +2,9 @@ package com.xmu.iginx.assoc.modules.sys.vo;
 
 import lombok.Data;
 
+/**
+ * 系统日志条目视图对象。
+ */
 @Data
 public class SystemLogEntryVO {
     private String id;

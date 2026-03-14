@@ -44,6 +44,9 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+/**
+ * 分析任务服务实现，提供任务曲线查询、对比、导出与报告生成能力。
+ */
 @Service
 @RequiredArgsConstructor
 public class AnalysisServiceImpl implements AnalysisService {
@@ -59,6 +62,13 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final ModelFileStorageService modelFileStorageService;
     private final DataFileStorageService dataFileStorageService;
 
+    /**
+     * 查询任务输出序列。
+     *
+     * @param taskId 任务 ID
+     * @param request 查询请求
+     * @return 序列列表
+     */
     @Override
     public List<TaskSeriesVO> queryTaskSeries(String taskId, TaskSeriesRequest request) {
         TaskEntity task = findTask(taskId);
@@ -66,6 +76,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return loadSeriesForTask(task, relative);
     }
 
+    /**
+     * 对比多个任务的输出序列。
+     *
+     * @param request 对比请求
+     * @return 序列列表
+     */
     @Override
     public List<TaskSeriesVO> compareTasks(TaskCompareRequest request) {
         boolean relative = request != null && "relative".equalsIgnoreCase(request.getMode());
@@ -77,6 +93,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         return result;
     }
 
+    /**
+     * 导出任务数据包（元数据、输入/输出数据、模型文件等）。
+     *
+     * @param taskId 任务 ID
+     * @param request 导出请求
+     * @return 下载地址
+     */
     @Override
     public String exportPackage(String taskId, TaskExportRequest request) {
         TaskEntity task = findTask(taskId);
@@ -84,6 +107,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             .orElseThrow(() -> BizException.badRequest("关联规则不存在"));
         ModelAssetEntity asset = modelAssetRepository.findById(rule.getModelId()).orElse(null);
 
+        // 解析输入/输出绑定关系
         Map<String, String> inputBindings = parseInputBindings(rule.getMappingJson());
         Map<String, String> outputBindings = parseOutputBindings(rule.getOutputTarget());
         Map<String, String> outputPaths = outputBindings;
@@ -95,6 +119,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             .filter(StringUtils::hasText)
             .toList();
 
+        // 导出格式默认 CSV
         String format = request.getFormat() == null ? "CSV" : request.getFormat().trim().toUpperCase(Locale.ROOT);
         String suffix = "JSON".equals(format) ? "json" : "csv";
 
@@ -135,6 +160,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         return "/api/v1/data/files/" + file.fileName();
     }
 
+    /**
+     * 生成任务报告并保存为 PDF。
+     *
+     * @param taskId 任务 ID
+     * @param request 报告请求
+     * @return 下载地址
+     */
     @Override
     public String generateReport(String taskId, TaskReportRequest request) {
         TaskEntity task = findTask(taskId);
@@ -165,6 +197,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         return "/api/v1/data/files/" + file.fileName();
     }
 
+    /**
+     * 加载任务输出序列数据。
+     *
+     * @param task 任务实体
+     * @param relative 是否使用相对时间
+     * @return 序列列表
+     */
     private List<TaskSeriesVO> loadSeriesForTask(TaskEntity task, boolean relative) {
         AssociationRuleEntity rule = associationRuleRepository.findById(task.getRuleId()).orElse(null);
         Map<String, String> ruleOutputs = rule == null ? Map.of() : parseOutputBindings(rule.getOutputTarget());
@@ -185,10 +224,12 @@ public class AnalysisServiceImpl implements AnalysisService {
             return List.of();
         }
         int size = Math.min(keys.length, rows.size());
+        // 相对时间以首个点为基准
         long baseKey = relative ? keys[0] : 0L;
 
         Map<String, Integer> normalizedIndex = new LinkedHashMap<>();
         for (int i = 0; i < dataPaths.size(); i++) {
+            // 对路径去掉 root 前缀，便于兼容匹配
             normalizedIndex.putIfAbsent(normalizeMatchKey(dataPaths.get(i)), i);
         }
 
@@ -198,6 +239,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             String path = entry.getValue();
             int index = dataPaths.indexOf(path);
             if (index < 0) {
+                // 回退到去 root 前缀的匹配方式
                 Integer mapped = normalizedIndex.get(normalizeMatchKey(path));
                 if (mapped != null) {
                     index = mapped;
@@ -218,6 +260,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 List<Object> row = rows.get(i);
                 Object value = index < row.size() ? row.get(index) : null;
                 TaskSeriesPointVO point = new TaskSeriesPointVO();
+                // 相对时间用秒，绝对时间用毫秒
                 point.setTimestamp(relative ? (keys[i] - baseKey) / 1_000_000_000 : TimeParser.toMillis(keys[i]));
                 point.setValue(toDouble(value));
                 points.add(point);
@@ -228,6 +271,14 @@ public class AnalysisServiceImpl implements AnalysisService {
         return result;
     }
 
+    /**
+     * 查询时序数据，失败时尝试追加 root 前缀兜底。
+     *
+     * @param paths 路径列表
+     * @param startNs 开始时间（纳秒）
+     * @param endNs 结束时间（纳秒）
+     * @return 查询结果
+     */
     private SessionQueryDataSet safeQuerySeries(List<String> paths, long startNs, long endNs) {
         if (paths == null || paths.isEmpty()) {
             return null;
@@ -236,6 +287,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             return iginxStorageWrapper.executeWithSession(session -> session.queryData(paths, startNs, endNs));
         } catch (Exception ex) {
             if (needsRootPrefix(paths)) {
+                // 部分数据源需要 root 前缀，失败时尝试补前缀重试
                 List<String> fallbackPaths = addRootPrefix(paths);
                 try {
                     return iginxStorageWrapper.executeWithSession(session -> session.queryData(fallbackPaths, startNs, endNs));
@@ -247,6 +299,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 解析输出绑定关系。
+     *
+     * @param outputTargetJson 输出目标 JSON
+     * @return 输出映射
+     */
     private Map<String, String> parseOutputBindings(String outputTargetJson) {
         if (!StringUtils.hasText(outputTargetJson)) {
             return Map.of();
@@ -268,6 +326,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 解析输入绑定关系。
+     *
+     * @param mappingJson 映射 JSON
+     * @return 输入映射
+     */
     private Map<String, String> parseInputBindings(String mappingJson) {
         if (!StringUtils.hasText(mappingJson)) {
             return Map.of();
@@ -293,6 +357,16 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 构建任务导出元数据。
+     *
+     * @param task 任务实体
+     * @param rule 关联规则
+     * @param asset 模型资产
+     * @param inputPaths 输入路径
+     * @param outputPaths 输出路径
+     * @return 元数据
+     */
     private Map<String, Object> buildTaskMetadata(TaskEntity task,
                                                   AssociationRuleEntity rule,
                                                   ModelAssetEntity asset,
@@ -313,6 +387,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return meta;
     }
 
+    /**
+     * 将对象序列化为 JSON 字节。
+     *
+     * @param value 对象
+     * @return 字节数组
+     */
     private byte[] writeJsonBytes(Object value) {
         try {
             return objectMapper.writeValueAsBytes(value);
@@ -321,6 +401,14 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 查询时序数据，必要时追加 root 前缀重试。
+     *
+     * @param paths 路径列表
+     * @param start 开始时间
+     * @param end 结束时间
+     * @return 查询结果
+     */
     private SessionQueryDataSet querySeries(List<String> paths, LocalDateTime start, LocalDateTime end) {
         if (paths == null || paths.isEmpty()) {
             return null;
@@ -338,6 +426,14 @@ public class AnalysisServiceImpl implements AnalysisService {
         return dataSet;
     }
 
+    /**
+     * 构建时序数据字节内容。
+     *
+     * @param paths 路径列表
+     * @param dataSet 数据集
+     * @param format 导出格式
+     * @return 字节数组
+     */
     private byte[] buildSeriesBytes(List<String> paths, SessionQueryDataSet dataSet, String format) {
         if ("JSON".equalsIgnoreCase(format)) {
             return buildSeriesJson(paths, dataSet);
@@ -345,6 +441,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         return buildSeriesCsv(paths, dataSet);
     }
 
+    /**
+     * 构建 CSV 格式时序数据。
+     *
+     * @param paths 路径列表
+     * @param dataSet 数据集
+     * @return CSV 字节
+     */
     private byte[] buildSeriesCsv(List<String> paths, SessionQueryDataSet dataSet) {
         List<String> dataPaths = resolvePaths(paths, dataSet);
         long[] keys = dataSet == null ? new long[0] : dataSet.getKeys();
@@ -355,6 +458,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             List<String> header = new ArrayList<>();
             header.add("timestamp");
             header.addAll(dataPaths);
+            // 写入表头
             writer.write(header.stream().map(CsvUtils::toCsvValue).reduce((a, b) -> a + "," + b).orElse(""));
             writer.newLine();
             for (int i = 0; i < size; i++) {
@@ -375,6 +479,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 构建 JSON 格式时序数据。
+     *
+     * @param paths 路径列表
+     * @param dataSet 数据集
+     * @return JSON 字节
+     */
     private byte[] buildSeriesJson(List<String> paths, SessionQueryDataSet dataSet) {
         List<String> dataPaths = resolvePaths(paths, dataSet);
         long[] keys = dataSet == null ? new long[0] : dataSet.getKeys();
@@ -403,6 +514,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         return writeJsonBytes(root);
     }
 
+    /**
+     * 解析输出路径，优先使用数据集返回路径。
+     *
+     * @param fallback 兜底路径
+     * @param dataSet 数据集
+     * @return 路径列表
+     */
     private List<String> resolvePaths(List<String> fallback, SessionQueryDataSet dataSet) {
         if (dataSet != null && dataSet.getPaths() != null && !dataSet.getPaths().isEmpty()) {
             return dataSet.getPaths();
@@ -410,6 +528,15 @@ public class AnalysisServiceImpl implements AnalysisService {
         return fallback == null ? List.of() : fallback;
     }
 
+    /**
+     * 构建数据包 README 内容。
+     *
+     * @param task 任务实体
+     * @param rule 关联规则
+     * @param asset 模型资产
+     * @param entries 文件条目
+     * @return README 内容
+     */
     private String buildPackageReadme(TaskEntity task,
                                       AssociationRuleEntity rule,
                                       ModelAssetEntity asset,
@@ -440,6 +567,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return builder.toString();
     }
 
+    /**
+     * 写入 Zip 包。
+     *
+     * @param path 目标路径
+     * @param entries 文件条目
+     */
     private void writeZip(Path path, Map<String, byte[]> entries) {
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(path))) {
             for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
@@ -453,6 +586,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 计算输出序列统计信息。
+     *
+     * @param dataSet 数据集
+     * @return 统计结果
+     */
     private Map<String, Stats> calculateStats(SessionQueryDataSet dataSet) {
         if (dataSet == null || dataSet.getPaths() == null || dataSet.getPaths().isEmpty()) {
             return Map.of();
@@ -482,6 +621,18 @@ public class AnalysisServiceImpl implements AnalysisService {
         return result;
     }
 
+    /**
+     * 构建报告内容对象。
+     *
+     * @param task 任务实体
+     * @param rule 关联规则
+     * @param asset 模型资产
+     * @param outputPaths 输出路径
+     * @param stats 统计信息
+     * @param dataSet 数据集
+     * @param request 报告请求
+     * @return 报告内容
+     */
     private ReportPdfBuilder.ReportContent buildReportContent(TaskEntity task,
                                                              AssociationRuleEntity rule,
                                                              ModelAssetEntity asset,
@@ -514,6 +665,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return content;
     }
 
+    /**
+     * 构建报告指标表格。
+     *
+     * @param stats 统计信息
+     * @return 指标列表
+     */
     private List<ReportPdfBuilder.MetricRow> buildReportMetrics(Map<String, Stats> stats) {
         if (stats == null || stats.isEmpty()) {
             return List.of();
@@ -526,6 +683,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return rows;
     }
 
+    /**
+     * 构建报告图表数据（含降采样）。
+     *
+     * @param dataSet 数据集
+     * @return 图表数据
+     */
     private ReportPdfBuilder.ChartData buildChartData(SessionQueryDataSet dataSet) {
         if (dataSet == null || dataSet.getPaths() == null || dataSet.getPaths().isEmpty()) {
             return null;
@@ -569,6 +732,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return new ReportPdfBuilder.ChartData(timestamps, series, min, max);
     }
 
+    /**
+     * 格式化时间，空值使用 "-"。
+     *
+     * @param time 时间
+     * @return 格式化字符串
+     */
     private String formatDateTime(LocalDateTime time) {
         if (time == null) {
             return "-";
@@ -576,6 +745,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return time.format(REPORT_TIME_FORMATTER);
     }
 
+    /**
+     * 规范化字段值为字符串。
+     *
+     * @param value 原始值
+     * @return 字符串值
+     */
     private String normalizeValue(Object value) {
         if (value == null) {
             return "";
@@ -586,6 +761,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return String.valueOf(value);
     }
 
+    /**
+     * 计算 MD5 十六进制摘要。
+     *
+     * @param data 数据
+     * @return MD5 字符串
+     */
     private String md5Hex(byte[] data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("MD5");
@@ -600,9 +781,23 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 统计信息。
+     *
+     * @param count 数量
+     * @param min 最小值
+     * @param max 最大值
+     * @param avg 平均值
+     */
     private record Stats(long count, Double min, Double max, Double avg) {
     }
 
+    /**
+     * 判断路径是否需要补 root 前缀。
+     *
+     * @param paths 路径列表
+     * @return 是否需要补前缀
+     */
     private boolean needsRootPrefix(List<String> paths) {
         for (String path : paths) {
             if (StringUtils.hasText(path) && !path.startsWith("root.")) {
@@ -612,6 +807,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return false;
     }
 
+    /**
+     * 为路径补充 root 前缀。
+     *
+     * @param paths 路径列表
+     * @return 补前缀后的路径列表
+     */
     private List<String> addRootPrefix(List<String> paths) {
         List<String> result = new ArrayList<>();
         for (String path : paths) {
@@ -627,6 +828,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return result;
     }
 
+    /**
+     * 规范化路径用于匹配（去除 root 前缀）。
+     *
+     * @param path 路径
+     * @return 规范化后的路径
+     */
     private String normalizeMatchKey(String path) {
         if (!StringUtils.hasText(path)) {
             return "";
@@ -638,6 +845,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return trimmed;
     }
 
+    /**
+     * 判断数据集是否为空。
+     *
+     * @param dataSet 数据集
+     * @return 是否为空
+     */
     private boolean isDataSetEmpty(SessionQueryDataSet dataSet) {
         if (dataSet == null) {
             return true;
@@ -647,6 +860,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return keys == null || keys.length == 0 || rows == null || rows.isEmpty();
     }
 
+    /**
+     * 将值转换为 Double。
+     *
+     * @param value 原始值
+     * @return Double 值
+     */
     private Double toDouble(Object value) {
         if (value == null) {
             return null;
@@ -663,6 +882,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return null;
     }
 
+    /**
+     * 安全解析 Double。
+     *
+     * @param text 文本
+     * @return Double 值
+     */
     private Double parseDoubleSafely(String text) {
         if (!StringUtils.hasText(text)) {
             return null;
@@ -674,6 +899,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
     }
 
+    /**
+     * 将时间转换为纳秒。
+     *
+     * @param time 时间
+     * @return 纳秒
+     */
     private long toNano(LocalDateTime time) {
         if (time == null) {
             return 0L;
@@ -682,6 +913,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         return TimeParser.toNano(millis);
     }
 
+    /**
+     * 获取任务实体，不存在则抛异常。
+     *
+     * @param taskId 任务 ID
+     * @return 任务实体
+     */
     private TaskEntity findTask(String taskId) {
         return taskRepository.findById(taskId)
             .orElseThrow(() -> BizException.badRequest("任务不存在，id=" + taskId));

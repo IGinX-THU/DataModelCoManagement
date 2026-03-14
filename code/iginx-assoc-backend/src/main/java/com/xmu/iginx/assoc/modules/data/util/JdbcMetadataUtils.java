@@ -15,6 +15,14 @@ public final class JdbcMetadataUtils {
     private JdbcMetadataUtils() {
     }
 
+    /**
+     * 读取表的列类型映射。
+     *
+     * @param connection JDBC 连接
+     * @param schema schema 名称
+     * @param table 表名
+     * @return 列类型映射
+     */
     public static Map<String, Integer> loadColumnTypes(Connection connection, String schema, String table) throws Exception {
         try (ResultSet rs = connection.getMetaData().getColumns(null, schema, table, "%")) {
             Map<String, Integer> columns = new LinkedHashMap<>();
@@ -22,7 +30,7 @@ public final class JdbcMetadataUtils {
                 columns.put(rs.getString("COLUMN_NAME"), rs.getInt("DATA_TYPE"));
             }
             if (columns.isEmpty()) {
-                throw BizException.badRequest("琛ㄧ粨鏋勪笉瀛樺湪鎴栨棤瀛楁");
+                throw BizException.badRequest("表结构不存在或无字段");
             }
             return columns;
         }

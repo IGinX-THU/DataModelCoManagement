@@ -29,6 +29,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 关联规则服务实现。
+ */
 @Service
 @RequiredArgsConstructor
 public class AssociationRuleServiceImpl implements AssociationRuleService {
@@ -39,6 +42,12 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
     private final ObjectMapper objectMapper;
     private final TaskRepository taskRepository;
 
+    /**
+     * 创建关联规则并持久化。
+     *
+     * @param request 创建参数
+     * @return 新规则 ID
+     */
     @Override
     @Transactional
     public Long createRule(AssociationRuleCreateRequest request) {
@@ -60,6 +69,12 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         return saved.getId();
     }
 
+    /**
+     * 更新关联规则基本信息与绑定关系。
+     *
+     * @param ruleId 规则 ID
+     * @param request 更新参数
+     */
     @Override
     @Transactional
     public void updateRule(Long ruleId, AssociationRuleUpdateRequest request) {
@@ -76,6 +91,12 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         associationRuleRepository.save(entity);
     }
 
+    /**
+     * 更新规则启用状态。
+     *
+     * @param ruleId 规则 ID
+     * @param enabled 是否启用
+     */
     @Override
     @Transactional
     public void updateStatus(Long ruleId, boolean enabled) {
@@ -85,6 +106,11 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         associationRuleRepository.save(entity);
     }
 
+    /**
+     * 删除规则，若存在运行中任务则拒绝删除。
+     *
+     * @param ruleId 规则 ID
+     */
     @Override
     @Transactional
     public void deleteRule(Long ruleId) {
@@ -94,10 +120,16 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         if (hasRunning) {
             throw BizException.badRequest("规则存在运行中任务，无法删除");
         }
+        // 删除规则前清理关联任务记录
         taskRepository.deleteByRuleId(ruleId);
         associationRuleRepository.delete(entity);
     }
 
+    /**
+     * 查询规则列表并转换为 VO。
+     *
+     * @return 规则列表
+     */
     @Override
     public List<AssociationRuleVO> listRules() {
         List<AssociationRuleEntity> entities = associationRuleRepository.findAll();
@@ -108,11 +140,23 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         return result;
     }
 
+    /**
+     * 查询规则详情。
+     *
+     * @param ruleId 规则 ID
+     * @return 规则详情
+     */
     @Override
     public AssociationRuleVO getRule(Long ruleId) {
         return toVO(findRule(ruleId));
     }
 
+    /**
+     * 将实体转换为前端展示对象。
+     *
+     * @param entity 规则实体
+     * @return 规则 VO
+     */
     private AssociationRuleVO toVO(AssociationRuleEntity entity) {
         AssociationRuleVO vo = new AssociationRuleVO();
         vo.setId(entity.getId());
@@ -140,6 +184,13 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         return vo;
     }
 
+    /**
+     * 校验输入/输出绑定是否合法，并与模型 Schema 对齐。
+     *
+     * @param asset 模型资产
+     * @param bindings 输入绑定
+     * @param results 输出绑定
+     */
     private void validateBindings(ModelAssetEntity asset, Map<String, String> bindings, Map<String, String> results) {
         if (bindings == null || bindings.isEmpty()) {
             throw BizException.badRequest("请输入模型输入绑定");
@@ -178,6 +229,12 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         }
     }
 
+    /**
+     * 获取模型输入输出 Schema，优先使用资产内 Schema。
+     *
+     * @param asset 模型资产
+     * @return Schema 描述
+     */
     private ModelIoSchema resolveSchema(ModelAssetEntity asset) {
         String json = asset.getIoSchema();
         if (!StringUtils.hasText(json)) {
@@ -194,6 +251,9 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         }
     }
 
+    /**
+     * 构造空 Schema。
+     */
     private ModelIoSchema emptySchema() {
         ModelIoSchema schema = new ModelIoSchema();
         schema.setInputs(Collections.emptyList());
@@ -201,6 +261,13 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         return schema;
     }
 
+    /**
+     * 构建绑定映射 JSON 结构。
+     *
+     * @param bindings 输入绑定
+     * @param results 输出绑定
+     * @return JSON 结构 Map
+     */
     private Map<String, Object> buildMappingJson(Map<String, String> bindings, Map<String, String> results) {
         Map<String, Object> root = new LinkedHashMap<>();
         List<Map<String, String>> mappings = new ArrayList<>();
@@ -216,12 +283,21 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         return root;
     }
 
+    /**
+     * 构建输出映射结构。
+     *
+     * @param results 输出绑定
+     * @return 输出结构 Map
+     */
     private Map<String, Object> buildOutputTarget(Map<String, String> results) {
         Map<String, Object> outputTarget = new LinkedHashMap<>();
         outputTarget.put("paths", results);
         return outputTarget;
     }
 
+    /**
+     * 序列化为 JSON 字符串。
+     */
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -230,6 +306,12 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         }
     }
 
+    /**
+     * 解析规则绑定 JSON。
+     *
+     * @param json 规则 JSON
+     * @return 绑定解析结果
+     */
     private MappingResult parseMapping(String json) {
         if (!StringUtils.hasText(json)) {
             return new MappingResult(Collections.emptyMap(), Collections.emptyMap());
@@ -267,20 +349,32 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         }
     }
 
+    /**
+     * value 为空则返回默认值。
+     */
     private String defaultValue(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
+    /**
+     * 获取规则实体，不存在则抛出异常。
+     */
     private AssociationRuleEntity findRule(Long id) {
         return associationRuleRepository.findById(id)
             .orElseThrow(() -> BizException.badRequest("关联规则不存在，id=" + id));
     }
 
+    /**
+     * 获取模型资产，不存在则抛出异常。
+     */
     private ModelAssetEntity findAsset(Long id) {
         return modelAssetRepository.findById(id)
             .orElseThrow(() -> BizException.badRequest("模型版本不存在，id=" + id));
     }
 
+    /**
+     * 绑定解析结果。
+     */
     private record MappingResult(Map<String, String> bindings, Map<String, String> results) {
     }
 }

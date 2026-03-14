@@ -5,6 +5,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+/**
+ * 关联规则视图对象。
+ */
 @Data
 public class AssociationRuleVO {
 

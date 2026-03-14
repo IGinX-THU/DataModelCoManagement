@@ -11,6 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 报告 PDF 构建器，负责将报告内容渲染为 PDF 字节。
+ */
 public class ReportPdfBuilder {
 
     private static final float PAGE_WIDTH = 595f; // A4 宽度
@@ -20,6 +23,9 @@ public class ReportPdfBuilder {
     private static final float MARGIN_BOTTOM = 40f;
     private static final DateTimeFormatter TIME_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MM-dd HH:mm");
 
+    /**
+     * 报告内容模型。
+     */
     @Data
     public static class ReportContent {
         private String title = "Experiment Report";
@@ -41,15 +47,44 @@ public class ReportPdfBuilder {
         private boolean includeCharts = true;
     }
 
+    /**
+     * 指标表格行。
+     *
+     * @param path 路径
+     * @param count 数量
+     * @param min 最小值
+     * @param max 最大值
+     * @param avg 平均值
+     */
     public record MetricRow(String path, long count, Double min, Double max, Double avg) {
     }
 
+    /**
+     * 图表序列数据。
+     *
+     * @param name 序列名称
+     * @param values 序列值
+     */
     public record ChartSeries(String name, List<Double> values) {
     }
 
+    /**
+     * 图表数据。
+     *
+     * @param timestamps 时间戳列表
+     * @param series 曲线序列
+     * @param min 最小值
+     * @param max 最大值
+     */
     public record ChartData(List<Long> timestamps, List<ChartSeries> series, Double min, Double max) {
     }
 
+    /**
+     * 构建 PDF 字节。
+     *
+     * @param content 报告内容
+     * @return PDF 字节数组
+     */
     public byte[] build(ReportContent content) {
         PdfDocument doc = new PdfDocument(PAGE_WIDTH, PAGE_HEIGHT);
         Layout layout = new Layout(doc);
@@ -66,6 +101,11 @@ public class ReportPdfBuilder {
             this.doc = doc;
         }
 
+        /**
+         * 渲染完整报告内容。
+         *
+         * @param content 报告内容
+         */
         private void render(ReportContent content) {
             drawTitle(content);
             drawOverview(content);
@@ -77,6 +117,11 @@ public class ReportPdfBuilder {
             }
         }
 
+        /**
+         * 绘制标题与生成时间。
+         *
+         * @param content 报告内容
+         */
         private void drawTitle(ReportContent content) {
             ensureSpace(64);
             String title = safeText(content.getTitle(), "Experiment Report");
@@ -97,6 +142,11 @@ public class ReportPdfBuilder {
             cursorY += 16f;
         }
 
+        /**
+         * 绘制任务概览。
+         *
+         * @param content 报告内容
+         */
         private void drawOverview(ReportContent content) {
             drawSectionTitle("Task Overview");
             drawKeyValue("Task ID", content.getTaskId());
@@ -116,6 +166,11 @@ public class ReportPdfBuilder {
             }
         }
 
+        /**
+         * 绘制统计表格。
+         *
+         * @param metrics 指标列表
+         */
         private void drawStats(List<MetricRow> metrics) {
             drawSectionTitle("Statistics");
             if (metrics == null || metrics.isEmpty()) {
@@ -166,6 +221,11 @@ public class ReportPdfBuilder {
             cursorY += 8f;
         }
 
+        /**
+         * 绘制图表区域。
+         *
+         * @param chartData 图表数据
+         */
         private void drawCharts(ChartData chartData) {
             drawSectionTitle("Charts");
             if (chartData == null || chartData.timestamps() == null
@@ -183,6 +243,15 @@ public class ReportPdfBuilder {
             cursorY += chartHeight + 12f;
         }
 
+        /**
+         * 绘制单个图表。
+         *
+         * @param x 左上角 X
+         * @param y 左上角 Y
+         * @param width 宽度
+         * @param height 高度
+         * @param chartData 图表数据
+         */
         private void drawChart(float x, float y, float width, float height, ChartData chartData) {
             doc.setStrokeColor(0.85f, 0.85f, 0.85f);
             doc.setLineWidth(0.6f);
@@ -262,6 +331,19 @@ public class ReportPdfBuilder {
             drawLegend(x + width - 140f, y + 18f, chartData.series(), palette);
         }
 
+        /**
+         * 绘制序列折线。
+         *
+         * @param plotX 绘图区 X
+         * @param plotY 绘图区 Y
+         * @param plotW 绘图区宽度
+         * @param plotH 绘图区高度
+         * @param timestamps 时间戳列表
+         * @param values 序列值
+         * @param minVal 最小值
+         * @param range 值域
+         * @param color 颜色
+         */
         private void drawSeriesLine(float plotX,
                                     float plotY,
                                     float plotW,
@@ -282,6 +364,7 @@ public class ReportPdfBuilder {
             for (int i = 0; i < size; i++) {
                 Double value = values.get(i);
                 if (value == null) {
+                    // 遇到空值时断开折线
                     flushSegment(segment);
                     continue;
                 }
@@ -294,6 +377,11 @@ public class ReportPdfBuilder {
             flushSegment(segment);
         }
 
+        /**
+         * 刷新当前折线片段。
+         *
+         * @param segment 折线片段
+         */
         private void flushSegment(List<float[]> segment) {
             if (segment.size() < 2) {
                 segment.clear();
@@ -303,6 +391,14 @@ public class ReportPdfBuilder {
             segment.clear();
         }
 
+        /**
+         * 绘制图例。
+         *
+         * @param x 左上角 X
+         * @param y 左上角 Y
+         * @param series 曲线列表
+         * @param palette 调色板
+         */
         private void drawLegend(float x, float y, List<ChartSeries> series, float[][] palette) {
             if (series == null || series.isEmpty()) {
                 return;
@@ -322,6 +418,11 @@ public class ReportPdfBuilder {
             }
         }
 
+        /**
+         * 绘制分节标题。
+         *
+         * @param title 标题文本
+         */
         private void drawSectionTitle(String title) {
             ensureSpace(28f);
             float width = PAGE_WIDTH - MARGIN_X * 2f;
@@ -332,6 +433,12 @@ public class ReportPdfBuilder {
             cursorY += 26f;
         }
 
+        /**
+         * 绘制键值行。
+         *
+         * @param label 标签
+         * @param value 值
+         */
         private void drawKeyValue(String label, String value) {
             float labelWidth = 120f;
             float lineHeight = 16f;
@@ -350,6 +457,12 @@ public class ReportPdfBuilder {
             cursorY += blockHeight + 2f;
         }
 
+        /**
+         * 绘制表头。
+         *
+         * @param colWidths 列宽
+         * @param headers 表头文本
+         */
         private void drawTableHeader(float[] colWidths, String[] headers) {
             float headerHeight = 20f;
             ensureSpace(headerHeight + 4f);
@@ -368,6 +481,11 @@ public class ReportPdfBuilder {
             cursorY += headerHeight;
         }
 
+        /**
+         * 绘制说明文本。
+         *
+         * @param text 说明内容
+         */
         private void drawNote(String text) {
             ensureSpace(20f);
             doc.setFillColor(0.4f, 0.4f, 0.4f);
@@ -375,6 +493,11 @@ public class ReportPdfBuilder {
             cursorY += 18f;
         }
 
+        /**
+         * 确保当前页有足够空间，必要时换页。
+         *
+         * @param height 预估高度
+         */
         private void ensureSpace(float height) {
             if (cursorY + height > PAGE_HEIGHT - MARGIN_BOTTOM) {
                 doc.newPage();
@@ -382,10 +505,24 @@ public class ReportPdfBuilder {
             }
         }
 
+        /**
+         * 估算给定宽度下可容纳的字符数。
+         *
+         * @param width 宽度
+         * @param fontSize 字号
+         * @return 字符数
+         */
         private int maxChars(float width, int fontSize) {
             return Math.max(1, (int) Math.floor(width / (fontSize * 0.55f)));
         }
 
+        /**
+         * 进行文本换行。
+         *
+         * @param text 文本
+         * @param maxChars 单行最大字符数
+         * @return 行列表
+         */
         private List<String> wrapText(String text, int maxChars) {
             if (text == null || text.isBlank()) {
                 return List.of("-");
@@ -403,6 +540,13 @@ public class ReportPdfBuilder {
             return lines;
         }
 
+        /**
+         * 文本截断并追加省略号。
+         *
+         * @param text 文本
+         * @param maxChars 最大字符数
+         * @return 截断后的文本
+         */
         private String truncate(String text, int maxChars) {
             if (text == null) {
                 return "-";
@@ -413,6 +557,13 @@ public class ReportPdfBuilder {
             return text.substring(0, Math.max(0, maxChars - 3)) + "...";
         }
 
+        /**
+         * 处理文本空值与换行。
+         *
+         * @param text 原始文本
+         * @param fallback 兜底文本
+         * @return 安全文本
+         */
         private String safeText(String text, String fallback) {
             if (text == null || text.isBlank()) {
                 return fallback;
@@ -421,6 +572,12 @@ public class ReportPdfBuilder {
             return normalized.isBlank() ? fallback : normalized;
         }
 
+        /**
+         * 格式化数值展示。
+         *
+         * @param value 数值
+         * @return 格式化字符串
+         */
         private String formatNumber(Double value) {
             if (value == null) {
                 return "-";
@@ -428,6 +585,12 @@ public class ReportPdfBuilder {
             return String.format(Locale.ROOT, "%.4f", value);
         }
 
+        /**
+         * 格式化时间标签。
+         *
+         * @param millis 毫秒时间戳
+         * @return 时间字符串
+         */
         private String formatTimeLabel(long millis) {
             return Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(TIME_LABEL_FORMATTER);
         }
@@ -445,29 +608,69 @@ public class ReportPdfBuilder {
             newPage();
         }
 
+        /**
+         * 新建页面。
+         */
         private void newPage() {
             current = new StringBuilder();
             pages.add(current);
         }
 
+        /**
+         * 设置描边颜色。
+         *
+         * @param r 红色分量
+         * @param g 绿色分量
+         * @param b 蓝色分量
+         */
         private void setStrokeColor(float r, float g, float b) {
             current.append(String.format(Locale.ROOT, "%.3f %.3f %.3f RG\n", r, g, b));
         }
 
+        /**
+         * 设置填充颜色。
+         *
+         * @param r 红色分量
+         * @param g 绿色分量
+         * @param b 蓝色分量
+         */
         private void setFillColor(float r, float g, float b) {
             current.append(String.format(Locale.ROOT, "%.3f %.3f %.3f rg\n", r, g, b));
         }
 
+        /**
+         * 设置线宽。
+         *
+         * @param width 线宽
+         */
         private void setLineWidth(float width) {
             current.append(String.format(Locale.ROOT, "%.2f w\n", width));
         }
 
+        /**
+         * 绘制直线。
+         *
+         * @param x1 起点 X
+         * @param y1Top 起点 Y（顶部坐标）
+         * @param x2 终点 X
+         * @param y2Top 终点 Y（顶部坐标）
+         */
         private void drawLine(float x1, float y1Top, float x2, float y2Top) {
             float y1 = toPdfY(y1Top);
             float y2 = toPdfY(y2Top);
             current.append(String.format(Locale.ROOT, "%.2f %.2f m %.2f %.2f l S\n", x1, y1, x2, y2));
         }
 
+        /**
+         * 绘制矩形。
+         *
+         * @param x 左上角 X
+         * @param yTop 左上角 Y（顶部坐标）
+         * @param width 宽度
+         * @param height 高度
+         * @param fill 是否填充
+         * @param stroke 是否描边
+         */
         private void drawRect(float x, float yTop, float width, float height, boolean fill, boolean stroke) {
             float y = toPdfY(yTop + height);
             current.append(String.format(Locale.ROOT, "%.2f %.2f %.2f %.2f re ", x, y, width, height));
@@ -482,6 +685,15 @@ public class ReportPdfBuilder {
             }
         }
 
+        /**
+         * 绘制文本。
+         *
+         * @param x 左上角 X
+         * @param yTop 左上角 Y（顶部坐标）
+         * @param fontSize 字号
+         * @param text 文本
+         * @param bold 是否加粗
+         */
         private void drawText(float x, float yTop, int fontSize, String text, boolean bold) {
             if (text == null) {
                 return;
@@ -497,6 +709,11 @@ public class ReportPdfBuilder {
                 escapePdfText(text)));
         }
 
+        /**
+         * 绘制折线。
+         *
+         * @param points 点列表
+         */
         private void drawPolyline(List<float[]> points) {
             if (points == null || points.size() < 2) {
                 return;
@@ -512,6 +729,13 @@ public class ReportPdfBuilder {
             current.append(builder);
         }
 
+        /**
+         * 估算文本宽度。
+         *
+         * @param text 文本
+         * @param fontSize 字号
+         * @return 估算宽度
+         */
         private float estimateTextWidth(String text, float fontSize) {
             if (text == null) {
                 return 0f;
@@ -519,6 +743,9 @@ public class ReportPdfBuilder {
             return text.length() * fontSize * 0.55f;
         }
 
+        /**
+         * 追加页码。
+         */
         private void appendPageNumbers() {
             int total = pages.size();
             for (int i = 0; i < total; i++) {
@@ -530,6 +757,19 @@ public class ReportPdfBuilder {
             }
         }
 
+        /**
+         * 向指定页面追加文本。
+         *
+         * @param page 页面缓冲
+         * @param x X 坐标
+         * @param yTop Y 坐标（顶部坐标）
+         * @param fontSize 字号
+         * @param text 文本
+         * @param bold 是否加粗
+         * @param r 红色
+         * @param g 绿色
+         * @param b 蓝色
+         */
         private void appendTextToPage(StringBuilder page,
                                       float x,
                                       float yTop,
@@ -551,10 +791,21 @@ public class ReportPdfBuilder {
                 escapePdfText(text)));
         }
 
+        /**
+         * 将顶部坐标转换为 PDF 坐标。
+         *
+         * @param yTop 顶部坐标
+         * @return PDF 坐标
+         */
         private float toPdfY(float yTop) {
             return height - yTop;
         }
 
+        /**
+         * 构建 PDF 字节数组。
+         *
+         * @return PDF 字节
+         */
         private byte[] build() {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             List<Integer> offsets = new ArrayList<>();
@@ -624,6 +875,12 @@ public class ReportPdfBuilder {
             return output.toByteArray();
         }
 
+        /**
+         * 写入 ASCII 文本。
+         *
+         * @param output 输出流
+         * @param text 文本
+         */
         private void writeAscii(ByteArrayOutputStream output, String text) {
             try {
                 output.write(text.getBytes(StandardCharsets.US_ASCII));
@@ -632,6 +889,12 @@ public class ReportPdfBuilder {
             }
         }
 
+        /**
+         * 转义 PDF 文本中的特殊字符。
+         *
+         * @param text 文本
+         * @return 转义后的文本
+         */
         private String escapePdfText(String text) {
             if (text == null) {
                 return "";

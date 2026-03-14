@@ -41,6 +41,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 外部任务服务测试。
+ */
 @ExtendWith(MockitoExtension.class)
 class ExternalJobServiceImplTest {
 
@@ -67,6 +70,9 @@ class ExternalJobServiceImplTest {
 
     private final Map<String, ExternalJobEntity> jobStore = new HashMap<>();
 
+    /**
+     * 初始化 Mock 行为并模拟异步执行。
+     */
     @BeforeEach
     void setUp() {
         doAnswer(invocation -> {
@@ -78,6 +84,7 @@ class ExternalJobServiceImplTest {
             String id = invocation.getArgument(0, String.class);
             return Optional.ofNullable(jobStore.get(id));
         });
+        // 模拟调度器立即执行任务
         doAnswer(invocation -> {
             Runnable runnable = invocation.getArgument(1, Runnable.class);
             runnable.run();
@@ -85,6 +92,9 @@ class ExternalJobServiceImplTest {
         }).when(taskScheduler).submit(anyString(), any(Runnable.class));
     }
 
+    /**
+     * 验证模型任务能够成功完成并返回结果。
+     */
     @Test
     void submitModelJob_shouldCompleteAndExposeResult() {
         when(taskService.submitTask(any())).thenReturn("task-001");
@@ -108,6 +118,9 @@ class ExternalJobServiceImplTest {
         assertEquals("SUCCEEDED", result.getStatus());
     }
 
+    /**
+     * 验证算法任务参数不合法时会失败。
+     */
     @Test
     void submitAlgorithmJob_shouldMarkFailedWhenPayloadInvalid() {
         ExternalAlgorithmJobRequest request = new ExternalAlgorithmJobRequest();
@@ -121,6 +134,9 @@ class ExternalJobServiceImplTest {
         assertEquals("INVALID_ARGUMENT", status.getError().getCode());
     }
 
+    /**
+     * 验证数据导出任务强制同步并返回下载地址。
+     */
     @Test
     void submitDataExportJob_shouldForceSyncAndExposeDownloadUrl() {
         DataExportResultVO exportResult = new DataExportResultVO();
@@ -149,6 +165,9 @@ class ExternalJobServiceImplTest {
         assertTrue(result.getResult() instanceof Map);
     }
 
+    /**
+     * 构造任务视图对象。
+     */
     private TaskVO buildTaskVo(String id, String status) {
         TaskVO taskVO = new TaskVO();
         taskVO.setId(id);

@@ -4,6 +4,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/**
+ * 数据源创建请求。
+ */
 @Data
 public class DataSourceCreateRequest {
 

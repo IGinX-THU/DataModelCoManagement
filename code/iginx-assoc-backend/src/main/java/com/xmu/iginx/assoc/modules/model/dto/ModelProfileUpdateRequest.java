@@ -3,6 +3,9 @@ package com.xmu.iginx.assoc.modules.model.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/**
+ * 模型档案更新请求。
+ */
 @Data
 public class ModelProfileUpdateRequest {
 

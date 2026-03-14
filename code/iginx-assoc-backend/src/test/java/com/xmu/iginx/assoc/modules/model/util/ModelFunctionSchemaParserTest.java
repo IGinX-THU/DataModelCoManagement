@@ -8,10 +8,16 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ * 模型函数结构解析器测试。
+ */
 class ModelFunctionSchemaParserTest {
 
     private final ModelFunctionSchemaParser parser = new ModelFunctionSchemaParser(new ModelSchemaParser());
 
+    /**
+     * 仅返回 Python 顶层函数。
+     */
     @Test
     void listFunctions_shouldOnlyReturnTopLevelPythonFunctions() {
         String script = """
@@ -33,6 +39,9 @@ class ModelFunctionSchemaParserTest {
         assertEquals("baz", functions.get(1).name());
     }
 
+    /**
+     * 解析 Python 输入输出类型。
+     */
     @Test
     void parseByFunction_shouldParsePythonInputAndOutputTypes() {
         String script = """
@@ -53,6 +62,9 @@ class ModelFunctionSchemaParserTest {
         assertEquals("FLOAT", result.schema().getOutputs().get(1).getType());
     }
 
+    /**
+     * 解析 Python 字典输出为多个字段。
+     */
     @Test
     void parseByFunction_shouldExpandPythonDictOutputs() {
         String script = """
@@ -70,6 +82,9 @@ class ModelFunctionSchemaParserTest {
         assertEquals("BOOLEAN", result.schema().getOutputs().get(1).getType());
     }
 
+    /**
+     * 根据默认值推断 Python 输入类型。
+     */
     @Test
     void parseByFunction_shouldInferPythonInputTypesFromDefaultValues() {
         String script = """
@@ -90,6 +105,9 @@ class ModelFunctionSchemaParserTest {
         assertEquals("STRING", result.schema().getInputs().get(6).getType());
     }
 
+    /**
+     * 解析 MATLAB arguments 与输出类型。
+     */
     @Test
     void parseByFunction_shouldParseMatlabArgumentsAndOutputs() {
         String script = """
@@ -116,6 +134,9 @@ class ModelFunctionSchemaParserTest {
         assertEquals("BOOLEAN", result.schema().getOutputs().get(1).getType());
     }
 
+    /**
+     * 语法解析失败时回退到注释解析。
+     */
     @Test
     void parseByFunction_shouldFallbackToCommentWhenSyntaxHasNoIo() {
         String script = """
@@ -132,6 +153,9 @@ class ModelFunctionSchemaParserTest {
         assertEquals(1, result.schema().getOutputs().size());
     }
 
+    /**
+     * 函数不存在时抛出异常。
+     */
     @Test
     void parseByFunction_shouldThrowWhenFunctionNotFound() {
         String script = """
@@ -142,6 +166,9 @@ class ModelFunctionSchemaParserTest {
         assertThrows(IllegalArgumentException.class, () -> parser.parseByFunction(bytes(script), "PY", "missing"));
     }
 
+    /**
+     * 将字符串转换为 UTF-8 字节数组。
+     */
     private byte[] bytes(String text) {
         return text.getBytes(StandardCharsets.UTF_8);
     }

@@ -3,6 +3,9 @@ package com.xmu.iginx.assoc.modules.data.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/**
+ * 时间范围 DTO。
+ */
 @Data
 public class TimeRangeDTO {
 

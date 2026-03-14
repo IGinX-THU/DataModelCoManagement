@@ -13,10 +13,20 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Spring Security 配置，定义基础权限与跨域策略。
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    /**
+     * 配置安全过滤链。
+     *
+     * @param http HttpSecurity 配置入口
+     * @return 安全过滤链
+     * @throws Exception 配置异常
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -24,11 +34,17 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/sys/health").permitAll()
-                .anyRequest().permitAll() // Allow all for dev; restrict in production
+                // 开发阶段放开所有接口，生产环境需收紧权限
+                .anyRequest().permitAll()
             );
         return http.build();
     }
 
+    /**
+     * 配置跨域策略。
+     *
+     * @return 跨域配置源
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();

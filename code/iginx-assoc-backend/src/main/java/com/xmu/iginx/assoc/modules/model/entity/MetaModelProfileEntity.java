@@ -13,6 +13,9 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
+/**
+ * 模型档案元信息实体。
+ */
 @Getter
 @Setter
 @Entity

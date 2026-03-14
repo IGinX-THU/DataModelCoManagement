@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 任务曲线查询响应。
+ */
 @Data
 public class TaskSeriesResponse {
 

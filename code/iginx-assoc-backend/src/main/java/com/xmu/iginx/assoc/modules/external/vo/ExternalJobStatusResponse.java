@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 外部任务状态响应。
+ */
 @Data
 public class ExternalJobStatusResponse {
 

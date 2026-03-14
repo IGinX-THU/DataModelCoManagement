@@ -13,22 +13,44 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * IGinX 结构化查询辅助工具。
+ */
 @Component
 @RequiredArgsConstructor
 public class IginxStructuredQueryHelper {
 
     private final IginxStorageWrapper iginxStorageWrapper;
 
+    /**
+     * 执行查询 SQL，返回结果集。
+     *
+     * @param sql 查询 SQL
+     * @param fetchSize 获取大小（保留参数以兼容调用方）
+     * @return 查询结果集
+     */
     public QueryDataSet executeQuery(String sql, int fetchSize) {
         String normalized = normalizeSql(sql);
         return iginxStorageWrapper.executeWithSession(session -> session.executeQuery(normalized));
     }
 
+    /**
+     * 执行非查询 SQL。
+     *
+     * @param sql SQL 语句
+     */
     public void executeSql(String sql) {
         String normalized = normalizeSql(sql);
         iginxStorageWrapper.executeSql(normalized);
     }
 
+    /**
+     * 加载表的列类型映射。
+     *
+     * @param schema schema 路径
+     * @param table 表名
+     * @return 列类型映射
+     */
     public Map<String, DataType> loadColumnTypes(String schema, String table) {
         String tablePath = IginxStructuredUtils.buildTablePath(schema, table);
         String sql = "SHOW COLUMNS " + tablePath + ".*;";
@@ -40,9 +62,17 @@ public class IginxStructuredQueryHelper {
         if (tableSegments.isEmpty()) {
             return result == null ? Map.of() : result;
         }
+        // 回退到全量 SHOW COLUMNS，再根据表路径前缀过滤
         return readColumnTypes("SHOW COLUMNS;", tableSegments);
     }
 
+    /**
+     * 执行 SHOW COLUMNS 并解析列类型。
+     *
+     * @param sql 查询 SQL
+     * @param requiredPrefix 必须匹配的路径前缀
+     * @return 列类型映射
+     */
     private Map<String, DataType> readColumnTypes(String sql, List<String> requiredPrefix) {
         QueryDataSet dataSet = executeQuery(sql, 1000);
         try {
@@ -91,10 +121,23 @@ public class IginxStructuredQueryHelper {
         }
     }
 
+    /**
+     * 读取结果集为 Map 列表。
+     *
+     * @param dataSet 查询结果集
+     * @return 记录列表
+     */
     public List<Map<String, Object>> readAll(QueryDataSet dataSet) {
         return readAll(dataSet, null);
     }
 
+    /**
+     * 读取结果集为 Map 列表（支持自定义表头）。
+     *
+     * @param dataSet 查询结果集
+     * @param headerOverride 自定义表头
+     * @return 记录列表
+     */
     public List<Map<String, Object>> readAll(QueryDataSet dataSet, List<String> headerOverride) {
         List<Map<String, Object>> records = new ArrayList<>();
         List<String> rawHeaders = dataSet.getColumnList();
@@ -115,6 +158,12 @@ public class IginxStructuredQueryHelper {
         return records;
     }
 
+    /**
+     * 读取结果集为行数组列表。
+     *
+     * @param dataSet 查询结果集
+     * @return 行列表
+     */
     public List<Object[]> readRows(QueryDataSet dataSet) {
         List<Object[]> rows = new ArrayList<>();
         Object[] row;
@@ -124,6 +173,12 @@ public class IginxStructuredQueryHelper {
         return rows;
     }
 
+    /**
+     * 安静读取下一行。
+     *
+     * @param dataSet 查询结果集
+     * @return 下一行或 null
+     */
     private Object[] nextRowQuietly(QueryDataSet dataSet) {
         try {
             return dataSet.nextRow();
@@ -132,6 +187,12 @@ public class IginxStructuredQueryHelper {
         }
     }
 
+    /**
+     * 规范化结果值（处理二进制字段）。
+     *
+     * @param value 原始值
+     * @return 规范化值
+     */
     private Object normalizeValue(Object value) {
         if (value instanceof byte[] bytes) {
             return new String(bytes, StandardCharsets.UTF_8);
@@ -139,6 +200,12 @@ public class IginxStructuredQueryHelper {
         return value;
     }
 
+    /**
+     * 将结果值转换为字符串。
+     *
+     * @param value 原始值
+     * @return 字符串值
+     */
     private String toStringValue(Object value) {
         if (value == null) {
             return null;
@@ -149,6 +216,13 @@ public class IginxStructuredQueryHelper {
         return String.valueOf(value);
     }
 
+    /**
+     * 忽略大小写查找列名索引。
+     *
+     * @param headers 表头
+     * @param target 目标列名
+     * @return 索引，找不到返回 -1
+     */
     private int indexOfIgnoreCase(List<String> headers, String target) {
         if (headers == null || target == null) {
             return -1;
@@ -161,6 +235,12 @@ public class IginxStructuredQueryHelper {
         return -1;
     }
 
+    /**
+     * 解析字段类型字符串。
+     *
+     * @param rawType 类型字符串
+     * @return DataType
+     */
     private DataType parseDataType(String rawType) {
         if (rawType == null || rawType.isBlank()) {
             return DataType.BINARY;
@@ -172,6 +252,11 @@ public class IginxStructuredQueryHelper {
         }
     }
 
+    /**
+     * 安静关闭结果集。
+     *
+     * @param dataSet 查询结果集
+     */
     private void closeQuietly(QueryDataSet dataSet) {
         if (dataSet == null) {
             return;
@@ -182,6 +267,12 @@ public class IginxStructuredQueryHelper {
         }
     }
 
+    /**
+     * 规范化 SQL，确保以分号结尾。
+     *
+     * @param sql SQL 语句
+     * @return 规范化 SQL
+     */
     private String normalizeSql(String sql) {
         if (sql == null) {
             return null;

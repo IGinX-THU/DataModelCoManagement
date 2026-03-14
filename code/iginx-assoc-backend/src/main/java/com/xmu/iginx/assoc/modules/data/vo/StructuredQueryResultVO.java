@@ -6,6 +6,9 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 结构化查询结果视图对象。
+ */
 @Data
 public class StructuredQueryResultVO {
 

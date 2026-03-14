@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 仪表盘最近任务视图对象。
+ */
 @Data
 public class DashboardRecentTaskVO {
 

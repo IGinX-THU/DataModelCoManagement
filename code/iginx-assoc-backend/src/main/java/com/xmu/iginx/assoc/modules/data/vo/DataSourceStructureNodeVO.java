@@ -5,6 +5,9 @@ import lombok.Data;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 数据源结构树节点视图对象。
+ */
 @Data
 public class DataSourceStructureNodeVO {
 

@@ -12,6 +12,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 模型结构注释解析器（解析 @Input/@Output 标记）。
+ */
 @Component
 public class ModelSchemaParser {
 
@@ -20,6 +23,12 @@ public class ModelSchemaParser {
     private static final Pattern OUTPUT_PATTERN =
         Pattern.compile("@Output:\\s*(\\w+)\\s*(?:\\(([^)]+)\\))?\\s*(?:-\\s*(.*))?", Pattern.CASE_INSENSITIVE);
 
+    /**
+     * 解析文件中的输入输出结构定义。
+     *
+     * @param fileBytes 文件内容
+     * @return 结构定义
+     */
     public ModelIoSchema parse(byte[] fileBytes) {
         ModelIoSchema schema = new ModelIoSchema();
         schema.setInputs(parseParams(fileBytes, INPUT_PATTERN, true));
@@ -28,6 +37,9 @@ public class ModelSchemaParser {
         return schema;
     }
 
+    /**
+     * 解析参数列表并设置必填标记。
+     */
     private List<ModelSchemaParam> parseParams(byte[] fileBytes, Pattern pattern, boolean defaultRequired) {
         String text = new String(fileBytes, StandardCharsets.UTF_8);
         List<ModelSchemaParam> params = new ArrayList<>();
@@ -44,6 +56,9 @@ public class ModelSchemaParser {
         return params;
     }
 
+    /**
+     * 归一化类型名称。
+     */
     private String normalizeType(String raw) {
         if (!StringUtils.hasText(raw)) {
             return "STRING";

@@ -5,6 +5,9 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * SQL 执行结果视图对象。
+ */
 @Data
 public class SqlExecuteResultVO {
     private String sqlType;

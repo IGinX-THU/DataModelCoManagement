@@ -22,6 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 关联规则管理接口。
+ */
 @Tag(name = "Association Rules")
 @Validated
 @RestController
@@ -31,12 +34,25 @@ public class AssociationRuleController {
 
     private final AssociationRuleService associationRuleService;
 
+    /**
+     * 创建关联规则。
+     *
+     * @param request 规则创建参数
+     * @return 新建规则 ID
+     */
     @Operation(summary = "创建关联规则")
     @PostMapping
     public Result<Long> create(@Valid @RequestBody AssociationRuleCreateRequest request) {
         return Result.success(associationRuleService.createRule(request));
     }
 
+    /**
+     * 更新关联规则。
+     *
+     * @param id 规则 ID
+     * @param request 更新参数
+     * @return 操作结果
+     */
     @Operation(summary = "更新关联规则")
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody AssociationRuleUpdateRequest request) {
@@ -44,6 +60,13 @@ public class AssociationRuleController {
         return Result.success();
     }
 
+    /**
+     * 更新规则启用状态。
+     *
+     * @param id 规则 ID
+     * @param request 状态参数
+     * @return 操作结果
+     */
     @Operation(summary = "更新规则状态")
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id, @Valid @RequestBody RuleStatusRequest request) {
@@ -51,6 +74,12 @@ public class AssociationRuleController {
         return Result.success();
     }
 
+    /**
+     * 删除关联规则。
+     *
+     * @param id 规则 ID
+     * @return 操作结果
+     */
     @Operation(summary = "删除关联规则")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
@@ -58,12 +87,23 @@ public class AssociationRuleController {
         return Result.success();
     }
 
+    /**
+     * 查询规则列表。
+     *
+     * @return 规则列表
+     */
     @Operation(summary = "规则列表")
     @GetMapping
     public Result<List<AssociationRuleVO>> list() {
         return Result.success(associationRuleService.listRules());
     }
 
+    /**
+     * 查询规则详情。
+     *
+     * @param id 规则 ID
+     * @return 规则详情
+     */
     @Operation(summary = "规则详情")
     @GetMapping("/{id}")
     public Result<AssociationRuleVO> detail(@PathVariable Long id) {

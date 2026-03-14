@@ -262,6 +262,8 @@ export const useDataStore = defineStore('data', () => {
         database: config.database || config.schema || 'default',
         username: config.username,
         password: config.password,
+        hasData: config.hasData ?? true,
+        readOnly: config.readOnly ?? false,
         extra: ''
       }
     })
@@ -299,6 +301,8 @@ export const useDataStore = defineStore('data', () => {
         database,
         username: sourceConfig.username,
         password: sourceConfig.password,
+        hasData: sourceConfig.hasData ?? true,
+        readOnly: sourceConfig.readOnly ?? false,
         extra: ''
       }
     })

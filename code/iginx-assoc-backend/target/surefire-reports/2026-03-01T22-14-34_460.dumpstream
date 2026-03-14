@@ -1,5 +1,0 @@
-# Created at 2026-03-01T22:14:34.869
-Boot Manifest-JAR contains absolute paths in classpath 'E:\毕设\基于IGinX的数据与模型智能关联管理系统设计与实现\code\iginx-assoc-backend\target\test-classes'
-Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
-'other' has different root
-

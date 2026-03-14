@@ -6,6 +6,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 任务提交请求。
+ */
 @Data
 public class TaskSubmitRequest {
 
@@ -15,6 +18,9 @@ public class TaskSubmitRequest {
     @NotNull(message = "时间范围不能为空")
     private TimeRange timeRange;
 
+    /**
+     * 时间范围参数。
+     */
     @Data
     public static class TimeRange {
         @NotNull(message = "开始时间不能为空")

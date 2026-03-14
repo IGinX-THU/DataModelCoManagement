@@ -32,6 +32,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 仪表盘服务实现，汇总系统统计数据。
+ */
 @Service
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
@@ -46,6 +49,11 @@ public class DashboardServiceImpl implements DashboardService {
     private final MetaModelProfileRepository profileRepository;
     private final ModelAssetRepository modelAssetRepository;
 
+    /**
+     * 汇总系统统计数据，包含任务趋势与最近任务。
+     *
+     * @return 总览数据
+     */
     @Override
     public DashboardSummaryVO fetchSummary() {
         DashboardSummaryVO summary = new DashboardSummaryVO();
@@ -61,8 +69,11 @@ public class DashboardServiceImpl implements DashboardService {
         return summary;
     }
 
+    /**
+     * 生成近一周任务趋势数据。
+     */
     private List<DashboardTrendPointVO> buildTaskTrend() {
-        // 近 7 天任务趋势
+        // 计算近 7 天时间范围
         LocalDate today = LocalDate.now();
         LocalDate startDate = today.minusDays(TREND_DAYS - 1);
         LocalDateTime startTime = startDate.atStartOfDay();
@@ -91,6 +102,12 @@ public class DashboardServiceImpl implements DashboardService {
         return trend;
     }
 
+    /**
+     * 计算任务平均耗时（秒）。
+     *
+     * @param tasks 任务列表
+     * @return 平均耗时；无有效数据时返回 null
+     */
     private Double calculateAvgDuration(List<TaskEntity> tasks) {
         if (tasks == null || tasks.isEmpty()) {
             return null;
@@ -116,6 +133,9 @@ public class DashboardServiceImpl implements DashboardService {
         return sum / (double) count;
     }
 
+    /**
+     * 构建最近任务列表（包含规则/模型等信息）。
+     */
     private List<DashboardRecentTaskVO> buildRecentTasks() {
         List<TaskEntity> recentTasks = taskRepository
             .findAll(PageRequest.of(0, RECENT_TASK_LIMIT, Sort.by(Sort.Direction.DESC, "createTime")))
@@ -124,6 +144,7 @@ public class DashboardServiceImpl implements DashboardService {
             return List.of();
         }
 
+        // 预加载规则
         Set<Long> ruleIds = recentTasks.stream()
             .map(TaskEntity::getRuleId)
             .filter(Objects::nonNull)
@@ -132,6 +153,7 @@ public class DashboardServiceImpl implements DashboardService {
             .stream()
             .collect(Collectors.toMap(AssociationRuleEntity::getId, item -> item));
 
+        // 预加载模型资产
         Set<Long> modelIds = ruleMap.values().stream()
             .map(AssociationRuleEntity::getModelId)
             .filter(Objects::nonNull)
@@ -140,6 +162,7 @@ public class DashboardServiceImpl implements DashboardService {
             .stream()
             .collect(Collectors.toMap(ModelAssetEntity::getId, item -> item));
 
+        // 预加载模型档案
         Set<Long> profileIds = new HashSet<>();
         for (ModelAssetEntity asset : modelMap.values()) {
             if (asset.getProfileId() != null) {
@@ -173,6 +196,13 @@ public class DashboardServiceImpl implements DashboardService {
         return result;
     }
 
+    /**
+     * 计算单个任务耗时（秒）。
+     *
+     * @param start 开始时间
+     * @param end 结束时间
+     * @return 耗时秒数；时间不合法时返回 null
+     */
     private Long calculateDuration(LocalDateTime start, LocalDateTime end) {
         if (start == null || end == null) {
             return null;

@@ -21,6 +21,7 @@ import cn.edu.tsinghua.iginx.thrift.DataType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -34,8 +35,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.data.domain.Sort;
-
+/**
+ * 任务服务实现，负责提交、执行与查询任务。
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -48,6 +50,12 @@ public class TaskServiceImpl implements TaskService {
     private final IginxStorageWrapper iginxStorageWrapper;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 提交任务并写入任务表，提交后异步执行。
+     *
+     * @param request 提交参数
+     * @return 任务 ID
+     */
     @Override
     @Transactional
     public String submitTask(TaskSubmitRequest request) {
@@ -75,6 +83,7 @@ public class TaskServiceImpl implements TaskService {
 
         Runnable taskRunner = () -> executeTask(task.getId(), rule, asset);
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            // 事务提交后再异步执行，避免读到未提交数据
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
@@ -96,6 +105,11 @@ public class TaskServiceImpl implements TaskService {
         return task.getId();
     }
 
+    /**
+     * 终止任务执行并更新任务状态。
+     *
+     * @param taskId 任务 ID
+     */
     @Override
     @Transactional
     public void stopTask(String taskId) {
@@ -112,6 +126,12 @@ public class TaskServiceImpl implements TaskService {
         taskRepository.save(task);
     }
 
+    /**
+     * 查询任务列表。
+     *
+     * @param ruleId 规则 ID（可选）
+     * @return 任务列表
+     */
     @Override
     public List<TaskVO> listTasks(Long ruleId) {
         List<TaskEntity> entities = ruleId == null
@@ -124,11 +144,20 @@ public class TaskServiceImpl implements TaskService {
         return result;
     }
 
+    /**
+     * 查询任务详情。
+     *
+     * @param taskId 任务 ID
+     * @return 任务详情
+     */
     @Override
     public TaskVO getTask(String taskId) {
         return toVO(findTask(taskId));
     }
 
+    /**
+     * 执行任务核心逻辑，负责读取输入并写入输出测点。
+     */
     private void executeTask(String taskId, AssociationRuleEntity rule, ModelAssetEntity asset) {
         TaskEntity task = findTask(taskId);
         task.setStatus(TaskStatus.RUNNING.name());
@@ -163,6 +192,9 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * 根据输入测点计算并写入输出测点。
+     */
     private void writeTaskOutputs(TaskEntity task,
                                   Map<String, String> inputBindings,
                                   Map<String, String> outputBindings) {
@@ -249,6 +281,9 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * 解析输入绑定 JSON。
+     */
     private Map<String, String> parseInputBindings(String mappingJson) {
         if (!StringUtils.hasText(mappingJson)) {
             return Map.of();
@@ -274,6 +309,9 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * 解析输出绑定 JSON。
+     */
     private Map<String, String> parseOutputBindings(String outputTargetJson) {
         if (!StringUtils.hasText(outputTargetJson)) {
             return Map.of();
@@ -295,6 +333,9 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * 规范化输出测点路径。
+     */
     private String normalizeOutputPath(String path, String outputName) {
         if (!StringUtils.hasText(path)) {
             return outputName;
@@ -302,6 +343,9 @@ public class TaskServiceImpl implements TaskService {
         return path.trim();
     }
 
+    /**
+     * 构建任务结果写入路径列表。
+     */
     private List<String> buildTaskResultPaths(String resultPrefix, List<String> outputNames) {
         if (!StringUtils.hasText(resultPrefix) || outputNames == null || outputNames.isEmpty()) {
             return List.of();
@@ -318,6 +362,9 @@ public class TaskServiceImpl implements TaskService {
         return paths;
     }
 
+    /**
+     * 根据输出名称计算输出值。
+     */
     private Double computeOutputValue(String outputName, Map<String, Double> inputs, Double fallback) {
         if (outputName == null) {
             return fallback;
@@ -334,6 +381,9 @@ public class TaskServiceImpl implements TaskService {
         return fallback;
     }
 
+    /**
+     * 计算输入值的平均值。
+     */
     private Double averageValues(Map<String, Double> values) {
         double sum = 0;
         int count = 0;
@@ -349,6 +399,9 @@ public class TaskServiceImpl implements TaskService {
         return sum / count;
     }
 
+    /**
+     * 将对象转换为 Double。
+     */
     private Double toDouble(Object value) {
         if (value == null) {
             return null;
@@ -365,6 +418,9 @@ public class TaskServiceImpl implements TaskService {
         return null;
     }
 
+    /**
+     * 安全解析字符串为 Double。
+     */
     private Double parseDoubleSafely(String text) {
         if (!StringUtils.hasText(text)) {
             return null;
@@ -376,6 +432,9 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * 将时间转换为纳秒时间戳。
+     */
     private long toNano(LocalDateTime time) {
         if (time == null) {
             return 0L;
@@ -384,12 +443,21 @@ public class TaskServiceImpl implements TaskService {
         return TimeParser.toNano(millis);
     }
 
+    /**
+     * 输入绑定结构。
+     */
     private record InputBinding(String param, String path) {
+        /**
+         * 获取参数名的小写形式，用于统一匹配。
+         */
         private String paramLower() {
             return param == null ? "" : param.trim().toLowerCase(Locale.ROOT);
         }
     }
 
+    /**
+     * 标记任务为失败并记录日志。
+     */
     private void markTaskFailed(String taskId, String message) {
         try {
             TaskEntity task = findTask(taskId);
@@ -401,11 +469,17 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * 获取任务实体，不存在则抛异常。
+     */
     private TaskEntity findTask(String taskId) {
         return taskRepository.findById(taskId)
             .orElseThrow(() -> BizException.badRequest("任务不存在，id=" + taskId));
     }
 
+    /**
+     * 将任务实体转换为前端展示对象。
+     */
     private TaskVO toVO(TaskEntity entity) {
         TaskVO vo = new TaskVO();
         vo.setId(entity.getId());
