@@ -14,7 +14,6 @@ const addSourceForm = reactive({
     password: '',
     database: 'root',
     schema: 'public',
-    mountPath: 'root.demo',
     hasData: true,
     readOnly: false
 })
@@ -30,14 +29,6 @@ const databaseDefaults = {
     iotdb: 'root',
     postgres: 'postgres'
 }
-
-const mountPathDefaults = {
-    influx: 'root.default',
-    iotdb: 'root.demo',
-    postgres: ''
-}
-
-const isTimeSeriesType = (type) => ['influx', 'iotdb'].includes(type)
 
 const resolveSourceTypeLabel = (source) => {
     if (!source) return '-'
@@ -111,12 +102,6 @@ watch(() => addSourceForm.type, (val, oldVal) => {
     const prevDatabase = databaseDefaults[oldVal] || ''
     if (!addSourceForm.database || addSourceForm.database === prevDatabase) {
         addSourceForm.database = nextDatabase
-    }
-
-    const nextMountPath = mountPathDefaults[val] || ''
-    const prevMountPath = mountPathDefaults[oldVal] || ''
-    if (!addSourceForm.mountPath || addSourceForm.mountPath === prevMountPath) {
-        addSourceForm.mountPath = nextMountPath
     }
 })
 
@@ -668,19 +653,12 @@ const handleMaintenance = async () => {
                  </div>
                  
                  <!-- Dynamic Fields based on Type -->
-                 <div v-if="isTimeSeriesType(addSourceForm.type)">
-                     <div class="grid grid-cols-2 gap-4 mb-4">
-                     <div>
-                         <label class="block text-xs font-bold text-gray-700 mb-1">挂载路径 / 存储组</label>
-                         <input v-model="addSourceForm.mountPath" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" :placeholder="addSourceForm.type === 'iotdb' ? 'root.demo' : 'root.default'">
-                         <p class="text-[10px] text-gray-400 mt-1">挂载路径必须以 root. 开头，不允许仅 root</p>
-                     </div>
-                         <div>
-                             <label class="block text-xs font-bold text-gray-700 mb-1">数据库 / Bucket</label>
-                             <input v-model="addSourceForm.database" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" :placeholder="addSourceForm.type === 'iotdb' ? 'root' : 'default'">
-                         </div>
-                     </div>
-                 </div>
+                <div v-if="['iotdb', 'influx'].includes(addSourceForm.type)">
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">数据库 / Bucket</label>
+                        <input v-model="addSourceForm.database" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" :placeholder="addSourceForm.type === 'iotdb' ? 'root' : 'default'">
+                    </div>
+                </div>
                  <div v-if="['postgres'].includes(addSourceForm.type)">
                      <div class="grid grid-cols-2 gap-4 mb-4">
                          <div>

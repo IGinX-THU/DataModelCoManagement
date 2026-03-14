@@ -132,23 +132,6 @@ export const useDataStore = defineStore('data', () => {
     return 'rel'
   }
 
-  const normalizeMountPath = (sourceType, rawMountPath, fallbackName) => {
-    let mountPath = (rawMountPath || fallbackName || '').trim()
-    mountPath = mountPath.replace(/\.+$/, '')
-    if (!mountPath) return ''
-    if (['INFLUXDB', 'IOTDB'].includes(sourceType)) {
-      const lower = mountPath.toLowerCase()
-      if (lower === 'root') {
-        throw new Error('挂载路径必须为 root.xxx，不能仅 root')
-      }
-      if (lower.startsWith('root.')) {
-        mountPath = `root.${mountPath.substring(mountPath.indexOf('.') + 1)}`
-      } else {
-        mountPath = `root.${mountPath}`
-      }
-    }
-    return mountPath
-  }
 
   const toTreeNode = (source) => ({
     id: String(source.id),
@@ -282,10 +265,6 @@ export const useDataStore = defineStore('data', () => {
       throw new Error(`不支持的数据源类型: ${sourceConfig.type}`)
     }
 
-    const mountPath = normalizeMountPath(sourceType, sourceConfig.mountPath, sourceConfig.name)
-    if (!mountPath) {
-      throw new Error('挂载路径不能为空')
-    }
     const database = sourceType === 'POSTGRESQL'
       ? (sourceConfig.database || sourceConfig.schema || 'postgres')
       : (sourceConfig.database || 'default')
@@ -293,7 +272,6 @@ export const useDataStore = defineStore('data', () => {
     await createDataSource({
       name: sourceConfig.name,
       sourceType,
-      mountPath,
       description: '',
       connectionConfig: {
         host: sourceConfig.host,
