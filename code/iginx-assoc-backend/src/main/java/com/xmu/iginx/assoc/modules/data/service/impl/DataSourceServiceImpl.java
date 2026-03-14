@@ -2,6 +2,7 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import com.xmu.iginx.assoc.common.PageResult;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
+import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
@@ -20,8 +21,11 @@ import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StorageEngineFlagsValidator;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceConnectionConfigVO;
+import com.xmu.iginx.assoc.modules.data.vo.ColumnVO;
+import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceStructureNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
+import com.xmu.iginx.assoc.modules.data.vo.StorageEngineVO;
 import com.xmu.iginx.assoc.modules.relation.repository.AssociationRuleRepository;
 import cn.edu.tsinghua.iginx.session.Column;
 import cn.edu.tsinghua.iginx.session.ClusterInfo;
@@ -146,6 +150,26 @@ public class DataSourceServiceImpl implements DataSourceService {
     }
 
     /**
+     * 获取数据源详情（聚合）。
+     *
+     * @param id 数据源 ID
+     * @param limit SHOW COLUMNS 结果限制条数
+     * @return 详情聚合视图
+     */
+    @Override
+    public DataSourceDetailVO getDetail(Long id, Integer limit) {
+        DataSourceVO meta = getDataSource(id);
+        List<StorageEngineVO> engines = listStorageEngines();
+        List<ColumnVO> columns = listShowColumns(limit);
+
+        DataSourceDetailVO detail = new DataSourceDetailVO();
+        detail.setMeta(meta);
+        detail.setEngines(engines);
+        detail.setColumns(columns);
+        return detail;
+    }
+
+    /**
      * 更新数据源信息。
      *
      * @param id 数据源 ID
@@ -236,6 +260,56 @@ public class DataSourceServiceImpl implements DataSourceService {
         // 时序数据源以测点路径构建树
         String normalizedMount = normalizeTimeSeriesMountPath(entity.getMountPath(), sourceType);
         return listTimeSeriesStructure(normalizedMount);
+    }
+
+    private List<StorageEngineVO> listStorageEngines() {
+        return iginxStorageWrapper.executeWithSession(session -> {
+            ClusterInfo clusterInfo = session.getClusterInfo();
+            List<StorageEngineInfo> infos = clusterInfo == null ? List.of() : clusterInfo.getStorageEngineInfos();
+            if (infos == null || infos.isEmpty()) {
+                return List.of();
+            }
+            List<StorageEngineVO> engines = new ArrayList<>();
+            for (StorageEngineInfo info : infos) {
+                if (info == null) {
+                    continue;
+                }
+                StorageEngineVO engine = new StorageEngineVO();
+                engine.setIp(info.getIp());
+                engine.setPort(info.getPort());
+                engine.setType(info.getType() == null ? "" : info.getType().toString());
+                engine.setSchemaPrefix(info.getSchemaPrefix());
+                engine.setDataPrefix(info.getDataPrefix());
+                engines.add(engine);
+            }
+            return engines;
+        });
+    }
+
+    private List<ColumnVO> listShowColumns(Integer limit) {
+        int safeLimit = normalizeLimit(limit);
+        SessionExecuteSqlResult result = iginxStorageWrapper.executeSql("SHOW COLUMNS");
+        if (result.getParseErrorMsg() != null && !result.getParseErrorMsg().isBlank()) {
+            throw BizException.badRequest(result.getParseErrorMsg().trim());
+        }
+        List<String> paths = result.getPaths() == null ? List.of() : result.getPaths();
+        List<?> dataTypes = result.getDataTypeList() == null ? List.of() : result.getDataTypeList();
+        int size = Math.min(paths.size(), safeLimit);
+        List<ColumnVO> columns = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            ColumnVO column = new ColumnVO();
+            column.setPath(paths.get(i));
+            column.setDataType(i < dataTypes.size() ? String.valueOf(dataTypes.get(i)) : "");
+            columns.add(column);
+        }
+        return columns;
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 200;
+        }
+        return Math.min(limit, 1000);
     }
 
     /**

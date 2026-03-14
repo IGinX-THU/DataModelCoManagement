@@ -4,6 +4,7 @@ import com.xmu.iginx.assoc.common.PageResult;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceQueryRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceUpdateRequest;
+import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceStructureNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
 
@@ -37,6 +38,15 @@ public interface DataSourceService {
      * @return 数据源信息
      */
     DataSourceVO getDataSource(Long id);
+
+    /**
+     * 获取数据源详情（聚合）。
+     *
+     * @param id 数据源 ID
+     * @param limit SHOW COLUMNS 结果限制条数
+     * @return 详情聚合视图
+     */
+    DataSourceDetailVO getDetail(Long id, Integer limit);
 
     /**
      * 更新数据源信息。
