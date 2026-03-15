@@ -2,6 +2,7 @@ package com.xmu.iginx.assoc.modules.data.controller;
 
 import com.xmu.iginx.assoc.common.Result;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataExportRequest;
 import com.xmu.iginx.assoc.modules.data.dto.MeasurementRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StorageGroupRequest;
@@ -19,10 +20,12 @@ import com.xmu.iginx.assoc.modules.data.service.DataExportService;
 import com.xmu.iginx.assoc.modules.data.service.DataImportService;
 import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.data.service.DataQueryService;
+import com.xmu.iginx.assoc.modules.data.service.DataResourceTreeService;
 import com.xmu.iginx.assoc.modules.data.service.StructureService;
 import com.xmu.iginx.assoc.modules.data.util.DataFileStorageService;
 import com.xmu.iginx.assoc.modules.data.vo.DataExportResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataImportResultVO;
+import com.xmu.iginx.assoc.modules.data.vo.DataResourceTreeNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.StructuredQueryResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.TimeSeriesQueryResultVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,6 +50,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * 数据资源相关接口，负责数据导入、导出、查询与结构维护。
@@ -64,6 +68,7 @@ public class DataResourceController {
     private final DataMaintainService dataMaintainService;
     private final StructureService structureService;
     private final DataFileStorageService fileStorageService;
+    private final DataResourceTreeService dataResourceTreeService;
 
     /**
      * 导入时序数据文件。
@@ -142,6 +147,17 @@ public class DataResourceController {
     }
 
     /**
+     * 获取数据资源树（按前缀分类）。
+     *
+     * @return 资源树
+     */
+    @Operation(summary = "数据资源树")
+    @GetMapping("/resources/tree")
+    public Result<List<DataResourceTreeNodeVO>> resourceTree() {
+        return Result.success(dataResourceTreeService.buildTree());
+    }
+
+    /**
      * 删除时序数据。
      *
      * @param request 删除条件
@@ -151,6 +167,19 @@ public class DataResourceController {
     @PostMapping("/ts/delete")
     public Result<Void> deleteTimeSeries(@Valid @RequestBody TimeSeriesDeleteRequest request) {
         dataMaintainService.deleteTimeSeries(request);
+        return Result.success();
+    }
+
+    /**
+     * 删除路径及子路径数据（DELETE COLUMNS）。
+     *
+     * @param request 删除请求
+     * @return 操作结果
+     */
+    @Operation(summary = "删除路径数据")
+    @PostMapping("/columns/delete")
+    public Result<Void> deleteColumns(@Valid @RequestBody DataColumnsDeleteRequest request) {
+        dataMaintainService.deleteColumns(request);
         return Result.success();
     }
 

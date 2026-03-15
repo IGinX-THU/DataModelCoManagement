@@ -13,6 +13,4 @@ public class DataSourceDetailVO {
     private DataSourceVO meta;
 
     private List<StorageEngineVO> engines;
-
-    private List<ColumnVO> columns;
 }

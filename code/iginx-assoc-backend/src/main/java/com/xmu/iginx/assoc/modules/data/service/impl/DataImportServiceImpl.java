@@ -1,27 +1,21 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import cn.edu.tsinghua.iginx.session.Column;
-import cn.edu.tsinghua.iginx.session.ClusterInfo;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
 import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.thrift.DataType;
-import cn.edu.tsinghua.iginx.thrift.StorageEngineInfo;
 import com.alibaba.excel.EasyExcel;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
-import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredImportRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesColumnMappingDTO;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesImportRequest;
-import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
-import com.xmu.iginx.assoc.modules.data.model.DataSourceDetail;
 import com.xmu.iginx.assoc.modules.data.service.DataImportService;
-import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
 import com.xmu.iginx.assoc.modules.data.util.CsvUtils;
+import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.DataFileStorageService;
 import com.xmu.iginx.assoc.modules.data.util.ExcelRowListener;
 import com.xmu.iginx.assoc.modules.data.util.IginxDataTypeConverter;
-import com.xmu.iginx.assoc.modules.data.util.IginxStorageEngineHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StructuredKeyGenerator;
@@ -59,11 +53,9 @@ public class DataImportServiceImpl implements DataImportService {
     private static final int STRUCT_BATCH_SIZE = 2000;
     private static final String BOM = "\uFEFF";
 
-    private final DataSourceAccessor dataSourceAccessor;
     private final IginxStorageWrapper iginxStorageWrapper;
     private final DataFileStorageService fileStorageService;
     private final IginxStructuredQueryHelper structuredQueryHelper;
-    private final IginxStorageEngineHelper storageEngineHelper;
 
     /**
      * 导入时序数据（CSV/Excel）。
@@ -74,12 +66,7 @@ public class DataImportServiceImpl implements DataImportService {
      */
     @Override
     public DataImportResultVO importTimeSeries(TimeSeriesImportRequest request, MultipartFile file) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
-        String mountPath = detail.entity().getMountPath();
-        if (detail.type() == DataSourceType.IOTDB) {
-            mountPath = TimeSeriesPathUtils.normalizeIotdbMountPath(mountPath);
-        }
-        String storageGroup = TimeSeriesPathUtils.resolvePathUnderMount(request.getStorageGroup(), mountPath, true);
+        String storageGroup = normalizeTimeSeriesImportPath(request.getStorageGroup());
         ensureStorageGroupExists(storageGroup);
         String extension = getExtension(file);
         // 根据文件类型选择解析器，进入统一的导入上下文
@@ -104,8 +91,7 @@ public class DataImportServiceImpl implements DataImportService {
      */
     @Override
     public DataImportResultVO importStructured(StructuredImportRequest request, MultipartFile file) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
-        ensureRelationalStorageEngine(detail);
+        normalizeStructuredImportPath(request);
         String extension = resolveFileType(request.getFileType(), file);
         if ("sql".equals(extension)) {
             return importStructuredSql(file);
@@ -114,7 +100,7 @@ public class DataImportServiceImpl implements DataImportService {
             throw BizException.badRequest("仅支持 CSV、Excel 或 SQL 文件");
         }
         try {
-            StructuredImportContext context = new StructuredImportContext(request, detail.entity().getMountPath());
+            StructuredImportContext context = new StructuredImportContext(request, "");
             if ("csv".equals(extension)) {
                 readCsv(file, context::handleRow);
             } else {
@@ -231,6 +217,46 @@ public class DataImportServiceImpl implements DataImportService {
             return fileType.trim().toLowerCase(Locale.ROOT);
         }
         return getExtension(file);
+    }
+
+    /**
+     * 规整并校验时序导入路径，确保以 ts 前缀开头。
+     *
+     * @param rawPath 原始路径
+     * @return 归一化后的路径
+     */
+    private String normalizeTimeSeriesImportPath(String rawPath) {
+        String normalized = TimeSeriesPathUtils.stripRootPrefix(rawPath);
+        if (normalized == null || normalized.isBlank()) {
+            throw BizException.badRequest("导入路径不能为空");
+        }
+        if (!DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.TS_PREFIX)) {
+            throw BizException.badRequest("时序数据导入路径必须以 ts 开头");
+        }
+        return normalized;
+    }
+
+    /**
+     * 规整并校验结构化导入路径，确保 schema 以 rt 前缀开头。
+     *
+     * @param request 导入请求
+     */
+    private void normalizeStructuredImportPath(StructuredImportRequest request) {
+        if (request == null) {
+            throw BizException.badRequest("导入参数不能为空");
+        }
+        String schema = TimeSeriesPathUtils.stripRootPrefix(request.getSchema());
+        if (schema == null || schema.isBlank()) {
+            throw BizException.badRequest("目标 schema 不能为空");
+        }
+        if (!DataPrefixRules.startsWithPrefix(schema, DataPrefixRules.RT_PREFIX)) {
+            throw BizException.badRequest("结构化数据导入路径必须以 rt 开头");
+        }
+        String table = request.getTable();
+        if (table == null || table.isBlank()) {
+            throw BizException.badRequest("目标表不能为空");
+        }
+        request.setSchema(schema);
     }
 
     /**
@@ -1088,129 +1114,4 @@ public class DataImportServiceImpl implements DataImportService {
      *
      * @param detail 数据源详情
      */
-    private void ensureRelationalStorageEngine(DataSourceDetail detail) {
-        if (detail == null || detail.type() != DataSourceType.POSTGRESQL) {
-            return;
-        }
-        DataSourceConnectionConfig config = detail.config();
-        String mountPath = detail.entity() == null ? "" : detail.entity().getMountPath();
-        if (storageEngineExists(DataSourceType.POSTGRESQL, config, mountPath)) {
-            return;
-        }
-        String addSql = storageEngineHelper.buildAddStorageEngineSql(DataSourceType.POSTGRESQL, config, mountPath);
-        iginxStorageWrapper.executeSql(addSql);
-    }
-
-    /**
-     * 判断指定存储引擎是否已注册。
-     *
-     * @param sourceType 数据源类型
-     * @param config 连接配置
-     * @param mountPath 挂载路径
-     * @return 是否已注册
-     */
-    private boolean storageEngineExists(DataSourceType sourceType,
-                                        DataSourceConnectionConfig config,
-                                        String mountPath) {
-        String resolvedHost = storageEngineHelper.resolveStorageHost(config.getHost());
-        String engineType = storageEngineHelper.resolveEngineType(sourceType);
-        int port = config.getPort() == null ? -1 : config.getPort();
-        String expectedPrefix = normalizePrefix(mountPath);
-        try {
-            return iginxStorageWrapper.executeWithSession(session -> {
-                ClusterInfo clusterInfo = session.getClusterInfo();
-                List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
-                if (infos == null || infos.isEmpty()) {
-                    return false;
-                }
-                for (StorageEngineInfo info : infos) {
-                    String infoType = info.getType() == null ? "" : info.getType().toString();
-                    if (!engineType.equalsIgnoreCase(infoType)) {
-                        continue;
-                    }
-                    if (resolvedHost == null || info.getIp() == null) {
-                        continue;
-                    }
-                    if (!resolvedHost.equalsIgnoreCase(info.getIp())
-                        && !isHostAliasMatch(config.getHost(), info.getIp())) {
-                        continue;
-                    }
-                    if (info.getPort() != port) {
-                        continue;
-                    }
-                    String schemaPrefix = normalizePrefix(info.getSchemaPrefix());
-                    String dataPrefix = normalizePrefix(info.getDataPrefix());
-                    boolean schemaMatch = expectedPrefix.equals(schemaPrefix) || schemaPrefix.isEmpty();
-                    if (expectedPrefix.equals(dataPrefix) && schemaMatch) {
-                        return true;
-                    }
-                }
-                return false;
-            });
-        } catch (BizException ex) {
-            if (isClusterInfoIncompatible(ex)) {
-                // 兼容旧版 IGinX：无法读取集群信息时默认按未注册处理
-                return false;
-            }
-            throw ex;
-        }
-    }
-
-    /**
-     * 判断集群信息接口是否不兼容旧版 IGinX。
-     *
-     * @param ex 异常
-     * @return 是否不兼容
-     */
-    private boolean isClusterInfoIncompatible(BizException ex) {
-        String message = ex.getMessage();
-        if (message == null) {
-            return false;
-        }
-        String lower = message.toLowerCase(Locale.ROOT);
-        return lower.contains("connectable") && lower.contains("iginxinfo");
-    }
-
-    /**
-     * 判断主机名别名是否等价。
-     *
-     * @param rawHost 配置主机
-     * @param actualHost 实际主机
-     * @return 是否匹配
-     */
-    private boolean isHostAliasMatch(String rawHost, String actualHost) {
-        if (rawHost == null || actualHost == null) {
-            return false;
-        }
-        String raw = rawHost.trim().toLowerCase(Locale.ROOT);
-        String actual = actualHost.trim().toLowerCase(Locale.ROOT);
-        if (raw.isEmpty() || actual.isEmpty()) {
-            return false;
-        }
-        if (("127.0.0.1".equals(raw) || "localhost".equals(raw))
-            && ("host.docker.internal".equals(actual) || "192.168.65.254".equals(actual))) {
-            return true;
-        }
-        if ("host.docker.internal".equals(raw) && "host.docker.internal".equals(actual)) {
-            return true;
-        }
-        if ("host.docker.internal".equals(raw) && actual.equals("192.168.65.254")) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * 规范化挂载前缀。
-     *
-     * @param prefix 原始前缀
-     * @return 规范化前缀
-     */
-    private String normalizePrefix(String prefix) {
-        if (prefix == null) {
-            return "";
-        }
-        String normalized = prefix.trim();
-        return normalized.isEmpty() ? "" : normalized;
-    }
 }

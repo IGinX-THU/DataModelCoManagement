@@ -1,7 +1,6 @@
 package com.xmu.iginx.assoc.modules.data.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
@@ -11,9 +10,6 @@ import java.util.List;
  */
 @Data
 public class StructuredImportRequest {
-
-    @NotNull(message = "数据源不能为空")
-    private Long sourceId;
 
     @NotBlank(message = "目标 schema 不能为空")
     private String schema;

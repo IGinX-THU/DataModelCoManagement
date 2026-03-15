@@ -1,6 +1,7 @@
 package com.xmu.iginx.assoc.framework.iginx;
 
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +40,7 @@ public class IginxFileSystemRegistrar {
      * @return 数据前缀
      */
     public String getDataPrefix() {
-        return fileSystemConfig.getDataPrefix();
+        return resolveModelPrefix();
     }
 
     /**
@@ -86,8 +87,9 @@ public class IginxFileSystemRegistrar {
         // 按需补齐默认参数，避免覆盖用户显式配置
         appendParamIfAbsent(params, extra, "has_data", "false");
         appendParamIfAbsent(params, extra, "is_read_only", "false");
-        if (StringUtils.hasText(fileSystemConfig.getDataPrefix()) && !containsParam(extra, "data_prefix")) {
-            params.add("data_prefix=" + fileSystemConfig.getDataPrefix().trim());
+        String modelPrefix = resolveModelPrefix();
+        if (StringUtils.hasText(modelPrefix) && !containsParam(extra, "data_prefix")) {
+            params.add("data_prefix=" + modelPrefix);
         }
         String dir = fileSystemConfig.getDir();
         if (!StringUtils.hasText(dir) && !containsParam(extra, "dir")) {
@@ -103,6 +105,20 @@ public class IginxFileSystemRegistrar {
         String paramString = String.join(", ", params);
         return String.format("ADD STORAGEENGINE (\"%s\", %d, \"filesystem\", \"%s\");",
             host.trim(), port, escape(paramString));
+    }
+
+    /**
+     * 规范化模型前缀，确保为 models。
+     *
+     * @return 合法的模型前缀
+     */
+    private String resolveModelPrefix() {
+        String raw = fileSystemConfig.getDataPrefix();
+        String normalized = DataPrefixRules.normalizeModelPrefix(raw);
+        if (!DataPrefixRules.isModelPrefix(raw)) {
+            log.warn("检测到非法模型前缀：{}，已自动重置为 {}", raw, DataPrefixRules.MODEL_PREFIX);
+        }
+        return normalized;
     }
 
     /**

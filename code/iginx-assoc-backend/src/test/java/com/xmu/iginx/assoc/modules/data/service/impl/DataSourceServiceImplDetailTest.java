@@ -2,8 +2,6 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import cn.edu.tsinghua.iginx.session.ClusterInfo;
 import cn.edu.tsinghua.iginx.session.Session;
-import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
-import cn.edu.tsinghua.iginx.thrift.DataType;
 import cn.edu.tsinghua.iginx.thrift.StorageEngineInfo;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.entity.DataResourceEntity;
@@ -48,7 +46,7 @@ class DataSourceServiceImplDetailTest {
     private DataSourceServiceImpl dataSourceService;
 
     @Test
-    void detail_shouldReturnEnginesAndColumnsWithLimit() throws Exception {
+    void detail_shouldReturnEngines() throws Exception {
         DataResourceEntity entity = new DataResourceEntity();
         entity.setId(1L);
         entity.setName("demo");
@@ -57,12 +55,6 @@ class DataSourceServiceImplDetailTest {
 
         when(dataResourceRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(connectionConfigCipher.decrypt("enc")).thenReturn(new DataSourceConnectionConfig());
-
-        SessionExecuteSqlResult sqlResult = mock(SessionExecuteSqlResult.class);
-        when(sqlResult.getParseErrorMsg()).thenReturn("");
-        when(sqlResult.getPaths()).thenReturn(List.of("ts.a", "ts.b"));
-        when(sqlResult.getDataTypeList()).thenReturn(List.of(DataType.DOUBLE, DataType.LONG));
-        when(iginxStorageWrapper.executeSql("SHOW COLUMNS")).thenReturn(sqlResult);
 
         StorageEngineInfo engineInfo = mock(StorageEngineInfo.class);
         when(engineInfo.getIp()).thenReturn("127.0.0.1");
@@ -81,8 +73,6 @@ class DataSourceServiceImplDetailTest {
         });
 
         DataSourceDetailVO detail = dataSourceService.getDetail(1L, 1);
-
-        assertEquals(1, detail.getColumns().size());
         assertEquals(1, detail.getEngines().size());
     }
 }

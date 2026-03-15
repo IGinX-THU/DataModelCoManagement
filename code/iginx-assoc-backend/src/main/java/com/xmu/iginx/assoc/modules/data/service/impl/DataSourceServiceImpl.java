@@ -2,12 +2,10 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import com.xmu.iginx.assoc.common.PageResult;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
-import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceQueryRequest;
-import com.xmu.iginx.assoc.modules.data.dto.DataSourceUpdateRequest;
 import com.xmu.iginx.assoc.modules.data.entity.DataResourceEntity;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
 import com.xmu.iginx.assoc.modules.data.repository.DataResourceRepository;
@@ -15,18 +13,17 @@ import com.xmu.iginx.assoc.modules.data.service.DataSourceConnectionTestService;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceService;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.util.ConnectionConfigCipher;
+import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.IginxStorageEngineHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StorageEngineFlagsValidator;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceConnectionConfigVO;
-import com.xmu.iginx.assoc.modules.data.vo.ColumnVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceStructureNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
 import com.xmu.iginx.assoc.modules.data.vo.StorageEngineVO;
-import com.xmu.iginx.assoc.modules.relation.repository.AssociationRuleRepository;
 import cn.edu.tsinghua.iginx.session.Column;
 import cn.edu.tsinghua.iginx.session.ClusterInfo;
 import cn.edu.tsinghua.iginx.thrift.StorageEngineInfo;
@@ -58,7 +55,6 @@ public class DataSourceServiceImpl implements DataSourceService {
     private final DataResourceRepository dataResourceRepository;
     private final DataSourceConnectionTestService connectionTestService;
     private final ConnectionConfigCipher connectionConfigCipher;
-    private final AssociationRuleRepository associationRuleRepository;
     private final IginxStorageWrapper iginxStorageWrapper;
     private final IginxStorageEngineHelper storageEngineHelper;
     private final IginxStructuredQueryHelper structuredQueryHelper;
@@ -79,6 +75,7 @@ public class DataSourceServiceImpl implements DataSourceService {
         DataSourceType sourceType = resolveSourceType(request.getSourceType());
         // 解析并规范化挂载路径
         String mountPath = resolveMountPathForCreate(request.getMountPath(), sourceType, request.getConnectionConfig());
+        validateMountPrefix(sourceType, mountPath);
         boolean hasMountPath = mountPath != null && !mountPath.isBlank();
         if (hasMountPath) {
             validateMountPath(mountPath, null);
@@ -153,76 +150,18 @@ public class DataSourceServiceImpl implements DataSourceService {
      * 获取数据源详情（聚合）。
      *
      * @param id 数据源 ID
-     * @param limit SHOW COLUMNS 结果限制条数
+     * @param limit 兼容参数，当前不再返回路径列表
      * @return 详情聚合视图
      */
     @Override
     public DataSourceDetailVO getDetail(Long id, Integer limit) {
         DataSourceVO meta = getDataSource(id);
         List<StorageEngineVO> engines = listStorageEngines();
-        List<ColumnVO> columns = listShowColumns(limit);
 
         DataSourceDetailVO detail = new DataSourceDetailVO();
         detail.setMeta(meta);
         detail.setEngines(engines);
-        detail.setColumns(columns);
         return detail;
-    }
-
-    /**
-     * 更新数据源信息。
-     *
-     * @param id 数据源 ID
-     * @param request 更新请求
-     */
-    @Override
-    @Transactional
-    public void updateDataSource(Long id, DataSourceUpdateRequest request) {
-        DataResourceEntity entity = findById(id);
-        validateUniqueName(request.getName(), id);
-
-        entity.setName(request.getName());
-        entity.setDescription(request.getDescription());
-
-        DataSourceConnectionConfig connectionConfig = request.getConnectionConfig();
-        if (connectionConfig != null) {
-            StorageEngineFlagsValidator.validate(connectionConfig);
-            // 连接配置更新前先做连通性校验
-            connectionTestService.testConnection(entity.getSourceType(), connectionConfig);
-            entity.setConnConfig(connectionConfigCipher.encrypt(connectionConfig));
-        }
-        dataResourceRepository.save(entity);
-    }
-
-    /**
-     * 删除数据源，必要时卸载 IGinX 存储引擎。
-     *
-     * @param id 数据源 ID
-     * @param force 是否强制删除
-     */
-    @Override
-    @Transactional
-    public void removeDataSource(Long id, boolean force) {
-        DataResourceEntity entity = findById(id);
-        boolean inUse = associationRuleRepository.existsByDataId(id);
-        if (inUse && !force) {
-            throw BizException.badRequest("该数据源正被关联规则占用，无法删除");
-        }
-        DataSourceType sourceType = resolveSourceType(entity.getSourceType());
-        if (needsStorageEngineUnregister(sourceType)) {
-            if (!force) {
-                // 非强制删除时，要求卸载成功
-                removeStorageEngine(entity);
-            } else {
-                try {
-                    // 强制删除时，卸载失败仅记录，不阻断删除
-                    removeStorageEngine(entity);
-                } catch (BizException ex) {
-                    // 强制删除时忽略 IGinX 卸载失败
-                }
-            }
-        }
-        dataResourceRepository.delete(entity);
     }
 
     /**
@@ -284,32 +223,6 @@ public class DataSourceServiceImpl implements DataSourceService {
             }
             return engines;
         });
-    }
-
-    private List<ColumnVO> listShowColumns(Integer limit) {
-        int safeLimit = normalizeLimit(limit);
-        SessionExecuteSqlResult result = iginxStorageWrapper.executeSql("SHOW COLUMNS");
-        if (result.getParseErrorMsg() != null && !result.getParseErrorMsg().isBlank()) {
-            throw BizException.badRequest(result.getParseErrorMsg().trim());
-        }
-        List<String> paths = result.getPaths() == null ? List.of() : result.getPaths();
-        List<?> dataTypes = result.getDataTypeList() == null ? List.of() : result.getDataTypeList();
-        int size = Math.min(paths.size(), safeLimit);
-        List<ColumnVO> columns = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            ColumnVO column = new ColumnVO();
-            column.setPath(paths.get(i));
-            column.setDataType(i < dataTypes.size() ? String.valueOf(dataTypes.get(i)) : "");
-            columns.add(column);
-        }
-        return columns;
-    }
-
-    private int normalizeLimit(Integer limit) {
-        if (limit == null || limit < 1) {
-            return 200;
-        }
-        return Math.min(limit, 1000);
     }
 
     /**
@@ -410,6 +323,27 @@ public class DataSourceServiceImpl implements DataSourceService {
     }
 
     /**
+     * 校验挂载路径前缀是否符合 ts/rt 规则。
+     *
+     * @param sourceType 数据源类型
+     * @param mountPath 挂载路径
+     */
+    private void validateMountPrefix(DataSourceType sourceType, String mountPath) {
+        if (sourceType == null) {
+            return;
+        }
+        if (sourceType == DataSourceType.IOTDB || sourceType == DataSourceType.INFLUXDB) {
+            String normalized = TimeSeriesPathUtils.stripRootPrefix(TimeSeriesPathUtils.normalizePath(mountPath));
+            DataPrefixRules.validateTimeSeriesPrefix(normalized);
+            return;
+        }
+        if (sourceType == DataSourceType.POSTGRESQL) {
+            String normalized = TimeSeriesPathUtils.normalizePath(mountPath);
+            DataPrefixRules.validateStructuredPrefix(normalized);
+        }
+    }
+
+    /**
      * 将字符串解析为数据源类型枚举。
      *
      * @param sourceType 数据源类型字符串
@@ -434,18 +368,6 @@ public class DataSourceServiceImpl implements DataSourceService {
      */
     private boolean isTimeSeriesSource(DataSourceType sourceType) {
         return sourceType == DataSourceType.IOTDB || sourceType == DataSourceType.INFLUXDB;
-    }
-
-    /**
-     * 判断删除数据源时是否需要卸载存储引擎。
-     *
-     * @param sourceType 数据源类型
-     * @return 是否需要卸载
-     */
-    private boolean needsStorageEngineUnregister(DataSourceType sourceType) {
-        return sourceType == DataSourceType.IOTDB
-            || sourceType == DataSourceType.INFLUXDB
-            || sourceType == DataSourceType.POSTGRESQL;
     }
 
     /**
@@ -831,67 +753,7 @@ public class DataSourceServiceImpl implements DataSourceService {
     }
 
     /**
-     * 卸载数据源对应的 IGinX 存储引擎。
-     *
-     * @param entity 数据源实体
-     */
-    private void removeStorageEngine(DataResourceEntity entity) {
-        DataSourceConnectionConfig config = connectionConfigCipher.decrypt(entity.getConnConfig());
-        DataSourceType sourceType = resolveSourceType(entity.getSourceType());
-        if (sourceType == null) {
-            return;
-        }
-        boolean existsBefore = storageEngineExistsByEndpoint(sourceType, config);
-        if (!existsBefore) {
-            return;
-        }
-        String mountPath = entity.getMountPath();
-        String normalizedMount = normalizeTimeSeriesMountPath(mountPath, sourceType);
-        LinkedHashSet<String> prefixes = buildRemovePrefixCandidates(mountPath, normalizedMount, sourceType);
-        if (prefixes.isEmpty()) {
-            prefixes.add("");
-        }
-        LinkedHashSet<String> sqlSet = new LinkedHashSet<>();
-        for (String prefix : prefixes) {
-            // 依据 IGinX 手册 3.3.5：host/port/schemaPrefix/dataPrefix 四元组唯一确定待移除分片
-            sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, prefix, prefix, false));
-            if (!prefix.isBlank()) {
-                sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, "", prefix, false));
-                sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, prefix, "", false));
-            }
-        }
-        // 手册要求当 schemaPrefix/dataPrefix 为空时使用空字符串
-        sqlSet.add(storageEngineHelper.buildRemoveStorageEngineSql(config, "", "", false));
-        List<String> sqlList = new ArrayList<>(sqlSet);
-        BizException lastException = null;
-        boolean removed = false;
-        for (String sql : sqlList) {
-            try {
-                iginxStorageWrapper.executeSql(sql);
-                removed = true;
-                break;
-            } catch (BizException ex) {
-                if (shouldIgnoreRemoveError(ex)) {
-                    lastException = ex;
-                    continue;
-                }
-                throw ex;
-            }
-        }
-        if (removed) {
-            return;
-        }
-        if (!storageEngineExistsByEndpoint(sourceType, config)) {
-            return;
-        }
-        if (lastException != null && lastException.getMessage() != null && !lastException.getMessage().isBlank()) {
-            throw BizException.badRequest("IGinX 存储引擎卸载失败，目标引擎仍存在: " + lastException.getMessage());
-        }
-        throw BizException.badRequest("IGinX 存储引擎卸载失败，目标引擎仍存在");
-    }
-
-    /**
-     * 构建卸载存储引擎时的前缀候选集合。
+     * 构建前缀候选集合（用于检测残留引擎）。
      *
      * @param mountPath 原始挂载路径
      * @param normalizedMount 规范化挂载路径
@@ -1008,52 +870,6 @@ public class DataSourceServiceImpl implements DataSourceService {
     }
 
     /**
-     * 判断指定主机端口的存储引擎是否存在。
-     *
-     * @param sourceType 数据源类型
-     * @param config 连接配置
-     * @return 是否存在
-     */
-    private boolean storageEngineExistsByEndpoint(DataSourceType sourceType,
-                                                  DataSourceConnectionConfig config) {
-        String resolvedHost = storageEngineHelper.resolveStorageHost(config.getHost());
-        String engineType = storageEngineHelper.resolveEngineType(sourceType);
-        int port = config.getPort() == null ? -1 : config.getPort();
-        try {
-            return iginxStorageWrapper.executeWithSession(session -> {
-                ClusterInfo clusterInfo = session.getClusterInfo();
-                List<StorageEngineInfo> infos = clusterInfo == null ? null : clusterInfo.getStorageEngineInfos();
-                if (infos == null || infos.isEmpty()) {
-                    return false;
-                }
-                for (StorageEngineInfo info : infos) {
-                    String infoType = info.getType() == null ? "" : info.getType().toString();
-                    if (!engineType.equalsIgnoreCase(infoType)) {
-                        continue;
-                    }
-                    if (resolvedHost == null || info.getIp() == null) {
-                        continue;
-                    }
-                    if (!resolvedHost.equalsIgnoreCase(info.getIp())
-                        && !isHostAliasMatch(config.getHost(), info.getIp())) {
-                        continue;
-                    }
-                    if (info.getPort() != port) {
-                        continue;
-                    }
-                    return true;
-                }
-                return false;
-            });
-        } catch (BizException ex) {
-            if (isClusterInfoIncompatible(ex)) {
-                return false;
-            }
-            throw ex;
-        }
-    }
-
-    /**
      * 检查是否存在冲突或残留的存储引擎。
      *
      * @param sourceType 数据源类型
@@ -1119,25 +935,6 @@ public class DataSourceServiceImpl implements DataSourceService {
         }
         String lower = message.toLowerCase(Locale.ROOT);
         return lower.contains("connectable") && lower.contains("iginxinfo");
-    }
-
-    /**
-     * 判断卸载存储引擎异常是否可忽略。
-     *
-     * @param ex 业务异常
-     * @return 是否可忽略
-     */
-    private boolean shouldIgnoreRemoveError(BizException ex) {
-        String message = ex.getMessage();
-        if (message == null) {
-            return false;
-        }
-        String lower = message.toLowerCase(Locale.ROOT);
-        return lower.contains("dummy storage engine")
-            || lower.contains("not read-only")
-            || lower.contains("does not exist")
-            || lower.contains("has no data")
-            || lower.contains("remove history data source failed");
     }
 
     /**

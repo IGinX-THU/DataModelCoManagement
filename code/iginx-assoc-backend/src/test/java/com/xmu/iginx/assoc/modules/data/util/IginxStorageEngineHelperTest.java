@@ -25,7 +25,7 @@ class IginxStorageEngineHelperTest {
         connection.setHasData(false);
         connection.setReadOnly(false);
 
-        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.demo");
+        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.ts.demo");
 
         assertTrue(sql.contains("has_data=false"));
         assertTrue(sql.contains("is_read_only=false"));
@@ -47,10 +47,10 @@ class IginxStorageEngineHelperTest {
         connection.setHasData(true);
         connection.setReadOnly(true);
 
-        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.demo");
+        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.ts.demo");
 
         assertTrue(sql.contains("has_data=true"));
         assertTrue(sql.contains("is_read_only=true"));
-        assertTrue(sql.contains("data_prefix=root.demo"));
+        assertTrue(sql.contains("data_prefix=root.ts.demo"));
     }
 }

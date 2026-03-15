@@ -172,7 +172,7 @@ class ExternalJobServiceImplTest {
         TaskVO taskVO = new TaskVO();
         taskVO.setId(id);
         taskVO.setStatus(status);
-        taskVO.setResultLink("root.assoc_sys.results." + id);
+        taskVO.setResultLink("ts.assoc_sys.results." + id);
         taskVO.setExecLog("ok");
         return taskVO;
     }

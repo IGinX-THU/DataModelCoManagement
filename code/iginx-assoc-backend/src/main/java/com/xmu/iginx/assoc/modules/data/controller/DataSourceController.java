@@ -5,7 +5,6 @@ import com.xmu.iginx.assoc.common.Result;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceQueryRequest;
-import com.xmu.iginx.assoc.modules.data.dto.DataSourceUpdateRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceService;
 import com.xmu.iginx.assoc.modules.data.service.StructureService;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
@@ -19,11 +18,9 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -84,7 +81,7 @@ public class DataSourceController {
      * 查询数据源详情（聚合）。
      *
      * @param id 数据源 ID
-     * @param limit SHOW COLUMNS 结果限制条数
+     * @param limit 兼容参数，当前不再返回路径列表
      * @return 数据源详情
      */
     @Operation(summary = "查询数据源详情(聚合)")
@@ -120,35 +117,6 @@ public class DataSourceController {
                                                     @PathVariable String schema,
                                                     @PathVariable String table) {
         return Result.success(structureService.listTableColumns(id, schema, table));
-    }
-
-    /**
-     * 更新数据源。
-     *
-     * @param id 数据源 ID
-     * @param request 更新参数
-     * @return 操作结果
-     */
-    @Operation(summary = "更新数据源")
-    @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody DataSourceUpdateRequest request) {
-        dataSourceService.updateDataSource(id, request);
-        return Result.success();
-    }
-
-    /**
-     * 删除数据源。
-     *
-     * @param id 数据源 ID
-     * @param force 是否强制删除
-     * @return 操作结果
-     */
-    @Operation(summary = "删除数据源")
-    @DeleteMapping("/{id}")
-    public Result<Void> remove(@PathVariable Long id,
-                               @RequestParam(defaultValue = "false") boolean force) {
-        dataSourceService.removeDataSource(id, force);
-        return Result.success();
     }
 
     /**

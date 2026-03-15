@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.data.service;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowUpdateRequest;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesDeleteRequest;
 
 /**
@@ -37,4 +38,11 @@ public interface DataMaintainService {
      * @param request 删除请求
      */
     void deleteStructuredRow(StructuredRowDeleteRequest request);
+
+    /**
+     * 删除路径下的全部数据（DELETE COLUMNS）。
+     *
+     * @param request 删除请求
+     */
+    void deleteColumns(DataColumnsDeleteRequest request);
 }

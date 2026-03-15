@@ -139,7 +139,7 @@ class DataExportServiceImplTest {
     @Test
     void exportData_shouldFilterSelectedColumnsWhenSqlProvided() throws Exception {
         DataExportRequest request = buildStructuredRequest();
-        request.setSql("SELECT * FROM root.demo.public.demo_table");
+        request.setSql("SELECT * FROM rt.demo.public.demo_table");
         request.setColumns(List.of("status"));
 
         Path exportPath = tempDir.resolve("sql-selected-columns.csv");
@@ -196,7 +196,7 @@ class DataExportServiceImplTest {
         DataResourceEntity entity = new DataResourceEntity();
         entity.setId(1L);
         entity.setSourceType("POSTGRESQL");
-        entity.setMountPath("root.demo");
+        entity.setMountPath("rt.demo");
         return new DataSourceDetail(entity, DataSourceType.POSTGRESQL, null);
     }
 }

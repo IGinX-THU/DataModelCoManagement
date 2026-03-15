@@ -49,7 +49,7 @@ class DataSourceServiceImplCreateTest {
         DataSourceCreateRequest request = new DataSourceCreateRequest();
         request.setName("pg-demo");
         request.setSourceType("POSTGRESQL");
-        request.setMountPath("");
+        request.setMountPath("rt.demo");
 
         DataSourceConnectionConfig config = new DataSourceConnectionConfig();
         config.setHost("127.0.0.1");

@@ -1,8 +1,10 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
+import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowUpdateRequest;
@@ -16,15 +18,18 @@ import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StructuredKeyGenerator;
 import com.xmu.iginx.assoc.modules.data.util.TimeParser;
+import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * 数据维护服务实现，提供时序与结构化数据的增删改操作。
@@ -32,6 +37,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class DataMaintainServiceImpl implements DataMaintainService {
+
+    private static final Pattern PATH_SEGMENT_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     private final DataSourceAccessor dataSourceAccessor;
     private final IginxStorageWrapper iginxStorageWrapper;
@@ -217,6 +224,81 @@ public class DataMaintainServiceImpl implements DataMaintainService {
     }
 
     /**
+     * 删除路径下的全部数据（DELETE COLUMNS）。
+     *
+     * @param request 删除请求
+     */
+    @Override
+    public void deleteColumns(DataColumnsDeleteRequest request) {
+        if (request == null) {
+            throw BizException.badRequest("路径不能为空");
+        }
+        String normalized = TimeSeriesPathUtils.normalizePath(request.getPath());
+        if (!StringUtils.hasText(normalized)) {
+            throw BizException.badRequest("路径不能为空");
+        }
+        normalized = TimeSeriesPathUtils.stripRootPrefix(normalized);
+        if (!StringUtils.hasText(normalized)) {
+            throw BizException.badRequest("路径不能为空");
+        }
+        if (containsIllegalChars(normalized)) {
+            throw BizException.badRequest("路径包含非法字符");
+        }
+        if (!DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.TS_PREFIX)
+            && !DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.RT_PREFIX)
+            && !DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.MODEL_PREFIX)) {
+            throw BizException.badRequest("路径前缀必须为 ts / rt / models");
+        }
+        boolean includeChildren = Boolean.TRUE.equals(request.getIncludeChildren());
+        String target = normalized;
+        if (includeChildren) {
+            if (!normalized.endsWith(".*")) {
+                target = normalized + ".*";
+            }
+        } else if (normalized.endsWith(".*")) {
+            target = normalized.substring(0, normalized.length() - 2);
+        }
+        String quotedTarget = buildDeleteColumnsTarget(target);
+        SessionExecuteSqlResult result = iginxStorageWrapper.executeSql("DELETE COLUMNS " + quotedTarget + ";");
+        if (result != null && StringUtils.hasText(result.getParseErrorMsg())) {
+            throw BizException.badRequest(result.getParseErrorMsg().trim());
+        }
+    }
+
+    private String buildDeleteColumnsTarget(String pathWithWildcard) {
+        String normalized = TimeSeriesPathUtils.normalizePath(pathWithWildcard);
+        boolean wildcard = normalized.endsWith(".*");
+        String basePath = wildcard ? normalized.substring(0, normalized.length() - 2) : normalized;
+        List<String> segments = IginxStructuredUtils.splitPathSegments(basePath);
+        if (segments.isEmpty()) {
+            return wildcard ? "*" : "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < segments.size(); i += 1) {
+            String segment = segments.get(i);
+            if (segment == null || segment.isBlank()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('.');
+            }
+            builder.append(quotePathSegment(segment));
+        }
+        if (wildcard) {
+            builder.append(".*");
+        }
+        return builder.toString();
+    }
+
+    private String quotePathSegment(String segment) {
+        if (PATH_SEGMENT_PATTERN.matcher(segment).matches()) {
+            return segment;
+        }
+        String escaped = segment.replace("\\", "\\\\").replace("`", "\\`");
+        return "`" + escaped + "`";
+    }
+
+    /**
      * 解析新增数据的内部键，未提供时生成随机键。
      *
      * @param data 原始数据
@@ -276,6 +358,14 @@ public class DataMaintainServiceImpl implements DataMaintainService {
             throw BizException.badRequest("内部键 _iginx_key 不能为负数");
         }
         return key;
+    }
+
+    private boolean containsIllegalChars(String path) {
+        return path.contains(";")
+            || path.contains(" ")
+            || path.contains("\t")
+            || path.contains("\n")
+            || path.contains("\r");
     }
 
     /**

@@ -78,7 +78,7 @@ public class TaskServiceImpl implements TaskService {
         task.setRangeStart(request.getTimeRange().getStart());
         task.setRangeEnd(request.getTimeRange().getEnd());
         task.setCreateTime(LocalDateTime.now());
-        task.setResultLink("root.assoc_sys.results." + task.getId());
+        task.setResultLink("ts.assoc_sys.results." + task.getId());
         taskRepository.save(task);
 
         Runnable taskRunner = () -> executeTask(task.getId(), rule, asset);
