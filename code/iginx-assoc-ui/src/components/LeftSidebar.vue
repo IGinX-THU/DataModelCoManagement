@@ -14,11 +14,6 @@ const toggleExpand = (node) => {
 
 const handleNodeClick = (node) => {
     toggleExpand(node)
-    if (['ts', 'rel'].includes(node.type)) {
-        dataStore.loadDataSourceStructure(node.id).catch(err => {
-            console.error('加载数据源结构失败', err)
-        })
-    }
     dataStore.selectNode(node)
 }
 
@@ -59,21 +54,32 @@ const handleContextAction = async (action) => {
     if (!node) return
     try {
         if (action === 'New Storage Group') {
+            if (!node.sourceId) {
+                alert('当前节点未绑定可用数据源，无法新建存储组')
+                return
+            }
             const name = prompt('请输入存储组路径（相对路径将自动挂载）：')
             if (name) {
-                const basePath = node.type === 'ts'
-                  ? (node.mountPath || node.name)
-                  : (node.path || node.id || node.name)
+                const basePath = node.path || node.id || node.name
                 const fullPath = name.includes('.') ? name : `${basePath}.${name}`
-                await dataStore.createStorageGroup(node.sourceId || node.id, fullPath)
+                await dataStore.createStorageGroup(node.sourceId, fullPath)
             }
         } else if (action === 'New Measurement') {
+            if (!node.sourceId) {
+                alert('当前节点未绑定可用数据源，无法新建测点')
+                return
+            }
             const name = prompt('请输入测点名称：')
             if (!name) return
             const dataType = prompt('请输入数据类型（如 DOUBLE、LONG）：', 'DOUBLE') || 'DOUBLE'
-            const fullPath = name.includes('.') ? name : `${node.id}.${name}`
-            await dataStore.createMeasurement(node.sourceId || node.id, fullPath, dataType)
+            const basePath = node.path || node.id
+            const fullPath = name.includes('.') ? name : `${basePath}.${name}`
+            await dataStore.createMeasurement(node.sourceId, fullPath, dataType)
         } else if (action === 'New Table') {
+            if (!node.sourceId) {
+                alert('当前节点未绑定可用数据源，无法新建表')
+                return
+            }
             const name = prompt('请输入表名：')
             if (!name) return
             const raw = prompt('请输入字段定义，例如：id:BIGINT:pk,name:TEXT,created_at:TIMESTAMP', '')
@@ -98,23 +104,19 @@ const handleContextAction = async (action) => {
                 return
             }
             await dataStore.createTable({
-                sourceId: Number(node.sourceId || node.id),
+                sourceId: Number(node.sourceId),
                 schema: node.schema || node.name,
                 table: name,
                 columns,
                 primaryKeys
             })
         } else if (action === 'Delete') {
-            if (['ts', 'rel'].includes(node.type)) {
-                 alert('请使用上方工具栏的“卸载数据源”进行删除')
-            } else {
-                 if (confirm(`确认删除 ${node.name} 吗？该操作不可恢复。`)) {
-                     const res = await dataStore.removeChild(node.id)
-                     if (!res.success) {
-                         alert(res.msg)
-                     }
-                 }
+            if (['ts', 'rt', 'models'].includes(node.type)) {
+                alert('根节点不支持直接删除')
+                return
             }
+            dataStore.selectNode(node)
+            dataStore.showDeletePathModal = true
         }
     } catch (e) {
         alert(e.message || '操作失败')
@@ -122,6 +124,12 @@ const handleContextAction = async (action) => {
 }
 
 onMounted(() => {
+    dataStore.loadResourceTree().catch(err => {
+        console.error('加载数据资源树失败', err)
+    })
+    dataStore.loadDataSources().catch(err => {
+        console.error('加载数据源列表失败', err)
+    })
     document.addEventListener('mousedown', handleGlobalMouseDown)
     document.addEventListener('keydown', handleGlobalKeyDown)
 })
@@ -144,13 +152,13 @@ onBeforeUnmount(() => {
     
     <!-- Tree -->
     <div class="flex-1 overflow-y-auto p-2">
-        <div v-for="source in dataStore.dataSourceTree" :key="source.id" class="mb-1">
+        <div v-for="source in dataStore.resourceTree" :key="source.id" class="mb-1">
              <!-- Root Node -->
              <div class="flex items-center px-2 py-1.5 hover:bg-blue-50 cursor-pointer rounded select-none group justify-between"
                   :class="dataStore.currentNode.id === source.id ? 'bg-blue-100' : ''">
                  <div @click="handleNodeClick(source)" @contextmenu.stop="showContextMenu($event, { ...source, rootType: source.type })" class="flex items-center flex-1">
                      <i :class="source.expanded ? 'ri-arrow-down-s-fill' : 'ri-arrow-right-s-fill'" class="text-gray-400 mr-1 text-xs"></i>
-                     <i :class="source.type === 'ts' ? 'ri-database-2-fill text-blue-500' : 'ri-server-fill text-indigo-500'" class="mr-2 text-lg"></i>
+                     <i :class="source.type === 'ts' ? 'ri-pulse-line text-blue-500' : (source.type === 'rt' ? 'ri-table-line text-green-500' : 'ri-folder-3-line text-orange-500')" class="mr-2 text-lg"></i>
                      <span class="text-xs font-medium text-gray-700 group-hover:text-blue-600" :class="dataStore.currentNode.id === source.id ? 'text-blue-700 font-bold' : ''">{{ source.name }}</span>
                  </div>
                 <button @click.stop="dataStore.showTopology(source.type, source.id)" 
@@ -182,12 +190,12 @@ onBeforeUnmount(() => {
          <div v-if="contextMenu.node.type === 'ts' || (contextMenu.node.type === 'group' && contextMenu.node.rootType === 'ts')" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Storage Group')">
             <i class="ri-folder-add-line mr-2 text-blue-500"></i>新建存储组
          </div>
-         <div v-if="contextMenu.node.type === 'group'" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Measurement')">
+         <div v-if="contextMenu.node.type === 'group' && contextMenu.node.rootType === 'ts'" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Measurement')">
             <i class="ri-pulse-line mr-2 text-purple-500"></i>新建测点
          </div>
 
          <!-- Relational Menus -->
-         <div v-if="contextMenu.node.type === 'schema'" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Table')">
+         <div v-if="contextMenu.node.type === 'schema' && contextMenu.node.rootType === 'rt'" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Table')">
             <i class="ri-table-line mr-2 text-green-500"></i>新建表
          </div>
          

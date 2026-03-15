@@ -144,9 +144,9 @@ const navigate = async (tab) => {
                 <div class="icon-box bg-blue-50 text-blue-600 group-hover:bg-blue-100"><i class="ri-database-2-line text-2xl"></i></div>
                 <span>新增数据源</span>
             </div>
-            <div @click="dataStore.showRemoveSourceModal = true" class="ribbon-btn group">
-                <div class="icon-box bg-red-50 text-red-600 group-hover:bg-red-100"><i class="ri-delete-bin-2-line text-2xl"></i></div>
-                <span>卸载数据源</span>
+            <div @click="dataStore.showDeletePathModal = true" class="ribbon-btn group">
+                <div class="icon-box bg-red-50 text-red-600 group-hover:bg-red-100"><i class="ri-delete-bin-line text-2xl"></i></div>
+                <span>删除数据</span>
             </div>
             <div @click="dataStore.showSourceDetailsModal = true" class="ribbon-btn group">
                 <div class="icon-box bg-cyan-50 text-cyan-600 group-hover:bg-cyan-100"><i class="ri-file-info-line text-2xl"></i></div>

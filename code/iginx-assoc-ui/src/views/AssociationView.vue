@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useAssociationStore } from '../stores/association'
 import { useModelStore } from '../stores/model'
 import { useDataStore } from '../stores/data'
+import ResourceTreeSelectorNode from '../components/ResourceTreeSelectorNode.vue'
 
 const associationStore = useAssociationStore()
 const modelStore = useModelStore()
@@ -56,7 +57,7 @@ const handleDataSelect = (node) => {
     // Construct path: assuming node.id is the full path or unique identifier
     // In a real app, we might need to construct the path from parents if ID isn't the path
     // Here we assume ID is sufficient or name for display
-    const path = node.id || node.name 
+    const path = node.path || node.id || node.name 
     
     if (selectorTarget.type === 'input') {
         newRule.bindings[selectorTarget.key] = path
@@ -69,11 +70,6 @@ const handleDataSelect = (node) => {
 // Helper to toggle expand in the selector tree (independent of main sidebar)
 const toggleSelectorExpand = (node) => {
     if (node.children) node.selectorExpanded = !node.selectorExpanded
-    if (['ts', 'rel'].includes(node.type)) {
-        dataStore.loadDataSourceStructure(node.id).catch(err => {
-            console.error('加载数据源结构失败', err)
-        })
-    }
 }
 
 // Get models from store
@@ -139,6 +135,7 @@ onMounted(async () => {
     await Promise.all([
         modelStore.loadModels(),
         dataStore.loadDataSources(),
+        dataStore.loadResourceTree(),
         associationStore.loadRules()
     ])
     await associationStore.loadTasks()
@@ -376,48 +373,22 @@ const formatTimeShort = (value) => {
                 <i class="ri-close-line cursor-pointer text-gray-500 hover:text-black" @click="showDataSelector = false"></i>
             </div>
             <div class="flex-1 overflow-y-auto p-4">
-                 <div v-for="source in dataStore.dataSourceTree" :key="source.id" class="mb-2">
+                 <div v-for="root in dataStore.resourceTree" :key="root.id" class="mb-2">
                      <!-- Root Node -->
                      <div class="flex items-center px-2 py-1.5 hover:bg-blue-50 cursor-pointer rounded select-none group"
-                          @click="toggleSelectorExpand(source)">
-                         <i :class="source.selectorExpanded ? 'ri-arrow-down-s-fill' : 'ri-arrow-right-s-fill'" class="text-gray-400 mr-1 text-xs"></i>
-                         <i :class="source.type === 'ts' ? 'ri-database-2-fill text-blue-500' : 'ri-server-fill text-indigo-500'" class="mr-2 text-lg"></i>
-                         <span class="text-sm font-medium text-gray-700">{{ source.name }}</span>
+                          @click="toggleSelectorExpand(root)">
+                         <i :class="root.selectorExpanded ? 'ri-arrow-down-s-fill' : 'ri-arrow-right-s-fill'" class="text-gray-400 mr-1 text-xs"></i>
+                         <i :class="root.type === 'ts' ? 'ri-pulse-line text-blue-500' : (root.type === 'rt' ? 'ri-table-line text-green-500' : 'ri-folder-3-line text-orange-500')" class="mr-2 text-lg"></i>
+                         <span class="text-sm font-medium text-gray-700">{{ root.name }}</span>
                      </div>
                      
                      <!-- Children -->
-                     <div v-show="source.selectorExpanded" class="ml-6 pl-2 border-l border-gray-200 mt-1 space-y-1">
-                         <template v-for="child in source.children" :key="child.id">
-                             <!-- Group/Schema Node -->
-                             <div v-if="['group', 'schema'].includes(child.type)" 
-                                  class="select-none">
-                                  <div class="flex items-center px-2 py-1 cursor-pointer rounded text-xs transition-colors hover:bg-gray-100"
-                                       @click="toggleSelectorExpand(child)">
-                                      <i :class="child.selectorExpanded ? 'ri-arrow-down-s-fill' : 'ri-arrow-right-s-fill'" class="text-gray-400 mr-1 text-[10px]"></i>
-                                      <i :class="child.type === 'group' ? 'ri-folder-3-line text-yellow-500' : 'ri-layout-grid-line text-orange-500'" class="mr-2"></i>
-                                      <span class="truncate font-medium">{{ child.name }}</span>
-                                  </div>
-                                  
-                                  <!-- Grandchildren (Leafs) -->
-                                  <div v-show="child.selectorExpanded" class="ml-4 pl-2 border-l border-gray-200 mt-1">
-                                     <div v-for="grandChild in child.children" :key="grandChild.id"
-                                          @click="handleDataSelect(grandChild)"
-                                          class="flex items-center px-2 py-1 cursor-pointer rounded text-xs transition-colors text-gray-600 hover:bg-blue-50 hover:text-blue-600">
-                                         <i :class="source.type === 'ts' ? 'ri-focus-2-line text-cyan-500' : 'ri-table-line text-green-500'" class="mr-2 text-xs"></i>
-                                         <span>{{ grandChild.name }}</span>
-                                     </div>
-                                  </div>
-                             </div>
-
-                             <!-- Leaf Node (Direct Child of Source) -->
-                             <div v-else
-                                  @click="handleDataSelect(child)"
-                                  class="flex items-center px-2 py-1 cursor-pointer rounded text-xs transition-colors ml-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600">
-                                 <i :class="source.type === 'ts' ? 'ri-pulse-line text-purple-400' : 'ri-table-line text-green-500'" class="mr-2 text-sm"></i>
-                                 <span class="truncate">{{ child.name }}</span>
-                             </div>
-                         </template>
-                     </div>
+                     <ResourceTreeSelectorNode
+                       v-show="root.selectorExpanded"
+                       :nodes="root.children"
+                       :root-type="root.type"
+                       :on-select="handleDataSelect"
+                     />
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-gray-100 flex justify-end">

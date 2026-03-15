@@ -28,6 +28,10 @@ export function exportData(payload) {
   })
 }
 
+export function fetchResourceTree() {
+  return request('/api/v1/data/resources/tree')
+}
+
 export function fetchExportTask(taskId) {
   return request(`/api/v1/data/export/tasks/${taskId}`)
 }
@@ -70,6 +74,13 @@ export function updateStructuredRow(payload) {
 export function deleteStructuredRow(payload) {
   return request('/api/v1/data/struct/rows', {
     method: 'DELETE',
+    body: JSON.stringify(payload)
+  })
+}
+
+export function deleteColumns(payload) {
+  return request('/api/v1/data/columns/delete', {
+    method: 'POST',
     body: JSON.stringify(payload)
   })
 }

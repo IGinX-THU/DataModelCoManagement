@@ -1,5 +1,4 @@
 <script setup>
-import { computed } from 'vue'
 
 defineOptions({ name: 'DataSourceTreeNode' })
 
@@ -28,7 +27,13 @@ const props = defineProps({
 
 const isGroupNode = (node) => ['group', 'schema'].includes(node.type)
 const isSelected = (node) => String(props.currentId) === String(node.id)
-const leafIconClass = computed(() => props.rootType === 'ts' ? 'ri-pulse-line text-purple-400' : 'ri-table-line text-green-500')
+const resolveRootType = (node) => node.rootType || props.rootType
+const resolveLeafIcon = (node) => {
+  const rootType = resolveRootType(node)
+  if (node.type === 'file' || rootType === 'models') return 'ri-file-2-line text-amber-500'
+  if (node.type === 'table' || rootType === 'rt') return 'ri-table-line text-green-500'
+  return 'ri-pulse-line text-purple-400'
+}
 
 const emitContextMenu = (event, node) => {
   const payload = { ...node, rootType: props.rootType }
@@ -54,7 +59,7 @@ const emitContextMenu = (event, node) => {
            @contextmenu.stop="emitContextMenu($event, node)"
            class="flex items-center px-2 py-1 cursor-pointer rounded text-xs transition-colors ml-2"
            :class="isSelected(node) ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'">
-        <i :class="leafIconClass" class="mr-2 text-sm"></i>
+        <i :class="resolveLeafIcon(node)" class="mr-2 text-sm"></i>
         <span class="truncate">{{ node.name }}</span>
       </div>
 

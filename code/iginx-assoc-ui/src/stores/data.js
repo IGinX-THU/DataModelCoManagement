@@ -3,7 +3,6 @@ import { ref, reactive } from 'vue'
 import {
   fetchDataSourcePage,
   createDataSource,
-  deleteDataSource,
   testDataSourceConnection,
   fetchDataSourceStructure,
   fetchDataSourceDetail
@@ -12,6 +11,7 @@ import {
   importTimeSeries,
   importStructured,
   exportData,
+  fetchResourceTree,
   fetchExportTask,
   queryTimeSeries,
   queryStructured,
@@ -19,18 +19,17 @@ import {
   createStructuredRow,
   updateStructuredRow,
   deleteStructuredRow,
+  deleteColumns,
   createStorageGroup as createStorageGroupApi,
-  dropStorageGroup as dropStorageGroupApi,
   createMeasurement as createMeasurementApi,
-  dropMeasurement as dropMeasurementApi,
   createTable as createTableApi,
-  dropTable as dropTableApi,
   fetchTableColumns,
   buildDownloadUrl
 } from '../api/dataResource'
 
 export const useDataStore = defineStore('data', () => {
   const dataSourceTree = ref([])
+  const resourceTree = ref([])
   const detailMap = reactive({})
 
   const currentNode = reactive({
@@ -40,6 +39,7 @@ export const useDataStore = defineStore('data', () => {
     viewMode: 'default',
     sourceId: null,
     sourceType: '',
+    rootType: '',
     mountPath: '',
     path: '',
     schema: '',
@@ -50,23 +50,23 @@ export const useDataStore = defineStore('data', () => {
   const topologyRootNode = ref(null)
 
   const showAddSourceModal = ref(false)
-  const showRemoveSourceModal = ref(false)
   const showSourceDetailsModal = ref(false)
   const showExportModal = ref(false)
   const showMaintenanceModal = ref(false)
+  const showDeletePathModal = ref(false)
 
   const showImportModal = ref(false)
   const importType = ref('ts')
   const importStep = ref(1)
   const importForm = reactive({
-    source: '',
+    path: '',
     file: null,
     columns: [],
     storageGroup: '',
     timestampColumn: '',
     timestampFormat: 'yyyy-MM-dd HH:mm:ss',
     mapping: [],
-    schema: 'public',
+    schema: '',
     table: '',
     fileType: '',
     sheetIndex: 0,
@@ -76,14 +76,14 @@ export const useDataStore = defineStore('data', () => {
   })
 
   const resetImportForm = () => {
-    importForm.source = ''
+    importForm.path = ''
     importForm.file = null
     importForm.columns = []
     importForm.storageGroup = ''
     importForm.timestampColumn = ''
     importForm.timestampFormat = 'yyyy-MM-dd HH:mm:ss'
     importForm.mapping = []
-    importForm.schema = 'public'
+    importForm.schema = ''
     importForm.table = ''
     importForm.fileType = ''
     importForm.sheetIndex = 0
@@ -94,7 +94,7 @@ export const useDataStore = defineStore('data', () => {
 
   const showTopology = (nodeOrType, id) => {
     selectNode(nodeOrType, id)
-    if (['group', 'schema', 'ts', 'rel'].includes(currentNode.type)) {
+    if (['group', 'schema', 'ts', 'rt', 'models'].includes(currentNode.type)) {
       currentNode.viewMode = 'topology'
     }
   }
@@ -102,16 +102,19 @@ export const useDataStore = defineStore('data', () => {
   const selectNode = (nodeOrType, id) => {
     const node = resolveNode(nodeOrType, id)
     if (!node) return
-    const context = findNodeContext(dataSourceTree.value, node.id)
+    const context = findNodeContext(resourceTree.value, node.id)
     const root = context?.root || node
+    const rootType = node.rootType || root.rootType || root.type || ''
+    const resolvedSourceId = node.sourceId ?? root.sourceId ?? null
     currentNode.id = node.id
     currentNode.type = node.type
     currentNode.name = node.name || node.id
     currentNode.parentType = context?.parent?.type || ''
-    currentNode.sourceId = Number(node.sourceId || root.sourceId || root.id) || null
-    currentNode.sourceType = root.sourceType || root.type || ''
-    currentNode.mountPath = root.mountPath || ''
-    currentNode.path = node.path || (['group', 'point'].includes(node.type) ? node.id : '')
+    currentNode.sourceId = resolvedSourceId != null ? Number(resolvedSourceId) : null
+    currentNode.sourceType = rootType
+    currentNode.rootType = rootType
+    currentNode.mountPath = node.mountPath || root.mountPath || ''
+    currentNode.path = node.path || (['group', 'point', 'file'].includes(node.type) ? node.id : '')
     currentNode.schema = node.schema || (node.type === 'schema' ? node.name : '')
     currentNode.table = node.table || (node.type === 'table' ? node.name : '')
     currentNode.viewMode = 'default'
@@ -201,6 +204,28 @@ export const useDataStore = defineStore('data', () => {
     return item
   }
 
+  const decorateResourceTree = (nodes, rootType = '') => {
+    if (!Array.isArray(nodes)) return []
+    return nodes
+      .filter(node => !(rootType === 'ts' && isInternalTsNode(node)))
+      .map(node => {
+        const nextRoot = rootType || (['ts', 'rt', 'models'].includes(node.type) ? node.type : rootType)
+        const children = decorateResourceTree(node.children || [], nextRoot)
+        return {
+          ...node,
+          rootType: node.rootType || nextRoot,
+          expanded: node.expanded ?? true,
+          selectorExpanded: node.selectorExpanded ?? false,
+          children
+        }
+      })
+  }
+
+  const loadResourceTree = async () => {
+    const tree = await fetchResourceTree()
+    resourceTree.value = decorateResourceTree(tree || [])
+  }
+
   const loadDataSources = async () => {
     const page = await fetchDataSourcePage({ pageNum: 1, pageSize: 100 })
     dataSourceTree.value = (page.records || []).map(toTreeNode)
@@ -281,6 +306,7 @@ export const useDataStore = defineStore('data', () => {
     await createDataSource({
       name: sourceConfig.name,
       sourceType,
+      mountPath: sourceConfig.mountPath,
       description: '',
       connectionConfig: {
         host: sourceConfig.host,
@@ -294,24 +320,21 @@ export const useDataStore = defineStore('data', () => {
       }
     })
     await loadDataSources()
-  }
-
-  const removeSource = async (id, force = false) => {
-    await deleteDataSource(id, force)
-    await loadDataSources()
-    if (currentNode.id === id) {
-      currentNode.id = ''
-      currentNode.type = ''
-    }
+    await loadResourceTree()
   }
 
   const importTimeSeriesData = async () => {
     if (!importForm.file) {
       throw new Error('请先选择导入文件')
     }
-    const source = dataSourceTree.value.find(item => item.id === String(importForm.source))
-    if (!source) {
-      throw new Error('请选择目标数据源')
+    const rawPath = String(importForm.storageGroup || importForm.path || '').trim()
+    if (!rawPath) {
+      throw new Error('请输入导入路径')
+    }
+    const lower = rawPath.toLowerCase()
+    const normalized = lower.startsWith('root.') ? lower.slice(5) : lower
+    if (!(normalized === 'ts' || normalized.startsWith('ts.'))) {
+      throw new Error('时序数据导入路径必须以 ts 开头')
     }
     if (!importForm.timestampColumn) {
       throw new Error('请填写时间戳列')
@@ -324,14 +347,13 @@ export const useDataStore = defineStore('data', () => {
         dataType: item.dataType || item.type
       }))
     const payload = {
-      sourceId: Number(importForm.source),
-      storageGroup: importForm.storageGroup || source.mountPath || source.name,
+      storageGroup: rawPath,
       timestampColumn: importForm.timestampColumn,
       timestampFormat: importForm.timestampFormat || undefined,
       mappings: mappings.length > 0 ? mappings : undefined
     }
     const result = await importTimeSeries(payload, importForm.file)
-    await refreshStructure(importForm.source)
+    await loadResourceTree()
     return result
   }
 
@@ -339,16 +361,30 @@ export const useDataStore = defineStore('data', () => {
     if (!importForm.file) {
       throw new Error('请先选择导入文件')
     }
-    if (!importForm.table) {
+    const rawPath = String(importForm.path || '').trim()
+    if (!rawPath) {
+      throw new Error('请输入导入路径')
+    }
+    const segments = rawPath.split('.').map(item => item.trim()).filter(Boolean)
+    if (segments.length < 2) {
+      throw new Error('结构化导入路径格式不正确')
+    }
+    const table = segments.pop()
+    const schema = segments.join('.')
+    const schemaLower = schema.toLowerCase()
+    const normalizedSchema = schemaLower.startsWith('root.') ? schemaLower.slice(5) : schemaLower
+    if (!(normalizedSchema === 'rt' || normalizedSchema.startsWith('rt.'))) {
+      throw new Error('结构化数据导入路径必须以 rt 开头')
+    }
+    if (!table) {
       throw new Error('请填写目标表名')
     }
     const primaryKeys = importForm.primaryKeys
       ? importForm.primaryKeys.split(',').map(item => item.trim()).filter(Boolean)
       : undefined
     const payload = {
-      sourceId: Number(importForm.source),
-      schema: importForm.schema || 'public',
-      table: importForm.table,
+      schema,
+      table,
       autoCreateTable: importForm.autoCreateTable,
       conflictStrategy: importForm.conflictStrategy,
       fileType: importForm.fileType || undefined,
@@ -356,7 +392,7 @@ export const useDataStore = defineStore('data', () => {
       primaryKeys
     }
     const result = await importStructured(payload, importForm.file)
-    await refreshStructure(importForm.source)
+    await loadResourceTree()
     return result
   }
 
@@ -404,66 +440,51 @@ export const useDataStore = defineStore('data', () => {
   const createStorageGroup = async (sourceId, path) => {
     await createStorageGroupApi({ sourceId: Number(sourceId), path })
     await refreshStructure(sourceId)
-  }
-
-  const dropStorageGroup = async (sourceId, path) => {
-    await dropStorageGroupApi({ sourceId: Number(sourceId), path })
-    await refreshStructure(sourceId)
+    await loadResourceTree()
   }
 
   const createMeasurement = async (sourceId, path, dataType = 'DOUBLE') => {
     await createMeasurementApi({ sourceId: Number(sourceId), path, dataType })
     await refreshStructure(sourceId)
-  }
-
-  const dropMeasurement = async (sourceId, path) => {
-    await dropMeasurementApi({ sourceId: Number(sourceId), path })
-    await refreshStructure(sourceId)
+    await loadResourceTree()
   }
 
   const createTable = async (payload) => {
     await createTableApi(payload)
     await refreshStructure(payload.sourceId)
-  }
-
-  const dropTable = async (payload) => {
-    await dropTableApi(payload)
-    await refreshStructure(payload.sourceId)
+    await loadResourceTree()
   }
 
   const removeChild = async (nodeId) => {
-    const context = findNodeContext(dataSourceTree.value, nodeId)
+    const context = findNodeContext(resourceTree.value, nodeId)
     if (!context) {
       return { success: false, msg: '节点不存在' }
     }
-    const { node, parent, root } = context
-    if (node.type === 'group') {
-      await dropStorageGroup(root.sourceId || root.id, node.id)
-      return { success: true }
+    const { node } = context
+    const path = node.path || node.id
+    if (!path) {
+      return { success: false, msg: '未获取到有效路径，无法删除' }
     }
-    if (node.type === 'point') {
-      await dropMeasurement(root.sourceId || root.id, node.id)
-      return { success: true }
+    await deleteColumns({ path, includeChildren: true })
+    await loadResourceTree()
+    return { success: true }
+  }
+
+  const deletePath = async (path, includeChildren = false) => {
+    const normalized = String(path || '').trim()
+    if (!normalized) {
+      return { success: false, msg: '路径不能为空' }
     }
-    if (node.type === 'table') {
-      const schema = node.schema || parent?.schema || ''
-      await dropTable({ sourceId: root.sourceId || root.id, schema, table: node.name })
-      return { success: true }
-    }
-    if (node.type === 'schema') {
-      if (node.children && node.children.length > 0) {
-        return { success: false, msg: `Schema ${node.name} 下仍有表，请先清理` }
-      }
-      return { success: true }
-    }
-    return { success: false, msg: '不支持的节点类型' }
+    await deleteColumns({ path: normalized, includeChildren: !!includeChildren })
+    await loadResourceTree()
+    return { success: true }
   }
 
   const resolveNode = (nodeOrType, id) => {
     if (nodeOrType && typeof nodeOrType === 'object') {
       return nodeOrType
     }
-    return findNodeContext(dataSourceTree.value, id)?.node
+    return findNodeContext(resourceTree.value, id)?.node
   }
 
   const findNodeContext = (nodes, id, parent = null, root = null) => {
@@ -482,6 +503,7 @@ export const useDataStore = defineStore('data', () => {
 
   return {
     dataSourceTree,
+    resourceTree,
     detailMap,
     currentNode,
     selectNode,
@@ -490,10 +512,10 @@ export const useDataStore = defineStore('data', () => {
     topologyRootNode,
     openTopology,
     showAddSourceModal,
-    showRemoveSourceModal,
     showSourceDetailsModal,
     showExportModal,
     showMaintenanceModal,
+    showDeletePathModal,
     showImportModal,
     importType,
     importStep,
@@ -501,9 +523,9 @@ export const useDataStore = defineStore('data', () => {
     resetImportForm,
     openImportWizard,
     addSource,
-    removeSource,
     testConnection,
     loadDataSources,
+    loadResourceTree,
     loadDataSourceDetail,
     loadDataSourceStructure,
     refreshStructure,
@@ -518,12 +540,10 @@ export const useDataStore = defineStore('data', () => {
     updateRow,
     deleteRow,
     createStorageGroup,
-    dropStorageGroup,
     createMeasurement,
-    dropMeasurement,
     createTable,
-    dropTable,
     removeChild,
+    deletePath,
     fetchTableColumns,
     buildDownloadUrl
   }

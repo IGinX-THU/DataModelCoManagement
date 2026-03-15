@@ -16,19 +16,6 @@ export function createDataSource(payload) {
   })
 }
 
-export function updateDataSource(id, payload) {
-  return request(`/api/v1/data/sources/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(payload)
-  })
-}
-
-export function deleteDataSource(id, force = false) {
-  return request(`/api/v1/data/sources/${id}?force=${force}`, {
-    method: 'DELETE'
-  })
-}
-
 export function testDataSourceConnection(payload) {
   return request('/api/v1/data/sources/test-connection', {
     method: 'POST',

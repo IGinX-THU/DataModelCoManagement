@@ -417,12 +417,13 @@ const handleDeleteRow = async () => {
     }
 }
 
-const handleRemoveCurrentNode = async () => {
+const handleRemoveCurrentNode = () => {
     if (!dataStore.currentNode.id) return
-    const res = await dataStore.removeChild(dataStore.currentNode.id)
-    if (!res.success) {
-        alert(res.msg)
+    if (['ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
+        alert('根节点不支持直接删除')
+        return
     }
+    dataStore.showDeletePathModal = true
 }
 
 const initChart = () => {
@@ -495,22 +496,27 @@ const initTreeChart = () => {
         return null
     }
 
-    const sourceNode = findNode(dataStore.dataSourceTree, dataStore.currentNode.id)
+    const sourceNode = findNode(dataStore.resourceTree, dataStore.currentNode.id)
     if (!sourceNode) return
 
     const transformData = (node) => {
         let symbolColor = '#3b82f6'
         let borderColor = '#2563eb'
         
+        if (node.type === 'rt') {
+            symbolColor = '#6366f1'
+            borderColor = '#4f46e5'
+        } else if (node.type === 'models') {
+            symbolColor = '#f97316'
+            borderColor = '#ea580c'
+        }
+        
         if (node.type === 'group' || node.type === 'schema') {
             symbolColor = '#f59e0b'
             borderColor = '#d97706'
-        } else if (node.type === 'point' || node.type === 'table') {
+        } else if (['point', 'table', 'file'].includes(node.type)) {
             symbolColor = '#22c55e'
             borderColor = '#16a34a'
-        } else if (node.type === 'rel') {
-            symbolColor = '#3b82f6'
-            borderColor = '#2563eb'
         }
 
         return {
@@ -557,7 +563,7 @@ const initTreeChart = () => {
             textStyle: { color: '#374151' },
             formatter: (params) => {
                  const n = params.data
-                 const typeMap = { ts: '数据源', rel: '数据源', group: '存储组', point: '测点', schema: 'Schema', table: '表' }
+                 const typeMap = { ts: '时序数据', rt: '结构化数据', models: '模型文件', group: '存储组', point: '测点', schema: 'Schema', table: '表', file: '文件' }
                  return `<div class="font-bold text-gray-800">${n.name}</div>
                          <div class="text-xs text-gray-500">${typeMap[n.value] || n.value}</div>`
             }
@@ -600,7 +606,7 @@ const initTreeChart = () => {
 }
 
 const updateTableDataForSelection = () => {
-    if (['group', 'schema', 'ts', 'rel'].includes(dataStore.currentNode.type)) {
+    if (['group', 'schema', 'ts', 'rt', 'models', 'file'].includes(dataStore.currentNode.type)) {
         const findNode = (nodes, id) => {
             for (const node of nodes) {
                 if (node.id === id) return node
@@ -611,13 +617,28 @@ const updateTableDataForSelection = () => {
             }
             return null
         }
-        const node = findNode(dataStore.dataSourceTree, dataStore.currentNode.id)
+        const resolveTypeLabel = (child, rootType) => {
+            if (child.type === 'group') {
+                if (rootType === 'models') return '目录'
+                if (rootType === 'rt') return '路径'
+                return '存储组'
+            }
+            if (child.type === 'schema') return 'Schema'
+            if (child.type === 'table') return '表'
+            if (child.type === 'point') return '测点'
+            if (child.type === 'file') return '文件'
+            return child.type || '-'
+        }
+        const node = findNode(dataStore.resourceTree, dataStore.currentNode.id)
         if (node && node.children) {
-                        tableData.value = node.children.map(child => ({
-                名称: child.name,
-                类型: child.type === 'group' ? '存储组' : child.type === 'schema' ? 'Schema' : child.type === 'table' ? '表' : '测点',
-                子项数: child.children ? child.children.length : '-',
-            }))
+            tableData.value = node.children.map(child => {
+                const rootType = child.rootType || dataStore.currentNode.rootType || dataStore.currentNode.type
+                return {
+                    名称: child.name,
+                    类型: resolveTypeLabel(child, rootType),
+                    子项数: child.children ? child.children.length : '-'
+                }
+            })
         } else {
             tableData.value = []
         }
@@ -626,7 +647,7 @@ const updateTableDataForSelection = () => {
 
 watch(() => [dataStore.currentNode.id, dataStore.currentNode.viewMode], async ([newId, newMode]) => {
     if (!newId) return
-    if (newMode === 'topology' && ['group', 'ts', 'rel', 'schema'].includes(dataStore.currentNode.type)) {
+    if (newMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
         nextTick(initTreeChart)
         return
     }
@@ -640,12 +661,15 @@ watch(() => [dataStore.currentNode.id, dataStore.currentNode.viewMode], async ([
 })
 
 onMounted(() => {
+    dataStore.loadResourceTree().catch(err => {
+        console.error('加载数据资源树失败', err)
+    })
     dataStore.loadDataSources().catch(err => {
         console.error('加载数据源失败', err)
     })
 
     if (dataStore.currentNode.id) {
-        if (dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rel', 'schema'].includes(dataStore.currentNode.type)) {
+        if (dataStore.currentNode.viewMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
             initTreeChart()
         } else if (dataStore.currentNode.type === 'point') {
             loadTimeSeriesData()
@@ -680,7 +704,7 @@ onMounted(() => {
      <!-- Content Viewer -->
      <div v-else class="flex-1 flex flex-col h-full min-h-0">
          <!-- Group/Tree View in Workspace -->
-         <div v-show="dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rel', 'schema'].includes(dataStore.currentNode.type)" 
+         <div v-show="dataStore.currentNode.viewMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)" 
               class="flex-1 bg-white rounded border border-gray-100 shadow-sm p-4 flex flex-col relative overflow-hidden">
              <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center border-b border-gray-100 pb-2 z-10 relative bg-white justify-between">
                 <div class="flex items-center">
@@ -701,11 +725,17 @@ onMounted(() => {
          </div>
 
          <!-- Leaf Node View / Default Table View -->
-         <div v-show="!(dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rel', 'schema'].includes(dataStore.currentNode.type))" 
+         <div v-show="!(dataStore.currentNode.viewMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type))" 
               class="flex-1 relative bg-white rounded border border-gray-100 shadow-sm p-4 flex flex-col min-h-0">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-gray-800 flex items-center">
-                    <i :class="dataStore.currentNode.type === 'point' ? 'ri-pulse-line text-blue-500' : 'ri-table-line text-green-500'" class="mr-2"></i>
+                    <i :class="dataStore.currentNode.type === 'point'
+                        ? 'ri-pulse-line text-blue-500'
+                        : dataStore.currentNode.type === 'table'
+                            ? 'ri-table-line text-green-500'
+                            : dataStore.currentNode.type === 'file'
+                                ? 'ri-file-2-line text-amber-500'
+                                : 'ri-folder-3-line text-yellow-500'" class="mr-2"></i>
                     {{ dataStore.currentNode.id }}
                 </h3>
                 <!-- Query / Aggregation Controls for TS -->

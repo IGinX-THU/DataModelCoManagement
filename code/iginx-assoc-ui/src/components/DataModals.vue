@@ -1,6 +1,7 @@
-<script setup>
+﻿<script setup>
 import { useDataStore } from '../stores/data'
 import { reactive, ref, computed, watch } from 'vue'
+import ResourceTreeSelectorNode from './ResourceTreeSelectorNode.vue'
 
 const dataStore = useDataStore()
 
@@ -111,16 +112,68 @@ watch(() => addSourceForm.hasData, (val) => {
     }
 })
 
-const selectedImportSource = computed(() => {
-    return dataStore.dataSourceTree.find(s => s.id === dataStore.importForm.source)
+const normalizeImportPath = (value) => String(value || '').trim()
+
+const parseStructuredPath = (path) => {
+    const segments = String(path || '')
+        .split('.')
+        .map(item => item.trim())
+        .filter(Boolean)
+    if (segments.length < 2) {
+        return { schema: '', table: '' }
+    }
+    const table = segments.pop()
+    const schema = segments.join('.')
+    return { schema, table }
+}
+
+const syncImportPath = (value) => {
+    const normalized = normalizeImportPath(value)
+    if (dataStore.importType === 'ts') {
+        dataStore.importForm.storageGroup = normalized
+        dataStore.importForm.schema = ''
+        dataStore.importForm.table = ''
+        return
+    }
+    dataStore.importForm.storageGroup = ''
+    const parsed = parseStructuredPath(normalized)
+    dataStore.importForm.schema = parsed.schema
+    dataStore.importForm.table = parsed.table
+}
+
+const importRootType = computed(() => (dataStore.importType === 'ts' ? 'ts' : 'rt'))
+const importTreeRoots = computed(() => (dataStore.resourceTree || []).filter(node => node.type === importRootType.value))
+
+const resolveSelectedPath = (node) => {
+    if (!node) return ''
+    if (node.path) return node.path
+    if (node.id && String(node.id).includes('.')) return node.id
+    if (node.type === 'table' && node.schema && node.table) {
+        const schemaText = String(node.schema)
+        const schemaLower = schemaText.toLowerCase()
+        if (schemaLower === 'rt' || schemaLower.startsWith('rt.')) {
+            return `${schemaText}.${node.table}`
+        }
+        if (node.rootType === 'rt') {
+            return `rt.${schemaText}.${node.table}`
+        }
+        return `${schemaText}.${node.table}`
+    }
+    return node.id || node.name || ''
+}
+
+const handleImportPathSelect = (node) => {
+    const path = resolveSelectedPath(node)
+    dataStore.importForm.path = path
+    syncImportPath(path)
+}
+
+watch(() => dataStore.importForm.path, (val) => {
+    syncImportPath(val)
 })
 
-watch(() => dataStore.importForm.source, (val) => {
-    if (dataStore.importType === 'ts' && val && selectedImportSource.value) {
-        if (!dataStore.importForm.storageGroup) {
-            dataStore.importForm.storageGroup = selectedImportSource.value.mountPath || selectedImportSource.value.name
-        }
-    }
+watch(() => dataStore.importType, () => {
+    syncImportPath(dataStore.importForm.path)
 })
 
 const parseCsvLine = (line) => {
@@ -222,44 +275,9 @@ const handleAddSource = async () => {
     dataStore.showAddSourceModal = false
 }
 
-const handleRemoveSource = async () => {
-    if (!selectedSourceId.value) {
-        alert('请选择要卸载的数据源')
-        return
-    }
-    if (confirm(`确认卸载 ${selectedSourceId.value} 吗？`)) {
-        try {
-            await dataStore.removeSource(selectedSourceId.value)
-        } catch (e) {
-            const message = e?.message || '卸载失败'
-            if (String(message).includes('IGinX 服务不可用')) {
-                const forceConfirm = confirm('IGinX 卸载失败，是否仅删除系统记录？（不会删除实际数据）')
-                if (forceConfirm) {
-                    try {
-                        await dataStore.removeSource(selectedSourceId.value, true)
-                    } catch (forceError) {
-                        alert(forceError?.message || '强制卸载失败')
-                        return
-                    }
-                } else {
-                    return
-                }
-            } else {
-                alert(message)
-                return
-            }
-            return
-        }
-        dataStore.showRemoveSourceModal = false
-        selectedSourceId.value = ''
-    }
-}
-
-const selectedSourceId = ref('')
 const selectedDetailSourceId = ref('')
 const detailLoading = ref(false)
 const detailError = ref('')
-const detailLimit = 200
 
 const selectedDetailSource = computed(() => {
     return dataStore.dataSourceTree.find(s => s.id === selectedDetailSourceId.value)
@@ -271,8 +289,6 @@ const selectedDetailData = computed(() => {
 })
 
 const selectedDetailMeta = computed(() => selectedDetailData.value?.meta || selectedDetailSource.value)
-const detailEngines = computed(() => selectedDetailData.value?.engines || [])
-const detailColumns = computed(() => selectedDetailData.value?.columns || [])
 
 watch(() => selectedDetailSourceId.value, async (val) => {
     detailError.value = ''
@@ -281,7 +297,7 @@ watch(() => selectedDetailSourceId.value, async (val) => {
     }
     detailLoading.value = true
     try {
-        await dataStore.loadDataSourceDetail(val, detailLimit)
+        await dataStore.loadDataSourceDetail(val)
     } catch (e) {
         detailError.value = e?.message || '加载详情失败'
     } finally {
@@ -388,9 +404,35 @@ watch(() => dataStore.showMaintenanceModal, (val) => {
     }
 })
 
+watch(() => dataStore.showImportModal, (val) => {
+    if (val) {
+        dataStore.loadResourceTree().catch(err => {
+            console.error('加载数据资源树失败', err)
+        })
+    }
+})
+
+watch(() => dataStore.showDeletePathModal, (val) => {
+    if (val) {
+        dataStore.loadResourceTree().catch(err => {
+            console.error('加载数据资源树失败', err)
+        })
+        deleteIncludeChildren.value = false
+        const node = dataStore.currentNode || {}
+        if (node.id && !['ts', 'rt', 'models'].includes(node.type)) {
+            deleteTargetNode.value = node
+            deleteTargetPath.value = resolveSelectedPath(node)
+        }
+        return
+    }
+    deleteTargetPath.value = ''
+    deleteTargetNode.value = null
+    deleteIncludeChildren.value = false
+})
+
 const executeImport = async () => {
-    if (!dataStore.importForm.source) {
-        alert('请选择目标数据源')
+    if (!dataStore.importForm.path) {
+        alert('请输入导入路径')
         return
     }
     isImporting.value = true
@@ -501,6 +543,54 @@ const handleMaintenance = async () => {
         }
     }
 }
+
+const deleteTargetPath = ref('')
+const deleteTargetNode = ref(null)
+const deleteIncludeChildren = ref(false)
+const deleteTreeRoots = computed(() => dataStore.resourceTree || [])
+
+const handleDeletePathSelect = (node) => {
+    deleteTargetNode.value = node
+    deleteTargetPath.value = resolveSelectedPath(node)
+}
+
+const isDeletePathDisabled = computed(() => {
+    const path = normalizeImportPath(deleteTargetPath.value)
+    if (!path) return true
+    const type = deleteTargetNode.value?.type || ''
+    return ['ts', 'rt', 'models'].includes(type)
+})
+
+const handleDeletePath = async () => {
+    const path = normalizeImportPath(deleteTargetPath.value)
+    if (!path) {
+        alert('请先选择要删除的路径')
+        return
+    }
+    if (['ts', 'rt', 'models'].includes(deleteTargetNode.value?.type)) {
+        alert('根节点不支持直接删除')
+        return
+    }
+    const confirmText = deleteIncludeChildren.value
+        ? `确认删除 ${path} 及其子路径下的全部数据吗？`
+        : `确认删除 ${path} 本路径的数据吗？`
+    if (!confirm(confirmText)) {
+        return
+    }
+    try {
+        const res = await dataStore.deletePath(path, deleteIncludeChildren.value)
+        if (res && res.success === false) {
+            alert(res.msg || '删除失败')
+            return
+        }
+        dataStore.showDeletePathModal = false
+        deleteTargetPath.value = ''
+        deleteTargetNode.value = null
+        deleteIncludeChildren.value = false
+    } catch (e) {
+        alert(e.message || '删除失败')
+    }
+}
 </script>
 
 <template>
@@ -539,38 +629,41 @@ const handleMaintenance = async () => {
              </div>
                  </div>
 
-                 <!-- Step 1: Select Target Source (Renamed to Step 2 logic but keeping variable consistent or increasing step count) -->
-                 <!-- Let's increase step count logic. Need to update next/back buttons too. -->
-                 <!-- Actually, simpler to keep Step 1 as Type Selection and push others +1 -->
-                 
                  <div v-if="dataStore.importStep === 2">
-                     <h4 class="text-sm font-bold text-gray-700 mb-2">2. 选择目标数据源</h4>
-                     <select v-model="dataStore.importForm.source" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-                         <option value="">请选择数据源...</option>
-                         <!-- Filter sources based on import type -->
-                         <option v-for="source in dataStore.dataSourceTree.filter(s => (dataStore.importType === 'ts' ? s.type === 'ts' : s.type === 'rel'))" 
-                                 :key="source.id" :value="source.id">
-                             {{ source.name }} ({{ source.type === 'ts' ? '时序' : '结构化' }})
-                         </option>
-                     </select>
-                     <div v-if="dataStore.importType === 'ts'" class="mt-3">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">存储组路径</label>
-                        <input v-model="dataStore.importForm.storageGroup" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="root.device.group01">
-                        <p class="text-[10px] text-gray-400 mt-1">支持相对路径，将自动挂载到数据源挂载路径下</p>
-                     </div>
-                     <div v-if="dataStore.importType === 'struct'" class="mt-3 space-y-3">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Schema</label>
-                            <input v-model="dataStore.importForm.schema" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="public">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">表名</label>
-                            <input v-model="dataStore.importForm.table" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="device_list">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">主键字段（可选，逗号分隔）</label>
-                            <input v-model="dataStore.importForm.primaryKeys" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="id,code">
-                        </div>
+                     <h4 class="text-sm font-bold text-gray-700 mb-2">2. 选择导入路径</h4>
+                     <div class="space-y-3">
+                         <div>
+                             <label class="block text-xs font-bold text-gray-700 mb-1">导入路径</label>
+                             <input v-model="dataStore.importForm.path" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="ts.device.group 或 rt.schema.table">
+                             <p class="text-[10px] text-gray-400 mt-1">时序数据必须以 ts 开头，结构化数据必须以 rt 开头</p>
+                         </div>
+                         <div v-if="dataStore.importType === 'struct'" class="grid grid-cols-2 gap-4">
+                             <div>
+                                 <label class="block text-xs font-bold text-gray-700 mb-1">解析 Schema</label>
+                                 <input v-model="dataStore.importForm.schema" type="text" readonly class="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-50">
+                             </div>
+                             <div>
+                                 <label class="block text-xs font-bold text-gray-700 mb-1">解析表名</label>
+                                 <input v-model="dataStore.importForm.table" type="text" readonly class="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-50">
+                             </div>
+                         </div>
+                         <div>
+                             <label class="block text-xs font-bold text-gray-700 mb-1">从资源树选择</label>
+                             <div class="border border-gray-200 rounded px-2 py-2 max-h-48 overflow-y-auto bg-gray-50">
+                                 <div v-if="!importTreeRoots.length" class="text-xs text-gray-400 text-center py-4">暂无可选路径</div>
+                                 <ResourceTreeSelectorNode
+                                   v-else
+                                   :nodes="importTreeRoots"
+                                   :root-type="importRootType"
+                                   :allow-group-select="dataStore.importType === 'ts'"
+                                   :on-select="handleImportPathSelect"
+                                 />
+                             </div>
+                         </div>
+                         <div v-if="dataStore.importType === 'struct'">
+                             <label class="block text-xs font-bold text-gray-700 mb-1">主键字段（可选，逗号分隔）</label>
+                             <input v-model="dataStore.importForm.primaryKeys" type="text" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="id,code">
+                         </div>
                      </div>
                  </div>
 
@@ -754,34 +847,6 @@ const handleMaintenance = async () => {
          </div>
      </div>
 
-     <!-- Remove Source Modal -->
-     <div v-if="dataStore.showRemoveSourceModal" class="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-         <div class="bg-white rounded-lg shadow-xl w-[400px] flex flex-col">
-             <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                 <h3 class="font-bold text-gray-800 text-red-600">卸载数据源</h3>
-                 <i class="ri-close-line cursor-pointer text-gray-500 hover:text-black" @click="dataStore.showRemoveSourceModal = false"></i>
-             </div>
-             <div class="p-6 text-sm text-gray-600 space-y-4">
-                 <div>
-                     <label class="block text-xs font-bold text-gray-700 mb-1">选择数据源</label>
-                     <select v-model="selectedSourceId" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-                         <option value="" disabled>-- 请选择 --</option>
-                         <option v-for="source in dataStore.dataSourceTree.filter(n => ['ts', 'rel'].includes(n.type))" :key="source.id" :value="source.id">
-                             {{ source.name }}
-                         </option>
-                     </select>
-                 </div>
-                 <div class="p-3 bg-red-50 rounded border border-red-100 text-red-700 text-xs">
-                     <i class="ri-alert-line mr-1"></i> 注意：卸载仅断开 IGinX 连接，物理数据不会被删除。
-                 </div>
-             </div>
-             <div class="px-6 py-4 border-t border-gray-100 flex justify-end space-x-2">
-                 <button @click="dataStore.showRemoveSourceModal = false" class="px-4 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">取消</button>
-                 <button @click="handleRemoveSource" :disabled="!selectedSourceId" class="px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50">确认卸载</button>
-             </div>
-         </div>
-     </div>
-
      <!-- Source Details Modal -->
      <div v-if="dataStore.showSourceDetailsModal" class="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
          <div class="bg-white rounded-lg shadow-xl w-[500px] flex flex-col">
@@ -820,12 +885,6 @@ const handleMaintenance = async () => {
                          <div class="font-mono text-gray-800">{{ resolveSourceTypeLabel(selectedDetailMeta) }}</div>
                          <div class="text-gray-500">节点 ID</div>
                          <div class="font-mono text-gray-800">{{ selectedDetailMeta.id }}</div>
-                         <div class="text-gray-500">存储规模</div>
-                         <div class="font-mono text-gray-800">-</div>
-                         <div class="text-gray-500">运行时长</div>
-                         <div class="font-mono text-gray-800">-</div>
-                     </div>
-                     <div class="grid grid-cols-2 gap-y-4 text-sm">
                          <div class="text-gray-500">挂载路径</div>
                          <div class="font-mono text-gray-800">{{ selectedDetailMeta.mountPath || '-' }}</div>
                          <div class="text-gray-500">主机</div>
@@ -836,37 +895,12 @@ const handleMaintenance = async () => {
                          <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.database || '-' }}</div>
                          <div class="text-gray-500">用户名</div>
                          <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.username || '-' }}</div>
+                         <div class="text-gray-500">是否有数据</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.hasData === false ? '否' : '是' }}</div>
+                         <div class="text-gray-500">只读</div>
+                         <div class="font-mono text-gray-800">{{ selectedDetailMeta.connectionConfig?.readOnly ? '是' : '否' }}</div>
                          <div class="text-gray-500">创建时间</div>
                          <div class="font-mono text-gray-800">{{ selectedDetailMeta.createTime || '-' }}</div>
-                     </div>
-
-                     <div>
-                         <div class="flex items-center justify-between mb-2">
-                             <h5 class="text-sm font-bold text-gray-700">存储引擎列表</h5>
-                             <span class="text-[10px] text-gray-400">共 {{ detailEngines.length }} 条</span>
-                         </div>
-                         <div class="max-h-36 overflow-y-auto border border-gray-200 rounded px-3 py-2 text-xs space-y-2">
-                             <div v-if="!detailEngines.length" class="text-gray-400 text-center py-2">暂无存储引擎信息</div>
-                             <div v-else v-for="(engine, index) in detailEngines" :key="`${engine.ip}-${engine.port}-${index}`" class="border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
-                                 <div class="font-mono text-gray-800">{{ engine.ip || '-' }}:{{ engine.port ?? '-' }}</div>
-                                 <div class="text-gray-500">类型：{{ engine.type || '-' }}</div>
-                                 <div class="text-gray-500">schema: {{ engine.schemaPrefix || '-' }} | data: {{ engine.dataPrefix || '-' }}</div>
-                             </div>
-                         </div>
-                     </div>
-
-                     <div>
-                         <div class="flex items-center justify-between mb-2">
-                             <h5 class="text-sm font-bold text-gray-700">路径列表（SHOW COLUMNS）</h5>
-                             <span class="text-[10px] text-gray-400">最多 {{ detailLimit }} 条</span>
-                         </div>
-                         <div class="max-h-36 overflow-y-auto border border-gray-200 rounded px-3 py-2 text-xs space-y-2">
-                             <div v-if="!detailColumns.length" class="text-gray-400 text-center py-2">暂无路径信息</div>
-                             <div v-else v-for="(column, index) in detailColumns" :key="`${column.path}-${index}`" class="flex items-center justify-between border-b border-gray-100 pb-1 last:border-b-0 last:pb-0">
-                                 <span class="font-mono text-gray-800">{{ column.path || '-' }}</span>
-                                 <span class="text-gray-500 ml-4">{{ column.dataType || '-' }}</span>
-                             </div>
-                         </div>
                      </div>
                  </div>
                  <div v-else class="text-center text-gray-400 py-8">
@@ -956,6 +990,61 @@ const handleMaintenance = async () => {
              <div class="px-6 py-4 border-t border-gray-100 flex justify-end space-x-2">
                  <button @click="dataStore.showExportModal = false" class="px-4 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">取消</button>
                  <button @click="handleExport" :disabled="isExporting" class="px-4 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-60">开始导出</button>
+             </div>
+         </div>
+     </div>
+
+     <!-- Delete Path Modal -->
+     <div v-if="dataStore.showDeletePathModal" class="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+         <div class="bg-white rounded-lg shadow-xl w-[420px] flex flex-col">
+             <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                 <h3 class="font-bold text-gray-800 text-red-600">删除数据</h3>
+                 <i class="ri-close-line cursor-pointer text-gray-500 hover:text-black" @click="dataStore.showDeletePathModal = false"></i>
+             </div>
+              <div class="p-6 space-y-4 text-sm text-gray-600">
+                  <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1">选择路径</label>
+                      <div class="border border-gray-200 rounded px-2 py-2 max-h-56 overflow-y-auto bg-gray-50">
+                          <div v-if="!deleteTreeRoots.length" class="text-xs text-gray-400 text-center py-4">暂无可选路径</div>
+                          <ResourceTreeSelectorNode
+                            v-else
+                            :nodes="deleteTreeRoots"
+                            :allow-group-select="true"
+                            :on-select="handleDeletePathSelect"
+                          />
+                      </div>
+                  </div>
+                  <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1">已选路径</label>
+                      <div class="font-mono text-gray-800 bg-gray-50 border border-gray-200 rounded px-3 py-2">
+                          {{ deleteTargetPath || '-' }}
+                      </div>
+                  </div>
+                  <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1">删除范围</label>
+                      <div class="flex items-center space-x-4">
+                          <label class="flex items-center text-xs text-gray-700">
+                              <input type="radio" v-model="deleteIncludeChildren" :value="false" class="mr-2">
+                              仅删除当前路径
+                          </label>
+                          <label class="flex items-center text-xs text-gray-700">
+                              <input type="radio" v-model="deleteIncludeChildren" :value="true" class="mr-2">
+                              删除当前路径及子路径
+                          </label>
+                      </div>
+                  </div>
+                  <div class="p-3 bg-red-50 rounded border border-red-100 text-red-700 text-xs">
+                      <i class="ri-alert-line mr-1"></i>
+                      <span v-if="deleteIncludeChildren">将删除所选路径及其子路径下的全部数据，请谨慎操作。</span>
+                      <span v-else>将仅删除所选路径本身的数据，不包含子路径。</span>
+                  </div>
+                  <div v-if="isDeletePathDisabled" class="text-xs text-red-600">
+                      根节点不支持删除，请选择具体路径或表。
+                  </div>
+              </div>
+             <div class="px-6 py-4 border-t border-gray-100 flex justify-end space-x-2">
+                 <button @click="dataStore.showDeletePathModal = false" class="px-4 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">取消</button>
+                 <button @click="handleDeletePath" :disabled="isDeletePathDisabled" class="px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50">确认删除</button>
              </div>
          </div>
      </div>
