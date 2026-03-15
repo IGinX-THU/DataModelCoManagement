@@ -1001,9 +1001,5 @@ public class DataImportServiceImpl implements DataImportService {
             return result;
         }
     }
-
-    /**
-     * 确保关系型存储引擎已注册。
-     * @param detail 数据源详情     */
 }
 

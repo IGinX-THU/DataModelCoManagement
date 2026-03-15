@@ -24,53 +24,73 @@ import java.util.Set;
 
 /**
  * 数据资源树构建服务实现。
+ * <p>
+ * 当前仅构建时序（ts）与结构化（rt）两类资源树，不再展示 models 及其子节点。
+ * </p>
  */
 @Service
 @RequiredArgsConstructor
 public class DataResourceTreeServiceImpl implements DataResourceTreeService {
 
+    /** 时序数据前缀 */
     private static final String TS_PREFIX = DataPrefixRules.TS_PREFIX;
+    /** 结构化数据前缀 */
     private static final String RT_PREFIX = DataPrefixRules.RT_PREFIX;
-    private static final String MODEL_PREFIX = DataPrefixRules.MODEL_PREFIX;
 
     private final DataResourceRepository dataResourceRepository;
     private final IginxStorageWrapper iginxStorageWrapper;
 
+    /**
+     * 构建数据资源树。
+     * <p>
+     * 规则：
+     * <ul>
+     *     <li>只返回 ts/rt 两个根节点</li>
+     *     <li>时序路径以 ts 前缀组织为 group/point 层级</li>
+     *     <li>结构化路径以 rt.schema.table 组织为 schema/table 层级</li>
+     * </ul>
+     * </p>
+     *
+     * @return 资源树根节点列表
+     */
     @Override
     public List<DataResourceTreeNodeVO> buildTree() {
+        // 读取已注册数据源，用于为根节点绑定默认数据源 ID
         List<DataResourceEntity> sources = dataResourceRepository.findAll();
         Long tsSourceId = resolveDefaultSourceId(sources, DataSourceType.IOTDB, DataSourceType.INFLUXDB);
         Long rtSourceId = resolveDefaultSourceId(sources, DataSourceType.POSTGRESQL);
 
+        // 读取 IginX 中当前的路径列表
         List<Column> columns = iginxStorageWrapper.executeWithSession(session -> session.showColumns());
         if (columns == null) {
             columns = List.of();
         }
+        // 用于快速复用节点，避免重复创建
         Map<String, DataResourceTreeNodeVO> nodeMap = new LinkedHashMap<>();
 
+        // 构建 ts/rt 两个根节点
         DataResourceTreeNodeVO tsRoot = createRoot(TS_PREFIX, tsSourceId);
         DataResourceTreeNodeVO rtRoot = createRoot(RT_PREFIX, rtSourceId);
-        DataResourceTreeNodeVO modelRoot = createRoot(MODEL_PREFIX, null);
 
+        // 用于去重结构化表（同一表只添加一次）
         Set<String> structuredTables = new LinkedHashSet<>();
 
         for (Column column : columns) {
             if (column == null || column.getPath() == null) {
                 continue;
             }
+            // 统一规范化路径（去除 root. 前缀）
             String normalized = normalizeFullPath(column.getPath());
             if (!StringUtils.hasText(normalized)) {
                 continue;
             }
             if (DataPrefixRules.startsWithPrefix(normalized, TS_PREFIX)) {
+                // 时序路径：构建 group/point 节点
                 addTimeSeriesPath(normalized, tsRoot, nodeMap, tsSourceId);
                 continue;
             }
-            if (DataPrefixRules.startsWithPrefix(normalized, MODEL_PREFIX)) {
-                addModelPath(normalized, modelRoot, nodeMap);
-                continue;
-            }
             if (DataPrefixRules.startsWithPrefix(normalized, RT_PREFIX)) {
+                // 结构化路径：构建 schema/table 节点
                 addStructuredPath(normalized, rtRoot, nodeMap, rtSourceId, structuredTables);
             }
         }
@@ -78,10 +98,16 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         List<DataResourceTreeNodeVO> roots = new ArrayList<>();
         roots.add(tsRoot);
         roots.add(rtRoot);
-        roots.add(modelRoot);
         return roots;
     }
 
+    /**
+     * 创建根节点。
+     *
+     * @param prefix 根节点前缀（ts/rt）
+     * @param sourceId 默认数据源 ID
+     * @return 根节点
+     */
     private DataResourceTreeNodeVO createRoot(String prefix, Long sourceId) {
         DataResourceTreeNodeVO root = new DataResourceTreeNodeVO();
         root.setId(prefix);
@@ -93,6 +119,14 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         return root;
     }
 
+    /**
+     * 追加时序路径到树中。
+     *
+     * @param normalizedPath 规范化路径（不含 root.）
+     * @param root 根节点
+     * @param nodeMap 节点缓存
+     * @param sourceId 数据源 ID
+     */
     private void addTimeSeriesPath(String normalizedPath,
                                    DataResourceTreeNodeVO root,
                                    Map<String, DataResourceTreeNodeVO> nodeMap,
@@ -118,24 +152,19 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         }
     }
 
-    private void addModelPath(String normalizedPath,
-                              DataResourceTreeNodeVO root,
-                              Map<String, DataResourceTreeNodeVO> nodeMap) {
-        List<String> segments = splitSegments(normalizedPath);
-        if (segments.size() < 2) {
-            return;
-        }
-        DataResourceTreeNodeVO parent = root;
-        String currentPath = segments.get(0);
-        for (int i = 1; i < segments.size(); i++) {
-            currentPath = currentPath + "." + segments.get(i);
-            String nodeType = (i == segments.size() - 1) ? "file" : "group";
-            DataResourceTreeNodeVO node = ensureNode(nodeMap, parent, currentPath, segments.get(i), nodeType);
-            node.setPath(currentPath);
-            parent = node;
-        }
-    }
-
+    /**
+     * 追加结构化路径到树中。
+     * <p>
+     * 结构化路径通常形如 rt.schema.table.column，
+     * 此处只保留 schema 与 table 层级。
+     * </p>
+     *
+     * @param normalizedPath 规范化路径
+     * @param root 根节点
+     * @param nodeMap 节点缓存
+     * @param sourceId 数据源 ID
+     * @param structuredTables 已处理的表集合（用于去重）
+     */
     private void addStructuredPath(String normalizedPath,
                                    DataResourceTreeNodeVO root,
                                    Map<String, DataResourceTreeNodeVO> nodeMap,
@@ -151,6 +180,7 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         if (segments.isEmpty()) {
             return;
         }
+        // 去除 rt 前缀，保留 schema.table.column
         if (RT_PREFIX.equalsIgnoreCase(segments.get(0))) {
             segments = segments.subList(1, segments.size());
         }
@@ -177,6 +207,7 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
 
         String schemaPath = RT_PREFIX + "." + schema;
         String tablePath = schemaPath + "." + table;
+        // 同一表只添加一次
         if (!structuredTables.add(tablePath)) {
             return;
         }
@@ -194,6 +225,16 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         tableNode.setPath(tablePath);
     }
 
+    /**
+     * 获取或创建树节点。
+     *
+     * @param nodeMap 节点缓存
+     * @param parent 父节点
+     * @param path 节点路径
+     * @param name 节点名称
+     * @param type 节点类型
+     * @return 节点
+     */
     private DataResourceTreeNodeVO ensureNode(Map<String, DataResourceTreeNodeVO> nodeMap,
                                               DataResourceTreeNodeVO parent,
                                               String path,
@@ -220,6 +261,12 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         return node;
     }
 
+    /**
+     * 统一规范化路径（剥离 root. 前缀）。
+     *
+     * @param path 原始路径
+     * @return 规范化后的路径
+     */
     private String normalizeFullPath(String path) {
         String normalized = TimeSeriesPathUtils.normalizePath(path);
         if (normalized == null) {
@@ -231,6 +278,13 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         return normalized;
     }
 
+    /**
+     * 选取默认数据源 ID（取满足类型的最小 ID）。
+     *
+     * @param sources 数据源列表
+     * @param allowed 允许的数据源类型
+     * @return 默认数据源 ID
+     */
     private Long resolveDefaultSourceId(List<DataResourceEntity> sources, DataSourceType... allowed) {
         if (sources == null || sources.isEmpty() || allowed == null || allowed.length == 0) {
             return null;
@@ -244,6 +298,12 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             .orElse(null);
     }
 
+    /**
+     * 解析数据源类型。
+     *
+     * @param raw 原始字符串
+     * @return 数据源类型枚举
+     */
     private DataSourceType parseType(String raw) {
         if (raw == null) {
             return null;
@@ -255,6 +315,13 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         }
     }
 
+    /**
+     * 判断类型是否在允许范围内。
+     *
+     * @param type 数据源类型
+     * @param allowed 允许范围
+     * @return 是否允许
+     */
     private boolean isAllowed(DataSourceType type, DataSourceType[] allowed) {
         if (type == null) {
             return false;
@@ -267,6 +334,12 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         return false;
     }
 
+    /**
+     * 将路径拆分为段。
+     *
+     * @param path 原始路径
+     * @return 段列表
+     */
     private List<String> splitSegments(String path) {
         if (!StringUtils.hasText(path)) {
             return List.of();
