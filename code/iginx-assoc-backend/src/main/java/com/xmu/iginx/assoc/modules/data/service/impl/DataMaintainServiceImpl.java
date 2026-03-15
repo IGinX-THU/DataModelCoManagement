@@ -10,7 +10,6 @@ import com.xmu.iginx.assoc.modules.data.dto.StructuredRowDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowUpdateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
-import com.xmu.iginx.assoc.modules.data.model.DataSourceDetail;
 import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
 import com.xmu.iginx.assoc.modules.data.util.IginxDataTypeConverter;
@@ -51,7 +50,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      */
     @Override
     public void deleteTimeSeries(TimeSeriesDeleteRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
         if (request.getPaths() == null || request.getPaths().isEmpty()) {
             throw BizException.badRequest("测点路径不能为空");
         }
@@ -61,8 +60,13 @@ public class DataMaintainServiceImpl implements DataMaintainService {
         if (!"delete".equalsIgnoreCase(request.getOperation())) {
             throw BizException.badRequest("暂不支持的时序操作类型");
         }
-        // 统一挂载路径，避免路径不一致导致删除失败
-        List<String> paths = TimeSeriesPathUtils.resolvePathsUnderMount(request.getPaths(), detail.entity().getMountPath(), true);
+        List<String> paths = request.getPaths().stream()
+            .map(TimeSeriesPathUtils::stripRootPrefix)
+            .filter(path -> path != null && !path.isBlank())
+            .toList();
+        if (paths.isEmpty()) {
+            throw BizException.badRequest("测点路径不能为空");
+        }
         // 将毫秒时间转换为纳秒，匹配 Iginx 删除接口
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
@@ -79,14 +83,14 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      */
     @Override
     public void createStructuredRow(StructuredRowCreateRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         Map<String, Object> rawData = request.getData();
         if (rawData == null || rawData.isEmpty()) {
             throw BizException.badRequest("数据不能为空");
         }
-        // 统一挂载路径，确保 schema 与真实表路径一致
-        String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-        Map<String, DataType> columnTypes = requireColumnTypes(schemaWithMount, request.getTable());
+        // 统一结构化 schema 路径，确保与真实表路径一致
+        String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+        Map<String, DataType> columnTypes = requireColumnTypes(schemaPath, request.getTable());
         // 过滤内部字段，避免覆盖系统键
         Map<String, Object> data = normalizeData(rawData);
         if (data.isEmpty()) {
@@ -94,7 +98,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
         }
         // 生成或解析内部主键
         long key = resolveCreateKey(rawData);
-        String sql = buildInsertSql(schemaWithMount, request.getTable(), key, data, columnTypes);
+        String sql = buildInsertSql(schemaPath, request.getTable(), key, data, columnTypes);
         try {
             structuredQueryHelper.executeSql(sql);
         } catch (Exception ex) {
@@ -109,21 +113,22 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      */
     @Override
     public void updateStructuredRow(StructuredRowUpdateRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         Map<String, Object> rawData = request.getData();
         if (rawData == null || rawData.isEmpty()) {
             throw BizException.badRequest("数据不能为空");
         }
         // 更新必须包含内部主键
         long key = resolveRequiredKey(rawData);
-        String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-        Map<String, DataType> columnTypes = requireColumnTypes(schemaWithMount, request.getTable());
+        // 统一结构化 schema 路径，确保与真实表路径一致
+        String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+        Map<String, DataType> columnTypes = requireColumnTypes(schemaPath, request.getTable());
         // 过滤内部字段，避免更新主键列
         Map<String, Object> data = normalizeData(rawData);
         if (data.isEmpty()) {
             throw BizException.badRequest("未提供可更新字段");
         }
-        String sql = buildInsertSql(schemaWithMount, request.getTable(), key, data, columnTypes);
+        String sql = buildInsertSql(schemaPath, request.getTable(), key, data, columnTypes);
         try {
             structuredQueryHelper.executeSql(sql);
         } catch (Exception ex) {
@@ -138,17 +143,18 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      */
     @Override
     public void deleteStructuredRow(StructuredRowDeleteRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         Map<String, Object> keys = request.getKeys();
         long key = resolveDeleteKey(keys);
-        String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-        Map<String, DataType> columnTypes = requireColumnTypes(schemaWithMount, request.getTable());
+        // 统一结构化 schema 路径，确保与真实表路径一致
+        String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+        Map<String, DataType> columnTypes = requireColumnTypes(schemaPath, request.getTable());
         List<String> columnPaths = new ArrayList<>();
         for (String column : columnTypes.keySet()) {
             if (column == null || column.isBlank()) {
                 continue;
             }
-            columnPaths.add(IginxStructuredUtils.buildColumnPath(schemaWithMount, request.getTable(), column));
+            columnPaths.add(IginxStructuredUtils.buildColumnPath(schemaPath, request.getTable(), column));
         }
         if (columnPaths.isEmpty()) {
             throw BizException.badRequest("没有可删除的字段");
@@ -175,8 +181,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      *
      * @param schema schema 路径
      * @param table 表名
-     * @return 列类型映射
-     */
+     * @return 列类型映射     */
     private Map<String, DataType> requireColumnTypes(String schema, String table) {
         Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schema, table);
         if (columnTypes == null || columnTypes.isEmpty()) {
@@ -189,8 +194,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      * 过滤内部字段，得到可写入的业务数据。
      *
      * @param data 原始数据
-     * @return 规范化后的数据
-     */
+     * @return 规范化后的数据     */
     private Map<String, Object> normalizeData(Map<String, Object> data) {
         Map<String, Object> normalized = new LinkedHashMap<>();
         if (data == null) {
@@ -213,8 +217,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      * 校验列名是否存在于表结构中。
      *
      * @param columns 列名集合
-     * @param columnTypes 列类型映射
-     */
+     * @param columnTypes 列类型映射     */
     private void validateColumns(Iterable<String> columns, Map<String, DataType> columnTypes) {
         for (String column : columns) {
             if (!columnTypes.containsKey(column)) {
@@ -247,7 +250,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
         if (!DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.TS_PREFIX)
             && !DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.RT_PREFIX)
             && !DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.MODEL_PREFIX)) {
-            throw BizException.badRequest("路径前缀必须为 ts / rt / models");
+            throw BizException.badRequest("路径前缀必须是 ts / rt / models");
         }
         boolean includeChildren = Boolean.TRUE.equals(request.getIncludeChildren());
         String target = normalized;
@@ -302,8 +305,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      * 解析新增数据的内部键，未提供时生成随机键。
      *
      * @param data 原始数据
-     * @return 内部键
-     */
+     * @return 内部键     */
     private long resolveCreateKey(Map<String, Object> data) {
         Long internal = StructuredKeyGenerator.extractInternalKey(data);
         if (internal != null) {
@@ -322,8 +324,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      * 解析更新所需的内部键。
      *
      * @param data 原始数据
-     * @return 内部键
-     */
+     * @return 内部键     */
     private long resolveRequiredKey(Map<String, Object> data) {
         Long internal = StructuredKeyGenerator.extractInternalKey(data);
         if (internal == null) {
@@ -342,8 +343,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      * 解析删除条件中的内部键，缺失时采用哈希键。
      *
      * @param keys 删除条件
-     * @return 内部键
-     */
+     * @return 内部键     */
     private long resolveDeleteKey(Map<String, Object> keys) {
         if (keys == null || keys.isEmpty()) {
             throw BizException.badRequest("删除条件不能为空");
@@ -374,16 +374,14 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      * @param schema schema 路径
      * @param table 表名
      * @param key 内部键
-     * @param data 写入数据
+     * * @param data 写入数据
      * @param columnTypes 列类型映射
-     * @return SQL 字符串
-     */
+     * * @return SQL 字符串     */
     private String buildInsertSql(String schema, String table, long key,
                                  Map<String, Object> data,
                                  Map<String, DataType> columnTypes) {
         List<String> columns = new ArrayList<>(data.keySet());
-        // 校验列名有效性
-        validateColumns(columns, columnTypes);
+        // 校验列名有效性        validateColumns(columns, columnTypes);
         StringBuilder builder = new StringBuilder();
         builder.append("INSERT INTO ")
             .append(IginxStructuredUtils.buildTablePath(schema, table))
@@ -407,9 +405,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
      * 按列类型转换输入值。
      *
      * @param raw 原始值
-     * @param type 列类型
-     * @return 转换后的值
-     */
+     * * @param type 列类型     * @return 转换后的值     */
     private Object coerceValue(Object raw, DataType type) {
         if (raw == null) {
             return null;
@@ -418,7 +414,7 @@ public class DataMaintainServiceImpl implements DataMaintainService {
             if (raw instanceof byte[] bytes) {
                 return bytes;
             }
-            // 非字节数组统一按 UTF-8 字节写入
+            // 非字节数组统一为 UTF-8 字节写入
             return String.valueOf(raw).getBytes(StandardCharsets.UTF_8);
         }
         if (raw instanceof Number number) {
@@ -438,4 +434,8 @@ public class DataMaintainServiceImpl implements DataMaintainService {
         return IginxDataTypeConverter.parseValue(String.valueOf(raw), type);
     }
 }
+
+
+
+
 

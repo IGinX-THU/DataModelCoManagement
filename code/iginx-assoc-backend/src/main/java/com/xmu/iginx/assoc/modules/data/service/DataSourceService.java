@@ -4,10 +4,7 @@ import com.xmu.iginx.assoc.common.PageResult;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceQueryRequest;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
-import com.xmu.iginx.assoc.modules.data.vo.DataSourceStructureNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
-
-import java.util.List;
 
 /**
  * 数据源服务接口。
@@ -54,12 +51,4 @@ public interface DataSourceService {
      * @param config 连接配置
      */
     void testConnection(String sourceType, com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig config);
-
-    /**
-     * 获取数据源结构树。
-     *
-     * @param id 数据源 ID
-     * @return 结构节点列表
-     */
-    List<DataSourceStructureNodeVO> listStructure(Long id);
 }

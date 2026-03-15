@@ -2,7 +2,6 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import cn.edu.tsinghua.iginx.session.Column;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
-import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.alibaba.excel.EasyExcel;
 import com.xmu.iginx.assoc.common.exception.BizException;
@@ -59,7 +58,6 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 导入时序数据（CSV/Excel）。
-     *
      * @param request 导入请求参数
      * @param file 上传文件
      * @return 导入结果
@@ -67,7 +65,6 @@ public class DataImportServiceImpl implements DataImportService {
     @Override
     public DataImportResultVO importTimeSeries(TimeSeriesImportRequest request, MultipartFile file) {
         String storageGroup = normalizeTimeSeriesImportPath(request.getStorageGroup());
-        ensureStorageGroupExists(storageGroup);
         String extension = getExtension(file);
         // 根据文件类型选择解析器，进入统一的导入上下文
         TimeSeriesImportContext context = new TimeSeriesImportContext(storageGroup, request);
@@ -84,14 +81,13 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 导入结构化数据（CSV/Excel/SQL）。
-     *
      * @param request 导入请求参数
      * @param file 上传文件
      * @return 导入结果
      */
     @Override
     public DataImportResultVO importStructured(StructuredImportRequest request, MultipartFile file) {
-        normalizeStructuredImportPath(request);
+        StructuredImportPath targetPath = normalizeStructuredImportPath(request);
         String extension = resolveFileType(request.getFileType(), file);
         if ("sql".equals(extension)) {
             return importStructuredSql(file);
@@ -100,7 +96,7 @@ public class DataImportServiceImpl implements DataImportService {
             throw BizException.badRequest("仅支持 CSV、Excel 或 SQL 文件");
         }
         try {
-            StructuredImportContext context = new StructuredImportContext(request, "");
+            StructuredImportContext context = new StructuredImportContext(request, targetPath);
             if ("csv".equals(extension)) {
                 readCsv(file, context::handleRow);
             } else {
@@ -117,7 +113,6 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 导入 SQL 脚本中的结构化数据。
-     *
      * @param file SQL 文件
      * @return 导入结果
      */
@@ -155,10 +150,8 @@ public class DataImportServiceImpl implements DataImportService {
     }
     /**
      * 读取 CSV 文件并逐行交给消费函数处理。
-     *
      * @param file 上传文件
-     * @param consumer 行消费函数
-     */
+     * @param consumer 行消费函数     */
     private void readCsv(MultipartFile file, RowConsumer consumer) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
@@ -175,11 +168,9 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 读取 Excel 文件并逐行交给消费函数处理。
-     *
      * @param file 上传文件
      * @param sheetIndex 工作表索引
-     * @param consumer 行消费函数
-     */
+     * * @param consumer 行消费函数     */
     private void readExcel(MultipartFile file, Integer sheetIndex, RowConsumer consumer) {
         try {
             int index = Optional.ofNullable(sheetIndex).orElse(0);
@@ -193,10 +184,8 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 获取文件扩展名（小写）。
-     *
      * @param file 上传文件
-     * @return 扩展名
-     */
+     * @return 扩展名     */
     private String getExtension(MultipartFile file) {
         String fileName = file.getOriginalFilename();
         if (fileName == null || !fileName.contains(".")) {
@@ -207,7 +196,6 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 解析最终文件类型，优先使用请求指定类型。
-     *
      * @param fileType 请求声明类型
      * @param file 上传文件
      * @return 文件类型
@@ -221,10 +209,8 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 规整并校验时序导入路径，确保以 ts 前缀开头。
-     *
      * @param rawPath 原始路径
-     * @return 归一化后的路径
-     */
+     * @return 归一化后的路径     */
     private String normalizeTimeSeriesImportPath(String rawPath) {
         String normalized = TimeSeriesPathUtils.stripRootPrefix(rawPath);
         if (normalized == null || normalized.isBlank()) {
@@ -238,70 +224,40 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 规整并校验结构化导入路径，确保 schema 以 rt 前缀开头。
-     *
      * @param request 导入请求
      */
-    private void normalizeStructuredImportPath(StructuredImportRequest request) {
+    private StructuredImportPath normalizeStructuredImportPath(StructuredImportRequest request) {
         if (request == null) {
             throw BizException.badRequest("导入参数不能为空");
         }
-        String schema = TimeSeriesPathUtils.stripRootPrefix(request.getSchema());
-        if (schema == null || schema.isBlank()) {
-            throw BizException.badRequest("目标 schema 不能为空");
+        String rawPath = TimeSeriesPathUtils.stripRootPrefix(request.getTargetPath());
+        if (rawPath == null || rawPath.isBlank()) {
+            throw BizException.badRequest("导入目标路径不能为空");
         }
-        if (!DataPrefixRules.startsWithPrefix(schema, DataPrefixRules.RT_PREFIX)) {
+        if (!DataPrefixRules.startsWithPrefix(rawPath, DataPrefixRules.RT_PREFIX)) {
             throw BizException.badRequest("结构化数据导入路径必须以 rt 开头");
         }
-        String table = request.getTable();
-        if (table == null || table.isBlank()) {
-            throw BizException.badRequest("目标表不能为空");
+        List<String> segments = IginxStructuredUtils.splitPathSegments(rawPath);
+        if (segments.size() < 2) {
+            throw BizException.badRequest("结构化导入路径格式不正确，至少包含 schema.table");
         }
-        request.setSchema(schema);
+        String table = segments.get(segments.size() - 1);
+        String schema = String.join(".", segments.subList(0, segments.size() - 1));
+        if (schema.isBlank() || table.isBlank()) {
+            throw BizException.badRequest("结构化导入路径格式不正确，缺少 schema 或 table");
+        }
+        request.setTargetPath(rawPath);
+        return new StructuredImportPath(schema, table);
     }
 
-    /**
-     * 确保时序存储组存在（写入一条初始化数据以触发创建）。
-     *
-     * @param storageGroup 存储组路径
-     */
-    private void ensureStorageGroupExists(String storageGroup) {
-        if (storageGroup == null || storageGroup.isBlank()) {
-            return;
-        }
-        String initPath = TimeSeriesPathUtils.joinPath(storageGroup, "__init__");
-        iginxStorageWrapper.executeWithSession(session -> {
-            if (columnExists(session, initPath)) {
-                return null;
-            }
-            long timestamp = System.currentTimeMillis() * 1_000_000;
-            session.insertRowRecords(List.of(initPath), new long[]{timestamp},
-                new Object[]{new Object[]{0L}}, List.of(DataType.LONG), null);
-            return null;
-        });
-    }
+    private static class StructuredImportPath {
+        private final String schema;
+        private final String table;
 
-    /**
-     * 判断测点列是否已存在。
-     *
-     * @param session IGinX 会话
-     * @param path 测点路径
-     * @return 是否存在
-     * @throws Exception 查询异常
-     */
-    private boolean columnExists(Session session, String path) throws Exception {
-        List<Column> columns = session.showColumns();
-        if (columns == null || columns.isEmpty()) {
-            return false;
+        private StructuredImportPath(String schema, String table) {
+            this.schema = schema;
+            this.table = table;
         }
-        for (Column column : columns) {
-            if (column == null || column.getPath() == null) {
-                continue;
-            }
-            if (path.equals(column.getPath())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -311,9 +267,8 @@ public class DataImportServiceImpl implements DataImportService {
     private interface RowConsumer {
         /**
          * 处理一行数据。
-         *
          * @param row 行数据
-         * @param header 是否表头
+         * * @param header 是否表头
          */
         void accept(List<String> row, boolean header);
     }
@@ -344,9 +299,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 处理 CSV/Excel 的单行数据。
-         *
          * @param row 行数据
-         * @param header 是否表头
+         * * @param header 是否表头
          */
         private void handleRow(List<String> row, boolean header) {
             if (header) {
@@ -383,9 +337,7 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 解析表头并构建测点映射与类型配置。
-         *
-         * @param header 表头行
-         */
+         * @param header 表头行         */
         private void buildHeader(List<String> header) {
             columnIndex.clear();
             for (int i = 0; i < header.size(); i++) {
@@ -423,8 +375,16 @@ public class DataImportServiceImpl implements DataImportService {
                 if (target == null || target.isBlank()) {
                     throw BizException.badRequest("目标测点不能为空");
                 }
-                // 将目标测点路径映射到挂载路径下
-                String normalizedTarget = TimeSeriesPathUtils.resolvePathUnderMount(target.trim(), storageGroup, false);
+                // 统一目标测点路径，避免路径不一致
+                String normalizedTarget = TimeSeriesPathUtils.stripRootPrefix(target.trim());
+                if (normalizedTarget.isBlank()) {
+                    throw BizException.badRequest("閻╊喗鐖ｅù瀣仯娑撳秷鍏樻稉铏光敄");
+                }
+                if (!TimeSeriesPathUtils.startsWithPath(normalizedTarget, storageGroup)) {
+                    if (!DataPrefixRules.startsWithPrefix(normalizedTarget, DataPrefixRules.TS_PREFIX)) {
+                        normalizedTarget = TimeSeriesPathUtils.joinPath(storageGroup, normalizedTarget);
+                    }
+                }
                 paths.add(normalizedTarget);
                 mappingColumns.add(mapping.getColumn());
                 String rawType = mapping.getDataType();
@@ -476,10 +436,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 解析时间戳列并转换为纳秒。
-         *
          * @param row 行数据
-         * @return 纳秒时间戳
-         */
+         * * @return 纳秒时间戳         */
         private long parseTimestamp(List<String> row) {
             Integer idx = columnIndex.get(request.getTimestampColumn());
             if (idx == null || idx >= row.size()) {
@@ -499,7 +457,7 @@ public class DataImportServiceImpl implements DataImportService {
             if (keys.isEmpty()) {
                 return;
             }
-            // 批量写入时序数据，按列写入提高效率
+            // 批量写入时序数据，按列写入提升效率
             long[] keyArray = keys.stream().mapToLong(Long::longValue).toArray();
             Object[] valuesArray = new Object[values.size()];
             for (int i = 0; i < values.size(); i++) {
@@ -515,7 +473,6 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 构建导入结果。
-         *
          * @return 导入结果
          */
         private DataImportResultVO buildResult() {
@@ -549,7 +506,9 @@ public class DataImportServiceImpl implements DataImportService {
         private static final int KEY_QUERY_BATCH = 500;
 
         private final StructuredImportRequest request;
-        private final String schemaWithMount;
+        private final String schema;
+        private final String table;
+        private final String schemaPath;
         private final List<String> columns = new ArrayList<>();
         private final Map<String, Integer> columnIndex = new HashMap<>();
         private final List<StructuredBatchRow> batchRows = new ArrayList<>();
@@ -564,9 +523,11 @@ public class DataImportServiceImpl implements DataImportService {
         private long failed = 0;
         private final String conflictStrategy;
 
-        private StructuredImportContext(StructuredImportRequest request, String mountPath) {
+        private StructuredImportContext(StructuredImportRequest request, StructuredImportPath targetPath) {
             this.request = request;
-            this.schemaWithMount = IginxStructuredUtils.mergeMountPath(mountPath, request.getSchema());
+            this.schema = targetPath.schema;
+            this.table = targetPath.table;
+            this.schemaPath = DataPrefixRules.normalizeStructuredSchema(this.schema);
             this.conflictStrategy = Optional.ofNullable(request.getConflictStrategy())
                 .orElse("update")
                 .trim()
@@ -575,9 +536,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 处理结构化数据的单行内容。
-         *
          * @param row 行数据
-         * @param header 是否表头
+         * * @param header 是否表头
          */
         private void handleRow(List<String> row, boolean header) {
             if (header) {
@@ -603,9 +563,7 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 解析表头并准备列与主键信息。
-         *
-         * @param header 表头行
-         */
+         * @param header 表头行         */
         private void buildHeader(List<String> header) {
             columns.clear();
             columnIndex.clear();
@@ -647,10 +605,13 @@ public class DataImportServiceImpl implements DataImportService {
          * 初始化列类型，必要时触发自动建表。
          */
         private void prepareColumnTypes() {
-            Map<String, DataType> existing = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
+            Map<String, DataType> existing = structuredQueryHelper.loadColumnTypes(schemaPath, table);
             boolean tableExists = existing != null && !existing.isEmpty();
-            if (!tableExists && !request.isAutoCreateTable()) {
-                throw BizException.badRequest("目标表不存在，请先建表或开启自动建表");
+            if (!tableExists) {
+                if (request.isAutoCreateTable()) {
+                    throw BizException.badRequest("自动建表已禁用，请先建表");
+                }
+                throw BizException.badRequest("目标表不存在，请先建表");
             }
             for (String column : columns) {
                 DataType type = existing == null ? null : existing.get(column);
@@ -659,22 +620,6 @@ public class DataImportServiceImpl implements DataImportService {
                 }
                 columnTypes.put(column, type);
             }
-            if (!tableExists && request.isAutoCreateTable()) {
-                createDummyRow();
-            }
-        }
-
-        /**
-         * 创建一条虚拟记录用于触发建表。
-         */
-        private void createDummyRow() {
-            Object[] values = new Object[columns.size()];
-            for (int i = 0; i < columns.size(); i++) {
-                values[i] = defaultValue(columnTypes.get(columns.get(i)));
-            }
-            StructuredBatchRow dummy = new StructuredBatchRow(IginxStructuredUtils.DUMMY_KEY, values, List.of());
-            String sql = buildInsertSql(List.of(dummy));
-            structuredQueryHelper.executeSql(sql);
         }
 
         /**
@@ -691,10 +636,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 解析行主键（内部键优先，其次主键字段）。
-         *
          * @param row 行数据
-         * @return 行主键
-         */
+         * * @return 行主键         */
         private long resolveRowKey(List<String> row) {
             Long internal = extractInternalKey(row);
             if (internal != null) {
@@ -725,9 +668,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 提取内部键 _iginx_key。
-         *
          * @param row 行数据
-         * @return 内部键；不存在则返回 null
+         * * @return 内部键；不存在则返回 null
          */
         private Long extractInternalKey(List<String> row) {
             if (internalKeyIndex == null || internalKeyIndex < 0) {
@@ -756,10 +698,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 将行数据按列类型转换为对象数组。
-         *
          * @param row 行数据
-         * @return 转换后的值数组
-         */
+         * * @return 转换后的值数组         */
         private Object[] convertRow(List<String> row) {
             Object[] values = new Object[columns.size()];
             for (int i = 0; i < columns.size(); i++) {
@@ -775,11 +715,9 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 规范化单元格内容，处理 BOM 等特殊情况。
-         *
-         * @param raw 原始内容
+         * @param raw 鍘熷鍐呭
          * @param index 列索引
-         * @return 规范化后的内容
-         */
+         * * @return 规范化后的内容         */
         private String normalizeCell(String raw, Integer index) {
             if (raw == null) {
                 return null;
@@ -793,11 +731,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 按列类型转换单元格值。
-         *
-         * @param raw 原始字符串
-         * @param type 列类型
-         * @return 转换后的值
-         */
+         * @param raw 原始字符
+         * * @param type 列类型         * @return 转换后的值         */
         private Object convertValue(String raw, DataType type) {
             if (raw == null || raw.isBlank()) {
                 return null;
@@ -806,26 +741,6 @@ public class DataImportServiceImpl implements DataImportService {
                 return raw.getBytes(StandardCharsets.UTF_8);
             }
             return IginxDataTypeConverter.parseValue(raw, type);
-        }
-
-        /**
-         * 根据数据类型生成默认值。
-         *
-         * @param type 数据类型
-         * @return 默认值
-         */
-        private Object defaultValue(DataType type) {
-            if (type == null) {
-                return new byte[0];
-            }
-            return switch (type) {
-                case BOOLEAN -> false;
-                case INTEGER -> 0;
-                case LONG -> 0L;
-                case FLOAT -> 0.0f;
-                case DOUBLE -> 0.0d;
-                case BINARY -> new byte[0];
-            };
         }
 
         private void flush() {
@@ -850,10 +765,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 按冲突策略决定是否查询已存在主键。
-         *
          * @param rows 批量行
-         * @return 已存在主键集合
-         */
+         * * @return 已存在主键集合         */
         private Set<Long> queryExistingKeysIfNeeded(List<StructuredBatchRow> rows) {
             if (!"ignore".equals(conflictStrategy)) {
                 return Set.of();
@@ -872,13 +785,11 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 批量查询已存在主键。
-         *
          * @param keys 主键列表
-         * @return 已存在主键集合
-         */
+         * @return 已存在主键集合         */
         private Set<Long> queryExistingKeys(List<Long> keys) {
             Set<Long> existing = new HashSet<>();
-            String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
+            String tablePath = IginxStructuredUtils.buildTablePath(schemaPath, table);
             int index = 0;
             while (index < keys.size()) {
                 int end = Math.min(index + KEY_QUERY_BATCH, keys.size());
@@ -904,10 +815,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 安全解析 Long 类型。
-         *
          * @param value 原始值
-         * @return Long 值
-         */
+         * * @return Long 值         */
         private Long parseLong(Object value) {
             if (value == null) {
                 return null;
@@ -924,11 +833,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 根据冲突策略过滤可插入的行。
-         *
          * @param rows 批量行
-         * @param existingKeys 已存在主键
-         * @return 过滤后的行
-         */
+         * * @param existingKeys 已存在主键         * @return 过滤后的行         */
         private List<StructuredBatchRow> filterRowsForInsert(List<StructuredBatchRow> rows, Set<Long> existingKeys) {
             if (!"ignore".equals(conflictStrategy) || existingKeys.isEmpty()) {
                 return rows;
@@ -944,10 +850,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 对批量行做去重处理。
-         *
          * @param rows 批量行
-         * @return 去重后的行
-         */
+         * * @return 去重后的行         */
         private List<StructuredBatchRow> deduplicateRows(List<StructuredBatchRow> rows) {
             if (rows.size() <= 1) {
                 return rows;
@@ -965,9 +869,7 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 执行批量插入 SQL。
-         *
-         * @param rows 批量行
-         */
+         * @param rows 批量行         */
         private void executeBatchInsert(List<StructuredBatchRow> rows) {
             String sql = buildInsertSql(rows);
             structuredQueryHelper.executeSql(sql);
@@ -975,12 +877,10 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 构建批量插入 SQL。
-         *
          * @param rows 批量行
-         * @return SQL 字符串
-         */
+         * * @return SQL 字符串         */
         private String buildInsertSql(List<StructuredBatchRow> rows) {
-            String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
+            String tablePath = IginxStructuredUtils.buildTablePath(schemaPath, table);
             StringBuilder builder = new StringBuilder();
             builder.append("INSERT INTO ").append(tablePath).append(" (KEY");
             for (String column : columns) {
@@ -1003,10 +903,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 批量插入失败时逐行回退处理。
-         *
          * @param rows 批量行
-         * @param existingKeys 已存在主键
-         */
+         * * @param existingKeys 已存在主键         */
         private void handleBatchFailure(List<StructuredBatchRow> rows, Set<Long> existingKeys) {
             for (StructuredBatchRow row : rows) {
                 if ("ignore".equals(conflictStrategy) && existingKeys.contains(row.key)) {
@@ -1026,9 +924,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 规范化错误行，移除内部键列。
-         *
          * @param row 原始行
-         * @return 规范化后的行
+         * * @return 规范化后的行
          */
         private List<String> normalizeErrorRow(List<String> row) {
             if (row == null) {
@@ -1044,9 +941,7 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 安静关闭查询结果集。
-         *
-         * @param dataSet 结果集
-         */
+         * @param dataSet 结果集         */
         private void closeQuietly(QueryDataSet dataSet) {
             if (dataSet == null) {
                 return;
@@ -1059,9 +954,8 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 安静读取下一行。
-         *
          * @param dataSet 结果集
-         * @return 下一行或 null
+         * * @return 下一行或 null
          */
         private Object[] nextRowQuietly(QueryDataSet dataSet) {
             if (dataSet == null) {
@@ -1076,7 +970,6 @@ public class DataImportServiceImpl implements DataImportService {
 
         /**
          * 构建结构化导入结果，必要时生成错误文件。
-         *
          * @return 导入结果
          */
         private DataImportResultVO buildResult() {
@@ -1111,7 +1004,6 @@ public class DataImportServiceImpl implements DataImportService {
 
     /**
      * 确保关系型存储引擎已注册。
-     *
-     * @param detail 数据源详情
-     */
+     * @param detail 数据源详情     */
 }
+

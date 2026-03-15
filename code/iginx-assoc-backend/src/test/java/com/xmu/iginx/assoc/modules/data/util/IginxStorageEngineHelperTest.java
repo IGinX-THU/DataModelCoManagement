@@ -8,8 +8,14 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Iginx 存储引擎 SQL 构建测试。
+ */
 class IginxStorageEngineHelperTest {
 
+    /**
+     * 验证 has_data=false 且非只读时不附加数据前缀。
+     */
     @Test
     void buildAddStorageEngineSql_shouldRespectHasDataAndReadOnly() {
         IginxConfig config = new IginxConfig();
@@ -25,13 +31,16 @@ class IginxStorageEngineHelperTest {
         connection.setHasData(false);
         connection.setReadOnly(false);
 
-        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.ts.demo");
+        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection);
 
         assertTrue(sql.contains("has_data=false"));
         assertTrue(sql.contains("is_read_only=false"));
         assertFalse(sql.contains("data_prefix="));
     }
 
+    /**
+     * 验证 has_data=true 时仍按规则不附加 data_prefix 参数。
+     */
     @Test
     void buildAddStorageEngineSql_shouldIncludePrefixWhenHasDataTrue() {
         IginxConfig config = new IginxConfig();
@@ -47,10 +56,10 @@ class IginxStorageEngineHelperTest {
         connection.setHasData(true);
         connection.setReadOnly(true);
 
-        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection, "root.ts.demo");
+        String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection);
 
         assertTrue(sql.contains("has_data=true"));
         assertTrue(sql.contains("is_read_only=true"));
-        assertTrue(sql.contains("data_prefix=root.ts.demo"));
+        assertFalse(sql.contains("data_prefix="));
     }
 }

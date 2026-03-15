@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS sys_data_resource (
     name VARCHAR(100) NOT NULL,
     source_type VARCHAR(20) NOT NULL,
     conn_config TEXT NOT NULL,
-    mount_path VARCHAR(200) UNIQUE,
     time_range JSONB,
     description VARCHAR(255),
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP

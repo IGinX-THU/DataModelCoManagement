@@ -10,7 +10,13 @@ import java.util.List;
 @Data
 public class TimeSeriesSeriesVO {
 
+    /**
+     * 测点路径。
+     */
     private String path;
 
+    /**
+     * 与时间戳对应的值列表。
+     */
     private List<Object> values;
 }

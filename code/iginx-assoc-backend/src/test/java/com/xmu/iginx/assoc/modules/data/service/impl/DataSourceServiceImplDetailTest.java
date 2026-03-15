@@ -24,6 +24,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * 数据源详情查询测试。
+ */
 @ExtendWith(MockitoExtension.class)
 class DataSourceServiceImplDetailTest {
 
@@ -45,6 +48,9 @@ class DataSourceServiceImplDetailTest {
     @InjectMocks
     private DataSourceServiceImpl dataSourceService;
 
+    /**
+     * 验证详情接口会返回存储引擎列表。
+     */
     @Test
     void detail_shouldReturnEngines() throws Exception {
         DataResourceEntity entity = new DataResourceEntity();

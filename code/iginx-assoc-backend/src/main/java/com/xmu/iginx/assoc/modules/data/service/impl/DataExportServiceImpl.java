@@ -15,12 +15,12 @@ import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryCondition;
 import com.xmu.iginx.assoc.modules.data.entity.DataExportTaskEntity;
 import com.xmu.iginx.assoc.modules.data.enums.DataExportTaskStatus;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
-import com.xmu.iginx.assoc.modules.data.model.DataSourceDetail;
 import com.xmu.iginx.assoc.modules.data.repository.DataExportTaskRepository;
 import com.xmu.iginx.assoc.modules.data.service.DataExportService;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
 import com.xmu.iginx.assoc.modules.data.util.CsvUtils;
 import com.xmu.iginx.assoc.modules.data.util.DataFileStorageService;
+import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StructuredSqlBuilder;
@@ -160,15 +160,21 @@ public class DataExportServiceImpl implements DataExportService {
      * @return 存储文件
      */
     private DataFileStorageService.StoredFile exportTimeSeries(DataExportRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
         if (request.getPaths() == null || request.getPaths().isEmpty()) {
             throw BizException.badRequest("测点路径不能为空");
         }
         if (request.getTimeRange() == null) {
             throw BizException.badRequest("时间范围不能为空");
         }
-        // 统一挂载路径，避免路径不一致导致查询失败
-        List<String> paths = TimeSeriesPathUtils.resolvePathsUnderMount(request.getPaths(), detail.entity().getMountPath(), true);
+        // 统一路径前缀，避免路径不一致导致查询失败
+        List<String> paths = request.getPaths().stream()
+            .map(TimeSeriesPathUtils::stripRootPrefix)
+            .filter(path -> path != null && !path.isBlank())
+            .toList();
+        if (paths.isEmpty()) {
+            throw BizException.badRequest("导出路径不能为空");
+        }
         // 将毫秒时间转换为纳秒，匹配 Iginx 查询接口
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
@@ -191,20 +197,20 @@ public class DataExportServiceImpl implements DataExportService {
      * @return 存储文件
      */
     private DataFileStorageService.StoredFile exportStructured(DataExportRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         String format = request.getFormat().trim().toUpperCase(Locale.ROOT);
         DataFileStorageService.StoredFile file = fileStorageService.createFile("export_struct",
             format.equals("EXCEL") ? ".xlsx" : format.equals("JSON") ? ".json" : ".csv");
         try {
             Map<String, DataType> columnTypes = null;
-            String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
+            String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
             List<String> selectedColumns = normalizeExportColumns(request.getColumns());
             if (request.getSql() == null || request.getSql().isBlank()) {
                 // 未提供 SQL 时，需要读取表结构并校验导出列
-                columnTypes = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
+                columnTypes = structuredQueryHelper.loadColumnTypes(schemaPath, request.getTable());
                 validateExportColumns(selectedColumns, columnTypes);
             }
-            StructuredSqlBuilder.SqlWithParams sqlWithParams = buildStructuredQuery(request, columnTypes, schemaWithMount);
+            StructuredSqlBuilder.SqlWithParams sqlWithParams = buildStructuredQuery(request, columnTypes, schemaPath);
             String finalSql = IginxStructuredUtils.renderSqlWithParams(sqlWithParams.sql(), sqlWithParams.params());
             QueryDataSet dataSet = structuredQueryHelper.executeQuery(finalSql, 1000);
             try {
@@ -616,12 +622,12 @@ public class DataExportServiceImpl implements DataExportService {
      *
      * @param request 导出请求
      * @param columnTypes 列类型映射
-     * @param schemaWithMount 挂载路径后的 schema
+     * @param schemaPath 结构化 schema 路径
      * @return SQL 与参数
      */
     private StructuredSqlBuilder.SqlWithParams buildStructuredQuery(DataExportRequest request,
                                                                     Map<String, DataType> columnTypes,
-                                                                    String schemaWithMount) {
+                                                                    String schemaPath) {
         if (request.getSql() != null && !request.getSql().isBlank()) {
             String sql = request.getSql().trim();
             if (!sql.toUpperCase(Locale.ROOT).startsWith("SELECT")) {
@@ -644,7 +650,7 @@ public class DataExportServiceImpl implements DataExportService {
         StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
             conditions, sqlTypeMap.keySet(), sqlTypeMap);
         String selectList = "*";
-        String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, table);
+        String tablePath = IginxStructuredUtils.buildTablePath(schemaPath, table);
         // 追加 KEY 过滤条件，避免导出内部占位行
         String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
         String sql = "SELECT " + selectList + " FROM " + tablePath + whereClause;
@@ -704,9 +710,9 @@ public class DataExportServiceImpl implements DataExportService {
      */
     private long estimateStructuredSize(DataExportRequest request) {
         try {
-            DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
-            String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
+            dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+            String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schemaPath, request.getTable());
             if (columnTypes == null || columnTypes.isEmpty()) {
                 return 0;
             }
@@ -715,7 +721,7 @@ public class DataExportServiceImpl implements DataExportService {
             sqlTypeMap.put(IginxStructuredUtils.INTERNAL_KEY, java.sql.Types.BIGINT);
             StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
                 request.getConditions(), sqlTypeMap.keySet(), sqlTypeMap);
-            String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
+            String tablePath = IginxStructuredUtils.buildTablePath(schemaPath, request.getTable());
             String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
             // 使用 COUNT(*) 估算行数，减少全量扫描
             String sql = "SELECT COUNT(*) FROM " + tablePath + whereClause;

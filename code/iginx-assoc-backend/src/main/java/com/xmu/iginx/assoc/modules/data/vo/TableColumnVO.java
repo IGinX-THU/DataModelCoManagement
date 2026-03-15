@@ -8,11 +8,23 @@ import lombok.Data;
 @Data
 public class TableColumnVO {
 
+    /**
+     * 字段名。
+     */
     private String name;
 
+    /**
+     * 字段类型（展示用）。
+     */
     private String type;
 
+    /**
+     * 是否为主键。
+     */
     private boolean primaryKey;
 
+    /**
+     * 是否可为空。
+     */
     private boolean nullable;
 }

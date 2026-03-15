@@ -4,10 +4,8 @@ import com.xmu.iginx.assoc.modules.data.entity.DataResourceEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-import java.util.Optional;
-
 /**
- * 数据源资源仓储。
+ * 数据源资源仓库。
  */
 public interface DataResourceRepository extends JpaRepository<DataResourceEntity, Long>, JpaSpecificationExecutor<DataResourceEntity> {
 
@@ -27,12 +25,4 @@ public interface DataResourceRepository extends JpaRepository<DataResourceEntity
      * @return 是否存在
      */
     boolean existsByNameAndIdNot(String name, Long id);
-
-    /**
-     * 按挂载路径查询数据源。
-     *
-     * @param mountPath 挂载路径
-     * @return 数据源实体
-     */
-    Optional<DataResourceEntity> findByMountPath(String mountPath);
 }

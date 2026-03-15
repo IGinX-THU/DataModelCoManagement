@@ -39,15 +39,18 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
     @Override
     public List<DataResourceTreeNodeVO> buildTree() {
         List<DataResourceEntity> sources = dataResourceRepository.findAll();
-        List<MountBinding> tsBindings = buildBindings(sources, DataSourceType.IOTDB, DataSourceType.INFLUXDB);
-        List<MountBinding> rtBindings = buildBindings(sources, DataSourceType.POSTGRESQL);
+        Long tsSourceId = resolveDefaultSourceId(sources, DataSourceType.IOTDB, DataSourceType.INFLUXDB);
+        Long rtSourceId = resolveDefaultSourceId(sources, DataSourceType.POSTGRESQL);
 
         List<Column> columns = iginxStorageWrapper.executeWithSession(session -> session.showColumns());
+        if (columns == null) {
+            columns = List.of();
+        }
         Map<String, DataResourceTreeNodeVO> nodeMap = new LinkedHashMap<>();
 
-        DataResourceTreeNodeVO tsRoot = createRoot(TS_PREFIX);
-        DataResourceTreeNodeVO rtRoot = createRoot(RT_PREFIX);
-        DataResourceTreeNodeVO modelRoot = createRoot(MODEL_PREFIX);
+        DataResourceTreeNodeVO tsRoot = createRoot(TS_PREFIX, tsSourceId);
+        DataResourceTreeNodeVO rtRoot = createRoot(RT_PREFIX, rtSourceId);
+        DataResourceTreeNodeVO modelRoot = createRoot(MODEL_PREFIX, null);
 
         Set<String> structuredTables = new LinkedHashSet<>();
 
@@ -60,7 +63,7 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
                 continue;
             }
             if (DataPrefixRules.startsWithPrefix(normalized, TS_PREFIX)) {
-                addTimeSeriesPath(normalized, tsRoot, nodeMap, tsBindings);
+                addTimeSeriesPath(normalized, tsRoot, nodeMap, tsSourceId);
                 continue;
             }
             if (DataPrefixRules.startsWithPrefix(normalized, MODEL_PREFIX)) {
@@ -68,7 +71,7 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
                 continue;
             }
             if (DataPrefixRules.startsWithPrefix(normalized, RT_PREFIX)) {
-                addStructuredPath(normalized, rtRoot, nodeMap, rtBindings, structuredTables);
+                addStructuredPath(normalized, rtRoot, nodeMap, rtSourceId, structuredTables);
             }
         }
 
@@ -79,12 +82,13 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         return roots;
     }
 
-    private DataResourceTreeNodeVO createRoot(String prefix) {
+    private DataResourceTreeNodeVO createRoot(String prefix, Long sourceId) {
         DataResourceTreeNodeVO root = new DataResourceTreeNodeVO();
         root.setId(prefix);
         root.setName(prefix);
         root.setType(prefix);
         root.setPath(prefix);
+        root.setSourceId(sourceId);
         root.setChildren(new ArrayList<>());
         return root;
     }
@@ -92,13 +96,8 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
     private void addTimeSeriesPath(String normalizedPath,
                                    DataResourceTreeNodeVO root,
                                    Map<String, DataResourceTreeNodeVO> nodeMap,
-                                   List<MountBinding> bindings) {
-        String path = normalizedPath;
-        boolean isInit = path.endsWith(".__init__");
-        if (isInit) {
-            path = path.substring(0, path.length() - ".__init__".length());
-        }
-        List<String> segments = splitSegments(path);
+                                   Long sourceId) {
+        List<String> segments = splitSegments(normalizedPath);
         if (segments.size() < 2) {
             return;
         }
@@ -106,12 +105,10 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         String currentPath = segments.get(0);
         for (int i = 1; i < segments.size(); i++) {
             currentPath = currentPath + "." + segments.get(i);
-            String nodeType = (i == segments.size() - 1)
-                ? (isInit ? "group" : "point")
-                : "group";
+            String nodeType = (i == segments.size() - 1) ? "point" : "group";
             DataResourceTreeNodeVO node = ensureNode(nodeMap, parent, currentPath, segments.get(i), nodeType);
             if (node.getSourceId() == null) {
-                node.setSourceId(resolveSourceId(currentPath, bindings));
+                node.setSourceId(sourceId);
             }
             node.setPath(currentPath);
             if ("group".equals(nodeType)) {
@@ -142,9 +139,21 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
     private void addStructuredPath(String normalizedPath,
                                    DataResourceTreeNodeVO root,
                                    Map<String, DataResourceTreeNodeVO> nodeMap,
-                                   List<MountBinding> bindings,
+                                   Long sourceId,
                                    Set<String> structuredTables) {
         List<String> segments = IginxStructuredUtils.splitPathSegments(normalizedPath);
+        if (segments.size() < 2) {
+            return;
+        }
+        if ("root".equalsIgnoreCase(segments.get(0))) {
+            segments = segments.subList(1, segments.size());
+        }
+        if (segments.isEmpty()) {
+            return;
+        }
+        if (RT_PREFIX.equalsIgnoreCase(segments.get(0))) {
+            segments = segments.subList(1, segments.size());
+        }
         if (segments.size() < 2) {
             return;
         }
@@ -153,76 +162,36 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             return;
         }
         List<String> tableSegments = segments.subList(0, segments.size() - 1);
-        String tablePath = String.join(".", tableSegments);
-        if (!structuredTables.add(tablePath)) {
-            return;
-        }
-        MountBinding binding = resolveBinding(tableSegments, bindings);
-        List<String> mountSegments = binding == null ? List.of(RT_PREFIX) : binding.segments();
-        List<String> relativeSegments = resolveRelativeSegments(tableSegments, mountSegments);
-        if (relativeSegments.isEmpty()) {
+        if (tableSegments.isEmpty()) {
             return;
         }
         String schema;
         String table;
-        if (relativeSegments.size() >= 2) {
-            schema = relativeSegments.get(0);
-            table = String.join(".", relativeSegments.subList(1, relativeSegments.size()));
+        if (tableSegments.size() >= 2) {
+            schema = tableSegments.get(0);
+            table = String.join(".", tableSegments.subList(1, tableSegments.size()));
         } else {
             schema = "public";
-            table = relativeSegments.get(0);
+            table = tableSegments.get(0);
         }
 
-        int schemaIndex = resolveSchemaIndex(tableSegments, mountSegments);
-        if (schemaIndex < 0 || schemaIndex >= tableSegments.size()) {
+        String schemaPath = RT_PREFIX + "." + schema;
+        String tablePath = schemaPath + "." + table;
+        if (!structuredTables.add(tablePath)) {
             return;
         }
-        DataResourceTreeNodeVO parent = root;
-        String currentPath = tableSegments.get(0);
-        for (int i = 1; i < schemaIndex; i++) {
-            currentPath = currentPath + "." + tableSegments.get(i);
-            DataResourceTreeNodeVO groupNode = ensureNode(nodeMap, parent, currentPath, tableSegments.get(i), "group");
-            if (groupNode.getSourceId() == null) {
-                groupNode.setSourceId(resolveSourceId(currentPath, bindings));
-            }
-            groupNode.setPath(currentPath);
-            parent = groupNode;
-        }
 
-        String schemaSegment = tableSegments.get(schemaIndex);
-        String schemaPath = String.join(".", tableSegments.subList(0, schemaIndex + 1));
-        DataResourceTreeNodeVO schemaNode = ensureNode(nodeMap, parent, schemaPath, schemaSegment, "schema");
+        DataResourceTreeNodeVO schemaNode = ensureNode(nodeMap, root, schemaPath, schema, "schema");
         if (schemaNode.getSourceId() == null) {
-            schemaNode.setSourceId(binding == null ? null : binding.sourceId());
+            schemaNode.setSourceId(sourceId);
         }
         schemaNode.setPath(schemaPath);
 
         DataResourceTreeNodeVO tableNode = ensureNode(nodeMap, schemaNode, tablePath, table, "table");
         tableNode.setSchema(schema);
         tableNode.setTable(table);
-        tableNode.setMountPath(binding == null ? null : binding.mountPath());
-        tableNode.setSourceId(binding == null ? null : binding.sourceId());
+        tableNode.setSourceId(sourceId);
         tableNode.setPath(tablePath);
-    }
-
-    private int resolveSchemaIndex(List<String> tableSegments, List<String> mountSegments) {
-        if (startsWithSegments(tableSegments, mountSegments) && tableSegments.size() > mountSegments.size()) {
-            return mountSegments.size();
-        }
-        if (tableSegments.size() > 1) {
-            return 1;
-        }
-        return -1;
-    }
-
-    private List<String> resolveRelativeSegments(List<String> tableSegments, List<String> mountSegments) {
-        if (startsWithSegments(tableSegments, mountSegments)) {
-            return tableSegments.subList(mountSegments.size(), tableSegments.size());
-        }
-        if (tableSegments.size() > 1) {
-            return tableSegments.subList(1, tableSegments.size());
-        }
-        return List.of();
     }
 
     private DataResourceTreeNodeVO ensureNode(Map<String, DataResourceTreeNodeVO> nodeMap,
@@ -262,29 +231,17 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         return normalized;
     }
 
-    private List<MountBinding> buildBindings(List<DataResourceEntity> sources, DataSourceType... allowed) {
-        if (sources == null || sources.isEmpty()) {
-            return List.of();
+    private Long resolveDefaultSourceId(List<DataResourceEntity> sources, DataSourceType... allowed) {
+        if (sources == null || sources.isEmpty() || allowed == null || allowed.length == 0) {
+            return null;
         }
-        List<MountBinding> bindings = new ArrayList<>();
-        for (DataResourceEntity entity : sources) {
-            DataSourceType type = parseType(entity.getSourceType());
-            if (!isAllowed(type, allowed)) {
-                continue;
-            }
-            String mountPath = TimeSeriesPathUtils.normalizePath(entity.getMountPath());
-            if (!StringUtils.hasText(mountPath)) {
-                continue;
-            }
-            if (type == DataSourceType.IOTDB || type == DataSourceType.INFLUXDB) {
-                mountPath = TimeSeriesPathUtils.stripRootPrefix(mountPath);
-            }
-            if (!DataPrefixRules.startsWithPrefix(mountPath, type == DataSourceType.POSTGRESQL ? RT_PREFIX : TS_PREFIX)) {
-                continue;
-            }
-            bindings.add(new MountBinding(entity.getId(), mountPath, splitSegments(mountPath)));
-        }
-        return bindings;
+        return sources.stream()
+            .filter(entity -> entity != null && entity.getId() != null)
+            .filter(entity -> isAllowed(parseType(entity.getSourceType()), allowed))
+            .map(DataResourceEntity::getId)
+            .sorted()
+            .findFirst()
+            .orElse(null);
     }
 
     private DataSourceType parseType(String raw) {
@@ -299,7 +256,7 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
     }
 
     private boolean isAllowed(DataSourceType type, DataSourceType[] allowed) {
-        if (type == null || allowed == null || allowed.length == 0) {
+        if (type == null) {
             return false;
         }
         for (DataSourceType candidate : allowed) {
@@ -308,46 +265,6 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             }
         }
         return false;
-    }
-
-    private Long resolveSourceId(String path, List<MountBinding> bindings) {
-        if (bindings == null || bindings.isEmpty() || path == null) {
-            return null;
-        }
-        List<String> segments = splitSegments(path);
-        MountBinding binding = resolveBinding(segments, bindings);
-        return binding == null ? null : binding.sourceId();
-    }
-
-    private MountBinding resolveBinding(List<String> pathSegments, List<MountBinding> bindings) {
-        MountBinding best = null;
-        int bestLen = -1;
-        for (MountBinding binding : bindings) {
-            if (binding == null || binding.segments() == null) {
-                continue;
-            }
-            if (!startsWithSegments(pathSegments, binding.segments())) {
-                continue;
-            }
-            int len = binding.segments().size();
-            if (len > bestLen) {
-                best = binding;
-                bestLen = len;
-            }
-        }
-        return best;
-    }
-
-    private boolean startsWithSegments(List<String> segments, List<String> prefix) {
-        if (segments == null || prefix == null || prefix.size() > segments.size()) {
-            return false;
-        }
-        for (int i = 0; i < prefix.size(); i++) {
-            if (!prefix.get(i).equalsIgnoreCase(segments.get(i))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private List<String> splitSegments(String path) {
@@ -366,8 +283,5 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             }
         }
         return segments;
-    }
-
-    private record MountBinding(Long sourceId, String mountPath, List<String> segments) {
     }
 }

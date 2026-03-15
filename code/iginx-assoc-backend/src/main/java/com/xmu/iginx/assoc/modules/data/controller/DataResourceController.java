@@ -223,19 +223,6 @@ public class DataResourceController {
     }
 
     /**
-     * 创建存储组。
-     *
-     * @param request 创建参数
-     * @return 操作结果
-     */
-    @Operation(summary = "创建存储组")
-    @PostMapping("/structures/storage-groups")
-    public Result<Void> createStorageGroup(@Valid @RequestBody StorageGroupRequest request) {
-        structureService.createStorageGroup(request);
-        return Result.success();
-    }
-
-    /**
      * 删除存储组。
      *
      * @param request 删除参数

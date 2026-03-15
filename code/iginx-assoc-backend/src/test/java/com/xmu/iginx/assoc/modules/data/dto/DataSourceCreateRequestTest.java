@@ -7,27 +7,18 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * 数据源创建请求校验测试。
+ */
 class DataSourceCreateRequestTest {
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
-    @Test
-    void validate_shouldAllowBlankMountPath() {
-        DataSourceCreateRequest request = new DataSourceCreateRequest();
-        request.setName("demo");
-        request.setSourceType("INFLUXDB");
-        request.setMountPath("");
-
-        Set<ConstraintViolation<DataSourceCreateRequest>> violations = validator.validate(request);
-        boolean hasMountPathViolation = violations.stream()
-            .anyMatch(v -> "mountPath".equals(String.valueOf(v.getPropertyPath())));
-
-        assertFalse(hasMountPathViolation);
-    }
-
+    /**
+     * 验证名称与类型为必填项。
+     */
     @Test
     void validate_shouldRequireNameAndSourceType() {
         DataSourceCreateRequest request = new DataSourceCreateRequest();

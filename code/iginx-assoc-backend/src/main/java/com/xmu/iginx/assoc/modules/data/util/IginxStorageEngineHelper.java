@@ -3,7 +3,6 @@ package com.xmu.iginx.assoc.modules.data.util;
 import com.xmu.iginx.assoc.framework.iginx.IginxConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
-import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -13,7 +12,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * IGinX 存储引擎 SQL 构建与参数辅助工具。
+ * IGinX 瀛樺偍寮曟搸 SQL 鏋勫缓涓庡弬鏁拌緟鍔╁伐鍏枫€?
  */
 @Component
 @RequiredArgsConstructor
@@ -22,94 +21,57 @@ public class IginxStorageEngineHelper {
     private final IginxConfig iginxConfig;
 
     /**
-     * 构建添加存储引擎 SQL。
+     * 鏋勫缓娣诲姞瀛樺偍寮曟搸 SQL銆?
      *
-     * @param sourceType 数据源类型
-     * @param config 连接配置
-     * @param mountPath 挂载路径
-     * @return SQL 语句
+     * @param sourceType 鏁版嵁婧愮被鍨?
+     * @param config 杩炴帴閰嶇疆
+     * @return SQL 璇彞
      */
     public String buildAddStorageEngineSql(DataSourceType sourceType,
-                                           DataSourceConnectionConfig config,
-                                           String mountPath) {
+                                           DataSourceConnectionConfig config) {
         String resolvedHost = resolveStorageHost(config.getHost());
         String engine = resolveEngineType(sourceType);
-        String extraParams = buildExtraParams(sourceType, config, mountPath, resolvedHost);
+        String extraParams = buildExtraParams(sourceType, config, resolvedHost);
         return String.format("ADD STORAGEENGINE (\"%s\", %d, \"%s\", \"%s\");",
             resolvedHost, config.getPort(), engine, escape(extraParams));
     }
 
     /**
-     * 构建移除存储引擎 SQL。
+     * 瑙ｆ瀽瀛樺偍寮曟搸涓绘満鍦板潃銆?
      *
-     * @param config 连接配置
-     * @param schemaPrefix schema 前缀
-     * @param dataPrefix data 前缀
-     * @param forAll 是否对所有分片生效
-     * @return SQL 语句
-     */
-    public String buildRemoveStorageEngineSql(DataSourceConnectionConfig config,
-                                              String schemaPrefix,
-                                              String dataPrefix,
-                                              boolean forAll) {
-        String resolvedHost = resolveStorageHost(config.getHost());
-        String rawHost = config.getHost() == null ? "" : config.getHost().trim();
-        String normalizedSchemaPrefix = schemaPrefix == null ? "" : schemaPrefix;
-        String normalizedDataPrefix = dataPrefix == null ? "" : dataPrefix;
-        if ("host.docker.internal".equalsIgnoreCase(rawHost)) {
-            // docker 场景需保留原始 host
-            return String.format("REMOVE STORAGEENGINE (\"%s\", %d, \"%s\", \"%s\")%s;",
-                rawHost, config.getPort(), escape(normalizedSchemaPrefix), escape(normalizedDataPrefix),
-                forAll ? " FOR ALL" : "");
-        }
-        return String.format("REMOVE STORAGEENGINE (\"%s\", %d, \"%s\", \"%s\")%s;",
-            resolvedHost, config.getPort(), escape(normalizedSchemaPrefix), escape(normalizedDataPrefix),
-            forAll ? " FOR ALL" : "");
-    }
-
-    /**
-     * 解析存储引擎主机地址。
-     *
-     * @param host 原始主机
-     * @return 解析后的主机
+     * @param host 鍘熷涓绘満
+     * @return 瑙ｆ瀽鍚庣殑涓绘満
      */
     public String resolveStorageHost(String host) {
         return resolveHost(host);
     }
 
     /**
-     * 解析存储引擎类型。
+     * 瑙ｆ瀽瀛樺偍寮曟搸绫诲瀷銆?
      *
-     * @param sourceType 数据源类型
-     * @return 引擎类型
+     * @param sourceType 鏁版嵁婧愮被鍨?
+     * @return 寮曟搸绫诲瀷
      */
     public String resolveEngineType(DataSourceType sourceType) {
         return toEngineType(sourceType);
     }
 
     /**
-     * 构建存储引擎扩展参数。
+     * 鏋勫缓瀛樺偍寮曟搸鎵╁睍鍙傛暟銆?
      *
-     * @param sourceType 数据源类型
-     * @param config 连接配置
-     * @param mountPath 挂载路径
-     * @param resolvedHost 解析后的主机
-     * @return 参数字符串
+     * @param sourceType 鏁版嵁婧愮被鍨?
+     * @param config 杩炴帴閰嶇疆
+     * @param resolvedHost 瑙ｆ瀽鍚庣殑涓绘満
+     * @return 鍙傛暟瀛楃涓?
      */
     private String buildExtraParams(DataSourceType sourceType,
                                     DataSourceConnectionConfig config,
-                                    String mountPath,
                                     String resolvedHost) {
         List<String> params = new ArrayList<>();
-        if (sourceType == DataSourceType.IOTDB) {
-            mountPath = TimeSeriesPathUtils.normalizeIotdbMountPath(mountPath);
-        }
         String extra = config.getExtra();
         Boolean hasDataValue = config.getHasData();
         Boolean readOnlyValue = config.getReadOnly();
-        // IGinX 0.8.0 ?? has_data=true ??? data_prefix????????????? true
-        boolean defaultHasData = StringUtils.hasText(mountPath);
-        boolean hasData = hasDataValue != null ? hasDataValue : defaultHasData;
+        boolean hasData = Boolean.TRUE.equals(hasDataValue);
         boolean readOnly = readOnlyValue != null ? readOnlyValue : false;
         params.add("has_data=" + hasData);
         params.add("is_read_only=" + readOnly);
@@ -128,9 +90,6 @@ public class IginxStorageEngineHelper {
         if (config.getDatabase() != null && !config.getDatabase().isBlank()) {
             params.add("database=" + config.getDatabase());
         }
-        if (hasData && mountPath != null && !mountPath.isBlank()) {
-            params.add("data_prefix=" + mountPath);
-        }
         if (extra != null && !extra.isBlank()) {
             params.add(extra);
         }
@@ -138,10 +97,10 @@ public class IginxStorageEngineHelper {
     }
 
     /**
-     * 解析主机地址，支持本地替换。
+     * 瑙ｆ瀽涓绘満鍦板潃锛屾敮鎸佹湰鍦版浛鎹€?
      *
-     * @param host 原始主机
-     * @return 解析后的主机
+     * @param host 鍘熷涓绘満
+     * @return 瑙ｆ瀽鍚庣殑涓绘満
      */
     private String resolveHost(String host) {
         if (!StringUtils.hasText(host)) {
@@ -156,10 +115,10 @@ public class IginxStorageEngineHelper {
     }
 
     /**
-     * 将数据源类型映射为 IGinX 引擎类型。
+     * 灏嗘暟鎹簮绫诲瀷鏄犲皠涓?IGinX 寮曟搸绫诲瀷銆?
      *
-     * @param sourceType 数据源类型
-     * @return 引擎类型
+     * @param sourceType 鏁版嵁婧愮被鍨?
+     * @return 寮曟搸绫诲瀷
      */
     private String toEngineType(DataSourceType sourceType) {
         return switch (sourceType) {
@@ -170,10 +129,10 @@ public class IginxStorageEngineHelper {
     }
 
     /**
-     * 转义 SQL 参数中的特殊字符。
+     * 杞箟 SQL 鍙傛暟涓殑鐗规畩瀛楃銆?
      *
-     * @param value 原始值
-     * @return 转义后的值
+     * @param value 鍘熷鍊?
+     * @return 杞箟鍚庣殑鍊?
      */
     private String escape(String value) {
         if (value == null) {
@@ -182,3 +141,4 @@ public class IginxStorageEngineHelper {
         return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     }
 }
+

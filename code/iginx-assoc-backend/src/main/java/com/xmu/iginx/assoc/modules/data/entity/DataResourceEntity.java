@@ -39,10 +39,6 @@ public class DataResourceEntity {
     @Column(name = "conn_config", nullable = false)
     private String connConfig;
 
-    /** 挂载路径 */
-    @Column(name = "mount_path", length = 200)
-    private String mountPath;
-
     /** 时间范围配置（JSONB） */
     @Column(name = "time_range", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)

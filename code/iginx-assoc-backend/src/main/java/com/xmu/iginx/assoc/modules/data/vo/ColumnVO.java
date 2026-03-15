@@ -8,7 +8,13 @@ import lombok.Data;
 @Data
 public class ColumnVO {
 
+    /**
+     * 测点路径。
+     */
     private String path;
 
+    /**
+     * 数据类型。
+     */
     private String dataType;
 }

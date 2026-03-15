@@ -10,9 +10,9 @@ import com.xmu.iginx.assoc.modules.data.dto.TableCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TableDropRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TableColumnDefinitionDTO;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
-import com.xmu.iginx.assoc.modules.data.model.DataSourceDetail;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
 import com.xmu.iginx.assoc.modules.data.service.StructureService;
+import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.IginxDataTypeConverter;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
@@ -30,6 +30,10 @@ import java.util.Map;
 
 /**
  * 结构管理服务实现，提供时序与结构化数据的结构维护能力。
+ * <p>
+ * 覆盖测点/存储组的增删、结构化表的建表与删表、字段列表查询等能力，
+ * 并统一处理路径前缀与类型映射规则。
+ * </p>
  */
 @Slf4j
 @Service
@@ -44,17 +48,17 @@ public class StructureServiceImpl implements StructureService {
      * 查询结构化表字段列表。
      *
      * @param sourceId 数据源 ID
-     * @param schema schema 名称
+     * @param schema schema 名称（可不含 rt 前缀）
      * @param table 表名
      * @return 字段列表
      */
     @Override
     public List<TableColumnVO> listTableColumns(Long sourceId, String schema, String table) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(sourceId, DataSourceType.POSTGRESQL);
+        dataSourceAccessor.getDetail(sourceId, DataSourceType.POSTGRESQL);
         try {
             // 统一挂载路径，确保 schema 与真实路径一致
-            String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), schema);
-            var columnTypes = structuredQueryHelper.loadColumnTypes(schemaWithMount, table);
+            String schemaPath = DataPrefixRules.normalizeStructuredSchema(schema);
+            var columnTypes = structuredQueryHelper.loadColumnTypes(schemaPath, table);
             List<TableColumnVO> columns = new ArrayList<>();
             if (columnTypes == null || columnTypes.isEmpty()) {
                 return columns;
@@ -74,31 +78,14 @@ public class StructureServiceImpl implements StructureService {
     }
 
     /**
-     * 创建时序存储组（通过插入 __init__ 测点实现）。
-     *
-     * @param request 存储组请求
-     */
-    @Override
-    public void createStorageGroup(StorageGroupRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
-        String path = TimeSeriesPathUtils.resolvePathUnderMount(request.getPath(), detail.entity().getMountPath(), true);
-        MeasurementRequest measurementRequest = new MeasurementRequest();
-        measurementRequest.setSourceId(request.getSourceId());
-        measurementRequest.setPath(TimeSeriesPathUtils.joinPath(path, "__init__"));
-        measurementRequest.setDataType("DOUBLE");
-        // 通过插入初始化测点来创建存储组
-        createMeasurement(measurementRequest);
-    }
-
-    /**
-     * 删除时序存储组（删除其下所有测点）。
+     * 删除时序存储组（同时删除其下所有测点）。
      *
      * @param request 存储组请求
      */
     @Override
     public void dropStorageGroup(StorageGroupRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
-        String path = TimeSeriesPathUtils.resolvePathUnderMount(request.getPath(), detail.entity().getMountPath(), true);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
+        String path = TimeSeriesPathUtils.stripRootPrefix(request.getPath());
         List<String> targets = resolveDeleteTargets(path);
         if (targets.isEmpty()) {
             return;
@@ -118,14 +105,14 @@ public class StructureServiceImpl implements StructureService {
     }
 
     /**
-     * 创建测点（插入一条默认值记录）。
+     * 创建测点（通过插入一条默认值记录触发测点创建）。
      *
      * @param request 测点请求
      */
     @Override
     public void createMeasurement(MeasurementRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
-        String path = TimeSeriesPathUtils.resolvePathUnderMount(request.getPath(), detail.entity().getMountPath(), false);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
+        String path = TimeSeriesPathUtils.stripRootPrefix(request.getPath());
         DataType dataType = IginxDataTypeConverter.parseType(request.getDataType());
         // 以当前时间写入默认值，用于创建测点
         long timestamp = System.currentTimeMillis() * 1_000_000;
@@ -138,14 +125,14 @@ public class StructureServiceImpl implements StructureService {
     }
 
     /**
-     * 删除测点。
+     * 删除测点（删除对应时序列）。
      *
      * @param request 测点请求
      */
     @Override
     public void dropMeasurement(MeasurementRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
-        String path = TimeSeriesPathUtils.resolvePathUnderMount(request.getPath(), detail.entity().getMountPath(), false);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
+        String path = TimeSeriesPathUtils.stripRootPrefix(request.getPath());
         try {
             iginxStorageWrapper.executeWithSession(session -> {
                 session.deleteColumns(List.of(path));
@@ -167,13 +154,13 @@ public class StructureServiceImpl implements StructureService {
      */
     @Override
     public void createTable(TableCreateRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw BizException.badRequest("建表字段不能为空");
         }
         // 统一挂载路径，保证 schema 与真实表路径一致
-        String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-        Map<String, DataType> existing = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
+        String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+        Map<String, DataType> existing = structuredQueryHelper.loadColumnTypes(schemaPath, request.getTable());
         if (existing != null && !existing.isEmpty()) {
             throw BizException.badRequest("表已存在");
         }
@@ -189,7 +176,7 @@ public class StructureServiceImpl implements StructureService {
         if (columnTypes.isEmpty()) {
             throw BizException.badRequest("建表字段不能为空");
         }
-        String sql = buildCreateTableSql(schemaWithMount, request.getTable(), columnTypes);
+        String sql = buildCreateTableSql(schemaPath, request.getTable(), columnTypes);
         try {
             structuredQueryHelper.executeSql(sql);
         } catch (Exception ex) {
@@ -204,9 +191,9 @@ public class StructureServiceImpl implements StructureService {
      */
     @Override
     public void dropTable(TableDropRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
-        String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-        String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+        String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+        String tablePath = IginxStructuredUtils.buildTablePath(schemaPath, request.getTable());
         // Iginx 通过 DELETE COLUMNS 删除整表
         String sql = "DELETE COLUMNS " + tablePath + ".*";
         try {
@@ -229,7 +216,7 @@ public class StructureServiceImpl implements StructureService {
     /**
      * 将用户输入的字段类型映射为 Iginx 类型。
      *
-     * @param rawType 原始类型字符串
+     * @param rawType 原始类型字符串（如 varchar(32)、int、double）
      * @return Iginx 类型
      */
     private DataType resolveStructuredType(String rawType) {
@@ -264,11 +251,11 @@ public class StructureServiceImpl implements StructureService {
     }
 
     /**
-     * 构建建表 SQL（通过插入 DUMMY_KEY 记录）。
+     * 构建建表 SQL（通过插入 DUMMY_KEY 记录触发表创建）。
      *
      * @param schema schema 路径
      * @param table 表名
-     * @param columnTypes 列类型
+     * @param columnTypes 列类型映射
      * @return SQL 字符串
      */
     private String buildCreateTableSql(String schema, String table, Map<String, DataType> columnTypes) {
@@ -288,6 +275,7 @@ public class StructureServiceImpl implements StructureService {
 
     /**
      * 生成默认值用于建表写入。
+     * <p>该默认值仅用于触发表创建，不作为业务数据使用。</p>
      *
      * @param dataType 数据类型
      * @return 默认值
@@ -342,3 +330,5 @@ public class StructureServiceImpl implements StructureService {
         return message.contains("Unable to delete data from read-only nodes");
     }
 }
+
+

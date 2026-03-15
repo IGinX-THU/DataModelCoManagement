@@ -196,7 +196,6 @@ class DataExportServiceImplTest {
         DataResourceEntity entity = new DataResourceEntity();
         entity.setId(1L);
         entity.setSourceType("POSTGRESQL");
-        entity.setMountPath("rt.demo");
         return new DataSourceDetail(entity, DataSourceType.POSTGRESQL, null);
     }
 }

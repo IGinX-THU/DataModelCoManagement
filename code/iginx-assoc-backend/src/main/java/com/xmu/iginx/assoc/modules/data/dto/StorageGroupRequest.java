@@ -10,9 +10,15 @@ import lombok.Data;
 @Data
 public class StorageGroupRequest {
 
+    /**
+     * 数据源 ID。
+     */
     @NotNull(message = "数据源不能为空")
     private Long sourceId;
 
+    /**
+     * 存储组路径（如 ts.root.device）。
+     */
     @NotBlank(message = "存储组路径不能为空")
     private String path;
 }

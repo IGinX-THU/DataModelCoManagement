@@ -8,7 +8,6 @@ import com.xmu.iginx.assoc.modules.data.dto.DataSourceQueryRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceService;
 import com.xmu.iginx.assoc.modules.data.service.StructureService;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
-import com.xmu.iginx.assoc.modules.data.vo.DataSourceStructureNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
 import com.xmu.iginx.assoc.modules.data.vo.TableColumnVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -92,18 +91,6 @@ public class DataSourceController {
     }
 
     /**
-     * 查询数据源结构预览。
-     *
-     * @param id 数据源 ID
-     * @return 结构节点列表
-     */
-    @Operation(summary = "查询数据源结构预览")
-    @GetMapping("/{id}/structure")
-    public Result<List<DataSourceStructureNodeVO>> structure(@PathVariable Long id) {
-        return Result.success(dataSourceService.listStructure(id));
-    }
-
-    /**
      * 查询关系型表的字段列表。
      *
      * @param id 数据源 ID
@@ -132,11 +119,20 @@ public class DataSourceController {
         return Result.success();
     }
 
+    /**
+     * 数据源连接测试请求。
+     */
     @Data
     public static class TestConnectionRequest {
+        /**
+         * 数据源类型。
+         */
         @NotBlank(message = "数据源类型不能为空")
         private String sourceType;
 
+        /**
+         * 连接配置。
+         */
         @Valid
         private DataSourceConnectionConfig connectionConfig;
     }

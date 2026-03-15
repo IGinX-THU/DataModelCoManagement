@@ -23,6 +23,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 数据源创建流程单元测试。
+ */
 @ExtendWith(MockitoExtension.class)
 class DataSourceServiceImplCreateTest {
 
@@ -44,12 +47,14 @@ class DataSourceServiceImplCreateTest {
     @InjectMocks
     private DataSourceServiceImpl dataSourceService;
 
+    /**
+     * 验证新建数据源时缺失存储引擎会自动注册。
+     */
     @Test
-    void createDataSource_shouldAllowEmptyMountPathAndRegisterEngine() {
+    void createDataSource_shouldRegisterEngineWhenMissing() {
         DataSourceCreateRequest request = new DataSourceCreateRequest();
         request.setName("pg-demo");
         request.setSourceType("POSTGRESQL");
-        request.setMountPath("rt.demo");
 
         DataSourceConnectionConfig config = new DataSourceConnectionConfig();
         config.setHost("127.0.0.1");
@@ -58,7 +63,7 @@ class DataSourceServiceImplCreateTest {
 
         when(dataResourceRepository.existsByName("pg-demo")).thenReturn(false);
         when(connectionConfigCipher.encrypt(config)).thenReturn("enc");
-        when(storageEngineHelper.buildAddStorageEngineSql(any(), any(), any())).thenReturn("ADD STORAGEENGINE (...)");
+        when(storageEngineHelper.buildAddStorageEngineSql(any(), any())).thenReturn("ADD STORAGEENGINE (...)");
         when(iginxStorageWrapper.executeWithSession(any())).thenReturn(false);
         when(iginxStorageWrapper.executeSql(anyString())).thenReturn(new SessionExecuteSqlResult());
         when(dataResourceRepository.save(any())).thenAnswer(invocation -> {

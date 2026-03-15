@@ -24,13 +24,6 @@ public interface StructureService {
     List<TableColumnVO> listTableColumns(Long sourceId, String schema, String table);
 
     /**
-     * 创建存储组。
-     *
-     * @param request 请求参数
-     */
-    void createStorageGroup(StorageGroupRequest request);
-
-    /**
      * 删除存储组。
      *
      * @param request 请求参数

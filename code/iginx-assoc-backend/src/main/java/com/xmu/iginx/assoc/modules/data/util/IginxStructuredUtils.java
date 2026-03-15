@@ -100,57 +100,8 @@ public final class IginxStructuredUtils {
         if (segments.isEmpty()) {
             return "";
         }
-        return segments.stream().map(IginxStructuredUtils::quoteIdentifier).collect(java.util.stream.Collectors.joining("."));
-    }
-
-    /**
-     * 合并挂载路径与 schema。
-     *
-     * @param mountPath 挂载路径
-     * @param schema schema 路径
-     * @return 合并后的 schema
-     */
-    public static String mergeMountPath(String mountPath, String schema) {
-        List<String> mountSegments = splitPathSegments(mountPath);
-        if (mountSegments.isEmpty()) {
-            return schema == null ? "" : schema;
-        }
-        if (schema == null || schema.isBlank()) {
-            return String.join(".", mountSegments);
-        }
-        List<String> schemaSegments = splitPathSegments(schema);
-        if (startsWithSegments(schemaSegments, mountSegments)) {
-            return schema;
-        }
-        List<String> combined = new ArrayList<>(mountSegments);
-        combined.addAll(schemaSegments);
-        return String.join(".", combined);
-    }
-
-    /**
-     * 构建包含挂载路径的表路径。
-     *
-     * @param mountPath 挂载路径
-     * @param schema schema 路径
-     * @param table 表名
-     * @return 表路径
-     */
-    public static String buildTablePathWithMount(String mountPath, String schema, String table) {
-        String mergedSchema = mergeMountPath(mountPath, schema);
-        return buildTablePath(mergedSchema, table);
-    }
-
-    /**
-     * 构建包含挂载路径的列路径。
-     *
-     * @param mountPath 挂载路径
-     * @param schema schema 路径
-     * @param table 表名
-     * @param column 列名
-     * @return 列路径
-     */
-    public static String buildColumnPathWithMount(String mountPath, String schema, String table, String column) {
-        return buildTablePathWithMount(mountPath, schema, table) + "." + quoteIdentifier(column);
+        return segments.stream().map(IginxStructuredUtils::quoteIdentifier)
+            .collect(java.util.stream.Collectors.joining("."));
     }
 
     /**

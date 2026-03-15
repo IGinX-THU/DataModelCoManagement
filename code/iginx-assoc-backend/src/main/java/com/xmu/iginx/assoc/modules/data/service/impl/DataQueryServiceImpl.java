@@ -10,9 +10,9 @@ import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesQueryRequest;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
-import com.xmu.iginx.assoc.modules.data.model.DataSourceDetail;
 import com.xmu.iginx.assoc.modules.data.service.DataQueryService;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
+import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StructuredSqlBuilder;
@@ -24,7 +24,6 @@ import com.xmu.iginx.assoc.modules.data.vo.TimeSeriesSeriesVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,8 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 数据查询服务实现，支持时序与结构化数据查询。
- */
+ * 数据查询服务实现，支持时序与结构化数据查询。 */
 @Service
 @RequiredArgsConstructor
 public class DataQueryServiceImpl implements DataQueryService {
@@ -44,22 +42,26 @@ public class DataQueryServiceImpl implements DataQueryService {
     private final StructuredSqlBuilder structuredSqlBuilder = new StructuredSqlBuilder();
 
     /**
-     * 查询时序数据，支持可选的降采样聚合。
-     *
+     * 查询时序数据，支持可选的降采样聚合。     *
      * @param request 查询请求
      * @return 时序查询结果
      */
     @Override
     public TimeSeriesQueryResultVO queryTimeSeries(TimeSeriesQueryRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
         if (request.getPaths() == null || request.getPaths().isEmpty()) {
             throw BizException.badRequest("测点路径不能为空");
         }
         if (request.getTimeRange() == null) {
             throw BizException.badRequest("时间范围不能为空");
         }
-        // 统一挂载路径，避免路径不一致导致查询失败
-        List<String> resolvedPaths = TimeSeriesPathUtils.resolvePathsUnderMount(request.getPaths(), detail.entity().getMountPath(), true);
+        List<String> resolvedPaths = request.getPaths().stream()
+            .map(TimeSeriesPathUtils::stripRootPrefix)
+            .filter(path -> path != null && !path.isBlank())
+            .toList();
+        if (resolvedPaths.isEmpty()) {
+            throw BizException.badRequest("测点路径不能为空");
+        }
         // 将毫秒时间转换为纳秒，匹配 Iginx 查询接口
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
@@ -102,18 +104,16 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 查询结构化数据，支持条件过滤与分页。
-     *
+     * 查询结构化数据，支持条件过滤与分页。     *
      * @param request 查询请求
-     * @return 结构化查询结果
-     */
+     * @return 结构化查询结果     */
     @Override
     public StructuredQueryResultVO queryStructured(StructuredQueryRequest request) {
-        DataSourceDetail detail = dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
+        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         try {
-            // 统一挂载路径，保证 schema 与真实表路径一致
-            String schemaWithMount = IginxStructuredUtils.mergeMountPath(detail.entity().getMountPath(), request.getSchema());
-            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schemaWithMount, request.getTable());
+            // 统一结构化 schema 路径，确保与真实表路径一致
+            String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schemaPath, request.getTable());
             if (columnTypes == null || columnTypes.isEmpty()) {
                 throw BizException.badRequest("表结构不存在或无字段");
             }
@@ -124,7 +124,7 @@ public class DataQueryServiceImpl implements DataQueryService {
             StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
                 request.getConditions(), sqlTypeMap.keySet(), sqlTypeMap);
             String selectList = "*";
-            String tablePath = IginxStructuredUtils.buildTablePath(schemaWithMount, request.getTable());
+            String tablePath = IginxStructuredUtils.buildTablePath(schemaPath, request.getTable());
             // 追加 KEY 过滤条件，避免查询内部占位行
             String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
             String orderBy = buildOrderBy(request.getOrderBy(), request.getOrderDirection(), columns);
@@ -135,7 +135,7 @@ public class DataQueryServiceImpl implements DataQueryService {
                 List<String> rawHeader = dataSet.getColumnList();
                 List<String> header = IginxStructuredUtils.normalizeStructuredHeaders(rawHeader);
                 List<Map<String, Object>> records = structuredQueryHelper.readAll(dataSet, header);
-                // 将内部键统一转换为字符串，保持前端展示一致
+                // 统一内部键展示格式，保持前端展示一致
                 normalizeInternalKey(records);
                 // 过滤逻辑删除行，避免前端展示空记录
                 List<Map<String, Object>> visibleRecords = filterDeletedStructuredRecords(records, header);
@@ -156,9 +156,8 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 过滤结构化数据中的逻辑删除行。
-     *
-     * @param records 原始记录
+     * 过滤结构化数据中的逻辑删除行。     *
+     * @param records 鍘熷璁板綍
      * @param headers 表头
      * @return 过滤后的记录
      */
@@ -193,11 +192,9 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 判断结构化记录是否为逻辑删除行。
-     *
-     * @param record 记录
-     * @param dataColumns 业务列
-     * @return 是否删除
+     * 判断结构化记录是否为逻辑删除行。     *
+     * @param record 璁板綍
+     * @param dataColumns 业务列     * @return 是否删除
      */
     private boolean isDeletedStructuredRecord(Map<String, Object> record, List<String> dataColumns) {
         for (String column : dataColumns) {
@@ -209,12 +206,10 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 对结构化记录进行内存分页。
-     *
+     * 对结构化记录进行内存分页。     *
      * @param records 记录列表
-     * @param pageNum 页码
-     * @param pageSize 页大小
-     * @return 分页结果
+     * @param pageNum 椤电爜
+     * @param pageSize 页大小     * @return 分页结果
      */
     private List<Map<String, Object>> paginateStructuredRecords(List<Map<String, Object>> records,
                                                                 int pageNum,
@@ -234,13 +229,9 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 构建 ORDER BY 子句。
-     *
-     * @param orderBy 排序列
-     * @param direction 排序方向
-     * @param columns 有效列集合
-     * @return ORDER BY 子句（含前导空格）
-     */
+     * 构建 ORDER BY 子句。     *
+     * @param orderBy 排序字段     * @param direction 排序方向
+     * @param columns 有效列集合     * @return ORDER BY 子句（含前导空格）     */
     private String buildOrderBy(String orderBy, String direction, Set<String> columns) {
         if (orderBy == null || orderBy.isBlank()) {
             return "";
@@ -257,8 +248,7 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 追加 KEY 过滤条件，排除虚拟占位行。
-     *
+     * 追加 KEY 过滤条件，排除虚拟占位行。     *
      * @param whereSql 原始条件
      * @return 追加后的条件
      */
@@ -271,8 +261,7 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 将内部键字段重写为 KEY。
-     *
+     * 将内部键字段重写为 KEY。     *
      * @param whereSql 原始条件
      * @return 重写后的条件
      */
@@ -288,8 +277,7 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 统一内部键字段为字符串类型，避免前端类型不一致。
-     *
+     * 统一内部键字段为字符串类型，避免前端类型不一致。     *
      * @param records 记录列表
      */
     private void normalizeInternalKey(List<Map<String, Object>> records) {
@@ -313,8 +301,7 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 安静关闭查询结果集。
-     *
+     * 安静关闭查询结果集。     *
      * @param dataSet 查询结果
      */
     private void closeQuietly(QueryDataSet dataSet) {
@@ -328,10 +315,8 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 将聚合器字符串映射为 Iginx 聚合类型。
-     *
-     * @param aggregator 聚合器名称
-     * @return 聚合类型
+     * 将聚合器字符串映射为 Iginx 聚合类型。     *
+     * @param aggregator 聚合器名     * @return 聚合类型
      */
     private AggregateType mapAggregateType(String aggregator) {
         if (aggregator == null) {
@@ -348,5 +333,9 @@ public class DataQueryServiceImpl implements DataQueryService {
         };
     }
 }
+
+
+
+
 
 

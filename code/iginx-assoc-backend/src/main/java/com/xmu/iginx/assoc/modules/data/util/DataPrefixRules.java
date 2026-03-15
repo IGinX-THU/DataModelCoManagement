@@ -15,25 +15,42 @@ public final class DataPrefixRules {
     }
 
     /**
-     * 校验时序数据挂载前缀是否以 ts 开头。
+     * 校验时序路径前缀是否以 ts 开头。
      *
-     * @param mountPath 归一化后的挂载路径（不含 root.）
+     * @param path 规范化后的路径（不含 root.）
      */
-    public static void validateTimeSeriesPrefix(String mountPath) {
-        if (!startsWithPrefix(mountPath, TS_PREFIX)) {
-            throw BizException.badRequest("时序数据挂载前缀必须以 ts 开头，例如：ts.*");
+    public static void validateTimeSeriesPrefix(String path) {
+        if (!startsWithPrefix(path, TS_PREFIX)) {
+            throw BizException.badRequest("时序数据路径前缀必须以 ts 开头，例如：ts.*");
         }
     }
 
     /**
-     * 校验结构化数据挂载前缀是否以 rt 开头。
+     * 校验结构化路径前缀是否以 rt 开头。
      *
-     * @param mountPath 归一化后的挂载路径
+     * @param path 规范化后的路径
      */
-    public static void validateStructuredPrefix(String mountPath) {
-        if (!startsWithPrefix(mountPath, RT_PREFIX)) {
-            throw BizException.badRequest("结构化数据挂载前缀必须以 rt 开头，例如：rt.*");
+    public static void validateStructuredPrefix(String path) {
+        if (!startsWithPrefix(path, RT_PREFIX)) {
+            throw BizException.badRequest("结构化数据路径前缀必须以 rt 开头，例如：rt.*");
         }
+    }
+
+    /**
+     * 规范化结构化 schema 路径，确保带有 rt 前缀。
+     *
+     * @param schema 原始 schema
+     * @return 规范化后的 schema
+     */
+    public static String normalizeStructuredSchema(String schema) {
+        String normalized = TimeSeriesPathUtils.stripRootPrefix(schema);
+        if (normalized == null || normalized.isBlank()) {
+            return "";
+        }
+        if (startsWithPrefix(normalized, RT_PREFIX)) {
+            return normalized;
+        }
+        return RT_PREFIX + "." + normalized;
     }
 
     /**
@@ -61,10 +78,10 @@ public final class DataPrefixRules {
     }
 
     /**
-     * 归一化模型前缀，若不合法则返回 models。
+     * 规范化模型前缀，若不合法则返回 models。
      *
      * @param prefix 前缀
-     * @return 归一化后的前缀
+     * @return 规范化后的前缀
      */
     public static String normalizeModelPrefix(String prefix) {
         return isModelPrefix(prefix) ? prefix.trim() : MODEL_PREFIX;
