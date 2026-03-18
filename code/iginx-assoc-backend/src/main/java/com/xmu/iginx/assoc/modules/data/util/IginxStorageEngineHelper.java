@@ -1,4 +1,4 @@
-package com.xmu.iginx.assoc.modules.data.util;
+﻿package com.xmu.iginx.assoc.modules.data.util;
 
 import com.xmu.iginx.assoc.framework.iginx.IginxConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * IGinX 瀛樺偍寮曟搸 SQL 鏋勫缓涓庡弬鏁拌緟鍔╁伐鍏枫€?
+ * IGinX 存储引擎 SQL 生成辅助工具。
  */
 @Component
 @RequiredArgsConstructor
@@ -21,11 +21,11 @@ public class IginxStorageEngineHelper {
     private final IginxConfig iginxConfig;
 
     /**
-     * 鏋勫缓娣诲姞瀛樺偍寮曟搸 SQL銆?
+     * 构建添加存储引擎的 SQL 语句。
      *
-     * @param sourceType 鏁版嵁婧愮被鍨?
-     * @param config 杩炴帴閰嶇疆
-     * @return SQL 璇彞
+     * @param sourceType 数据源类型
+     * @param config 数据源连接配置
+     * @return SQL 字符串
      */
     public String buildAddStorageEngineSql(DataSourceType sourceType,
                                            DataSourceConnectionConfig config) {
@@ -37,32 +37,32 @@ public class IginxStorageEngineHelper {
     }
 
     /**
-     * 瑙ｆ瀽瀛樺偍寮曟搸涓绘満鍦板潃銆?
+     * 解析存储引擎连接地址。
      *
-     * @param host 鍘熷涓绘満
-     * @return 瑙ｆ瀽鍚庣殑涓绘満
+     * @param host 存储地址
+     * @return 解析后的存储地址
      */
     public String resolveStorageHost(String host) {
         return resolveHost(host);
     }
 
     /**
-     * 瑙ｆ瀽瀛樺偍寮曟搸绫诲瀷銆?
+     * 解析存储引擎类型。
      *
-     * @param sourceType 鏁版嵁婧愮被鍨?
-     * @return 寮曟搸绫诲瀷
+     * @param sourceType 数据源类型
+     * @return 引擎类型字符串
      */
     public String resolveEngineType(DataSourceType sourceType) {
         return toEngineType(sourceType);
     }
 
     /**
-     * 鏋勫缓瀛樺偍寮曟搸鎵╁睍鍙傛暟銆?
+     * 构建存储引擎的额外参数。
      *
-     * @param sourceType 鏁版嵁婧愮被鍨?
-     * @param config 杩炴帴閰嶇疆
-     * @param resolvedHost 瑙ｆ瀽鍚庣殑涓绘満
-     * @return 鍙傛暟瀛楃涓?
+     * @param sourceType 数据源类型
+     * @param config 数据源连接配置
+     * @param resolvedHost 解析后的存储地址
+     * @return 额外参数字符串
      */
     private String buildExtraParams(DataSourceType sourceType,
                                     DataSourceConnectionConfig config,
@@ -97,10 +97,10 @@ public class IginxStorageEngineHelper {
     }
 
     /**
-     * 瑙ｆ瀽涓绘満鍦板潃锛屾敮鎸佹湰鍦版浛鎹€?
+     * 解析存储地址，必要时用配置中的地址替换本地地址。
      *
-     * @param host 鍘熷涓绘満
-     * @return 瑙ｆ瀽鍚庣殑涓绘満
+     * @param host 存储地址
+     * @return 解析后的存储地址
      */
     private String resolveHost(String host) {
         if (!StringUtils.hasText(host)) {
@@ -115,10 +115,10 @@ public class IginxStorageEngineHelper {
     }
 
     /**
-     * 灏嗘暟鎹簮绫诲瀷鏄犲皠涓?IGinX 寮曟搸绫诲瀷銆?
+     * 将数据源类型映射为 IGinX 引擎类型。
      *
-     * @param sourceType 鏁版嵁婧愮被鍨?
-     * @return 寮曟搸绫诲瀷
+     * @param sourceType 数据源类型
+     * @return 引擎类型字符串
      */
     private String toEngineType(DataSourceType sourceType) {
         return switch (sourceType) {
@@ -129,10 +129,10 @@ public class IginxStorageEngineHelper {
     }
 
     /**
-     * 杞箟 SQL 鍙傛暟涓殑鐗规畩瀛楃銆?
+     * 转义 SQL 参数中的特殊字符。
      *
-     * @param value 鍘熷鍊?
-     * @return 杞箟鍚庣殑鍊?
+     * @param value 原始值
+     * @return 转义后的值
      */
     private String escape(String value) {
         if (value == null) {
@@ -141,4 +141,3 @@ public class IginxStorageEngineHelper {
         return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     }
 }
-
