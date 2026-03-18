@@ -17,9 +17,7 @@ import com.xmu.iginx.assoc.modules.data.util.ConnectionConfigCipher;
 import com.xmu.iginx.assoc.modules.data.util.IginxStorageEngineHelper;
 import com.xmu.iginx.assoc.modules.data.util.StorageEngineFlagsValidator;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceConnectionConfigVO;
-import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
-import com.xmu.iginx.assoc.modules.data.vo.StorageEngineVO;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,7 +27,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -121,24 +118,6 @@ public class DataSourceServiceImpl implements DataSourceService {
     }
 
     /**
-     * 获取数据源详情（聚合）。
-     *
-     * @param id 数据源 ID
-     * @param limit 兼容参数，当前不再返回路径列表
-     * @return 详情聚合视图
-     */
-    @Override
-    public DataSourceDetailVO getDetail(Long id, Integer limit) {
-        DataSourceVO meta = getDataSource(id);
-        List<StorageEngineVO> engines = listStorageEngines();
-
-        DataSourceDetailVO detail = new DataSourceDetailVO();
-        detail.setMeta(meta);
-        detail.setEngines(engines);
-        return detail;
-    }
-
-    /**
      * 测试数据源连接是否可用。
      *
      * @param sourceType 数据源类型
@@ -148,30 +127,6 @@ public class DataSourceServiceImpl implements DataSourceService {
     public void testConnection(String sourceType, DataSourceConnectionConfig config) {
         validateRequest(sourceType, config);
         connectionTestService.testConnection(sourceType, config);
-    }
-
-    private List<StorageEngineVO> listStorageEngines() {
-        return iginxStorageWrapper.executeWithSession(session -> {
-            ClusterInfo clusterInfo = session.getClusterInfo();
-            List<StorageEngineInfo> infos = clusterInfo == null ? List.of() : clusterInfo.getStorageEngineInfos();
-            if (infos == null || infos.isEmpty()) {
-                return List.of();
-            }
-            List<StorageEngineVO> engines = new ArrayList<>();
-            for (StorageEngineInfo info : infos) {
-                if (info == null) {
-                    continue;
-                }
-                StorageEngineVO engine = new StorageEngineVO();
-                engine.setIp(info.getIp());
-                engine.setPort(info.getPort());
-                engine.setType(info.getType() == null ? "" : info.getType().toString());
-                engine.setSchemaPrefix(info.getSchemaPrefix());
-                engine.setDataPrefix(info.getDataPrefix());
-                engines.add(engine);
-            }
-            return engines;
-        });
     }
 
     /**

@@ -25,7 +25,7 @@ import java.util.Set;
 /**
  * 数据资源树构建服务实现。
  * <p>
- * 当前仅构建时序（ts）与结构化（rt）两类资源树，不再展示 models 及其子节点。
+ * 当前仅构建时序（ts）与结构化（rt）两类资源树
  * </p>
  */
 @Service
@@ -46,8 +46,6 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
      * 规则：
      * <ul>
      *     <li>只返回 ts/rt 两个根节点</li>
-     *     <li>时序路径以 ts 前缀组织为 group/point 层级</li>
-     *     <li>结构化路径以 rt.schema.table 组织为 schema/table 层级</li>
      * </ul>
      * </p>
      *

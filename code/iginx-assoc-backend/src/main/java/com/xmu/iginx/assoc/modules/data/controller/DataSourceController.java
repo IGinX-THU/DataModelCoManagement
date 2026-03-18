@@ -6,7 +6,6 @@ import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceQueryRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceService;
-import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -69,20 +67,6 @@ public class DataSourceController {
     @GetMapping("/{id}")
     public Result<DataSourceVO> detail(@PathVariable Long id) {
         return Result.success(dataSourceService.getDataSource(id));
-    }
-
-    /**
-     * 查询数据源详情（聚合）。
-     *
-     * @param id 数据源 ID
-     * @param limit 兼容参数，当前不再返回路径列表
-     * @return 数据源详情
-     */
-    @Operation(summary = "查询数据源详情(聚合)")
-    @GetMapping("/{id}/detail")
-    public Result<DataSourceDetailVO> detailAggregate(@PathVariable Long id,
-                                                      @RequestParam(defaultValue = "200") int limit) {
-        return Result.success(dataSourceService.getDetail(id, limit));
     }
 
     /**
