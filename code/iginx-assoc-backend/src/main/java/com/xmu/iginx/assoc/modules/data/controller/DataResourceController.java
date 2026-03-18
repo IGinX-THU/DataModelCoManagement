@@ -4,15 +4,11 @@ import com.xmu.iginx.assoc.common.Result;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataExportRequest;
-import com.xmu.iginx.assoc.modules.data.dto.MeasurementRequest;
-import com.xmu.iginx.assoc.modules.data.dto.StorageGroupRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredImportRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowUpdateRequest;
-import com.xmu.iginx.assoc.modules.data.dto.TableCreateRequest;
-import com.xmu.iginx.assoc.modules.data.dto.TableDropRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesImportRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesQueryRequest;
@@ -21,7 +17,6 @@ import com.xmu.iginx.assoc.modules.data.service.DataImportService;
 import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.data.service.DataQueryService;
 import com.xmu.iginx.assoc.modules.data.service.DataResourceTreeService;
-import com.xmu.iginx.assoc.modules.data.service.StructureService;
 import com.xmu.iginx.assoc.modules.data.util.DataFileStorageService;
 import com.xmu.iginx.assoc.modules.data.vo.DataExportResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataImportResultVO;
@@ -53,7 +48,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * 数据资源相关接口，负责数据导入、导出、查询与结构维护。
+ * 数据资源相关接口，负责数据导入、导出、查询与数据维护。
  */
 @Tag(name = "Data Resource Operations")
 @Validated
@@ -66,7 +61,6 @@ public class DataResourceController {
     private final DataExportService dataExportService;
     private final DataQueryService dataQueryService;
     private final DataMaintainService dataMaintainService;
-    private final StructureService structureService;
     private final DataFileStorageService fileStorageService;
     private final DataResourceTreeService dataResourceTreeService;
 
@@ -219,71 +213,6 @@ public class DataResourceController {
     @DeleteMapping("/struct/rows")
     public Result<Void> deleteStructuredRow(@Valid @RequestBody StructuredRowDeleteRequest request) {
         dataMaintainService.deleteStructuredRow(request);
-        return Result.success();
-    }
-
-    /**
-     * 删除存储组。
-     *
-     * @param request 删除参数
-     * @return 操作结果
-     */
-    @Operation(summary = "删除存储组")
-    @PostMapping("/structures/storage-groups/drop")
-    public Result<Void> dropStorageGroup(@Valid @RequestBody StorageGroupRequest request) {
-        structureService.dropStorageGroup(request);
-        return Result.success();
-    }
-
-    /**
-     * 创建测点。
-     *
-     * @param request 创建参数
-     * @return 操作结果
-     */
-    @Operation(summary = "创建测点")
-    @PostMapping("/structures/measurements")
-    public Result<Void> createMeasurement(@Valid @RequestBody MeasurementRequest request) {
-        structureService.createMeasurement(request);
-        return Result.success();
-    }
-
-    /**
-     * 删除测点。
-     *
-     * @param request 删除参数
-     * @return 操作结果
-     */
-    @Operation(summary = "删除测点")
-    @PostMapping("/structures/measurements/drop")
-    public Result<Void> dropMeasurement(@Valid @RequestBody MeasurementRequest request) {
-        structureService.dropMeasurement(request);
-        return Result.success();
-    }
-
-    /**
-     * 创建结构化表。
-     *
-     * @param request 创建参数
-     * @return 操作结果
-     */
-    @Operation(summary = "创建表")
-    @PostMapping("/structures/tables")
-    public Result<Void> createTable(@Valid @RequestBody TableCreateRequest request) {
-        structureService.createTable(request);
-        return Result.success();
-    }
-
-    /**
-     * 删除结构化表。
-     *
-     * @param request 删除参数
-     * @return 操作结果
-     */
-    @Operation(summary = "删除表")
-    @PostMapping("/structures/tables/drop")
-    public Result<Void> dropTable(@Valid @RequestBody TableDropRequest request) {
-        structureService.dropTable(request);
         return Result.success();
     }
 

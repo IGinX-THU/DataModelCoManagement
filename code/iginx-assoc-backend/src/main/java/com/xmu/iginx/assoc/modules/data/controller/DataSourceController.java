@@ -6,10 +6,8 @@ import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceQueryRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataSourceService;
-import com.xmu.iginx.assoc.modules.data.service.StructureService;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceDetailVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataSourceVO;
-import com.xmu.iginx.assoc.modules.data.vo.TableColumnVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,10 +23,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
- * 数据源管理接口，提供数据源的增删改查与结构预览能力。
+ * 数据源管理接口，提供数据源的增删改查能力。
  */
 @Tag(name = "Data Resource Management")
 @Validated
@@ -38,7 +34,6 @@ import java.util.List;
 public class DataSourceController {
 
     private final DataSourceService dataSourceService;
-    private final StructureService structureService;
 
     /**
      * 新增数据源。
@@ -88,22 +83,6 @@ public class DataSourceController {
     public Result<DataSourceDetailVO> detailAggregate(@PathVariable Long id,
                                                       @RequestParam(defaultValue = "200") int limit) {
         return Result.success(dataSourceService.getDetail(id, limit));
-    }
-
-    /**
-     * 查询关系型表的字段列表。
-     *
-     * @param id 数据源 ID
-     * @param schema Schema 名称
-     * @param table 表名
-     * @return 字段列表
-     */
-    @Operation(summary = "查询关系表字段列表")
-    @GetMapping("/{id}/tables/{schema}/{table}/columns")
-    public Result<List<TableColumnVO>> tableColumns(@PathVariable Long id,
-                                                    @PathVariable String schema,
-                                                    @PathVariable String table) {
-        return Result.success(structureService.listTableColumns(id, schema, table));
     }
 
     /**
