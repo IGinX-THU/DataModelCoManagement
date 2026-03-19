@@ -212,14 +212,13 @@ public class DataImportServiceImpl implements DataImportService {
      * @param rawPath 原始路径
      * @return 归一化后的路径     */
     private String normalizeTimeSeriesImportPath(String rawPath) {
-        String normalized = TimeSeriesPathUtils.stripRootPrefix(rawPath);
-        if (normalized == null || normalized.isBlank()) {
+        if (rawPath == null || rawPath.isBlank()) {
             throw BizException.badRequest("导入路径不能为空");
         }
-        if (!DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.TS_PREFIX)) {
+        if (!DataPrefixRules.startsWithPrefix(rawPath, DataPrefixRules.TS_PREFIX)) {
             throw BizException.badRequest("时序数据导入路径必须以 ts 开头");
         }
-        return normalized;
+        return rawPath;
     }
 
     /**
@@ -230,7 +229,7 @@ public class DataImportServiceImpl implements DataImportService {
         if (request == null) {
             throw BizException.badRequest("导入参数不能为空");
         }
-        String rawPath = TimeSeriesPathUtils.stripRootPrefix(request.getTargetPath());
+        String rawPath = request.getTargetPath();
         if (rawPath == null || rawPath.isBlank()) {
             throw BizException.badRequest("导入目标路径不能为空");
         }
@@ -376,7 +375,7 @@ public class DataImportServiceImpl implements DataImportService {
                     throw BizException.badRequest("目标测点不能为空");
                 }
                 // 统一目标测点路径，避免路径不一致
-                String normalizedTarget = TimeSeriesPathUtils.stripRootPrefix(target.trim());
+                String normalizedTarget = target.trim();
                 if (normalizedTarget.isBlank()) {
                     throw BizException.badRequest("閻╊喗鐖ｅù瀣仯娑撳秷鍏樻稉铏光敄");
                 }

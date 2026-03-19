@@ -15,42 +15,19 @@ public final class DataPrefixRules {
     }
 
     /**
-     * 校验时序路径前缀是否以 ts 开头。
-     *
-     * @param path 规范化后的路径
-     */
-    public static void validateTimeSeriesPrefix(String path) {
-        if (!startsWithPrefix(path, TS_PREFIX)) {
-            throw BizException.badRequest("时序数据路径前缀必须以 ts 开头，例如：ts.*");
-        }
-    }
-
-    /**
-     * 校验结构化路径前缀是否以 rt 开头。
-     *
-     * @param path 规范化后的路径
-     */
-    public static void validateStructuredPrefix(String path) {
-        if (!startsWithPrefix(path, RT_PREFIX)) {
-            throw BizException.badRequest("结构化数据路径前缀必须以 rt 开头，例如：rt.*");
-        }
-    }
-
-    /**
      * 规范化结构化 schema 路径，确保带有 rt 前缀。
      *
      * @param schema 原始 schema
      * @return 规范化后的 schema
      */
     public static String normalizeStructuredSchema(String schema) {
-        String normalized = TimeSeriesPathUtils.stripRootPrefix(schema);
-        if (normalized == null || normalized.isBlank()) {
+        if (schema == null || schema.isBlank()) {
             return "";
         }
-        if (startsWithPrefix(normalized, RT_PREFIX)) {
-            return normalized;
+        if (startsWithPrefix(schema, RT_PREFIX)) {
+            return schema;
         }
-        return RT_PREFIX + "." + normalized;
+        return RT_PREFIX + "." + schema;
     }
 
     /**

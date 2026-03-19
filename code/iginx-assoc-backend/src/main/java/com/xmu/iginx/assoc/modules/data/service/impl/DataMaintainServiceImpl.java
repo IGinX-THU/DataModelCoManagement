@@ -208,7 +208,6 @@ public class DataMaintainServiceImpl implements DataMaintainService {
         if (!StringUtils.hasText(normalized)) {
             throw BizException.badRequest("路径不能为空");
         }
-        normalized = TimeSeriesPathUtils.stripRootPrefix(normalized);
         if (!StringUtils.hasText(normalized)) {
             throw BizException.badRequest("路径不能为空");
         }

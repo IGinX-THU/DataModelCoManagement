@@ -169,7 +169,6 @@ public class DataExportServiceImpl implements DataExportService {
         }
         // 统一路径前缀，避免路径不一致导致查询失败
         List<String> paths = request.getPaths().stream()
-            .map(TimeSeriesPathUtils::stripRootPrefix)
             .filter(path -> path != null && !path.isBlank())
             .toList();
         if (paths.isEmpty()) {

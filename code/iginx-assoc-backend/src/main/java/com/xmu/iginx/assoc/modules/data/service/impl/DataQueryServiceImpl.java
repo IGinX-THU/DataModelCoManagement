@@ -56,7 +56,6 @@ public class DataQueryServiceImpl implements DataQueryService {
             throw BizException.badRequest("时间范围不能为空");
         }
         List<String> resolvedPaths = request.getPaths().stream()
-            .map(TimeSeriesPathUtils::stripRootPrefix)
             .filter(path -> path != null && !path.isBlank())
             .toList();
         if (resolvedPaths.isEmpty()) {

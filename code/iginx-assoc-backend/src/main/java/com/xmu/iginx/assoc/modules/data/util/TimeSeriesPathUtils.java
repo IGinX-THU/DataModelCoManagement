@@ -5,8 +5,6 @@ package com.xmu.iginx.assoc.modules.data.util;
  */
 public final class TimeSeriesPathUtils {
 
-    private static final String ROOT_PREFIX = "root.";
-
     private TimeSeriesPathUtils() {
     }
 
@@ -25,20 +23,6 @@ public final class TimeSeriesPathUtils {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
-    }
-
-    /**
-     * 去除 root 前缀。
-     *
-     * @param path 路径
-     * @return 去除后的路径
-     */
-    public static String stripRootPrefix(String path) {
-        String normalized = normalizePath(path);
-        if (normalized.startsWith(ROOT_PREFIX)) {
-            return normalized.substring(ROOT_PREFIX.length());
-        }
-        return normalized;
     }
 
     /**

@@ -16,16 +16,14 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 数据资源树构建服务实现。
  * <p>
- * 当前仅构建时序（ts）与结构化（rt）两类资源树
+ * 统一按 IGinX 路径前缀构建资源树，ts/rt 仅作为根节点前缀。
  * </p>
  */
 @Service
@@ -69,25 +67,31 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         // 构建 ts/rt 两个根节点
         DataResourceTreeNodeVO tsRoot = createRoot(TS_PREFIX, tsSourceId);
         DataResourceTreeNodeVO rtRoot = createRoot(RT_PREFIX, rtSourceId);
-
-        // 用于去重结构化表（同一表只添加一次）
-        Set<String> structuredTables = new LinkedHashSet<>();
+        Map<String, DataResourceTreeNodeVO> rootsByPrefix = new LinkedHashMap<>();
+        rootsByPrefix.put(TS_PREFIX.toLowerCase(Locale.ROOT), tsRoot);
+        rootsByPrefix.put(RT_PREFIX.toLowerCase(Locale.ROOT), rtRoot);
 
         for (Column column : columns) {
-            if (column == null || column.getPath() == null) {
+            if (column == null) {
                 continue;
             }
-            String normalized = column.getPath();
-            if (!StringUtils.hasText(normalized)) {
+            List<String> segments = splitSegments(column.getPath());
+            if (segments.size() < 2) {
                 continue;
             }
-            if (DataPrefixRules.startsWithPrefix(normalized, TS_PREFIX)) {
-                addTimeSeriesPath(normalized, tsRoot, nodeMap, tsSourceId);
+            String prefix = segments.get(0);
+            if (!StringUtils.hasText(prefix)) {
                 continue;
             }
-            if (DataPrefixRules.startsWithPrefix(normalized, RT_PREFIX)) {
-                addStructuredPath(normalized, rtRoot, nodeMap, rtSourceId, structuredTables);
+            DataResourceTreeNodeVO root = rootsByPrefix.get(prefix.toLowerCase(Locale.ROOT));
+            if (root == null) {
+                continue;
             }
+            String lastSegment = segments.get(segments.size() - 1);
+            if (IginxStructuredUtils.isInternalKey(lastSegment)) {
+                continue;
+            }
+            appendPathSegments(segments, root, nodeMap, root.getSourceId());
         }
 
         List<DataResourceTreeNodeVO> roots = new ArrayList<>();
@@ -115,104 +119,33 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
     }
 
     /**
-     * 追加时序路径到树中。
+     * 追加路径到树中，按路径段逐级展开。
      *
-     * @param normalizedPath 规范化路径
+     * @param segments 路径段列表
      * @param root 根节点
      * @param nodeMap 节点缓存
      * @param sourceId 数据源 ID
      */
-    private void addTimeSeriesPath(String normalizedPath,
-                                   DataResourceTreeNodeVO root,
-                                   Map<String, DataResourceTreeNodeVO> nodeMap,
-                                   Long sourceId) {
-        List<String> segments = splitSegments(normalizedPath);
-        if (segments.size() < 2) {
+    private void appendPathSegments(List<String> segments,
+                                    DataResourceTreeNodeVO root,
+                                    Map<String, DataResourceTreeNodeVO> nodeMap,
+                                    Long sourceId) {
+        if (segments == null || segments.size() < 2) {
             return;
         }
         DataResourceTreeNodeVO parent = root;
         String currentPath = segments.get(0);
         for (int i = 1; i < segments.size(); i++) {
             currentPath = currentPath + "." + segments.get(i);
-            String nodeType = (i == segments.size() - 1) ? "point" : "group";
+            boolean isLeaf = (i == segments.size() - 1);
+            String nodeType = isLeaf ? "point" : "group";
             DataResourceTreeNodeVO node = ensureNode(nodeMap, parent, currentPath, segments.get(i), nodeType);
             if (node.getSourceId() == null) {
                 node.setSourceId(sourceId);
             }
             node.setPath(currentPath);
-            if ("group".equals(nodeType)) {
-                node.setType("group");
-            }
             parent = node;
         }
-    }
-
-    /**
-     * 追加结构化路径到树中。
-     * @param normalizedPath 规范化路径
-     * @param root 根节点
-     * @param nodeMap 节点缓存
-     * @param sourceId 数据源 ID
-     * @param structuredTables 已处理的表集合（用于去重）
-     */
-    private void addStructuredPath(String normalizedPath,
-                                   DataResourceTreeNodeVO root,
-                                   Map<String, DataResourceTreeNodeVO> nodeMap,
-                                   Long sourceId,
-                                   Set<String> structuredTables) {
-        List<String> segments = IginxStructuredUtils.splitPathSegments(normalizedPath);
-        if (segments.size() < 2) {
-            return;
-        }
-        if ("root".equalsIgnoreCase(segments.get(0))) {
-            segments = segments.subList(1, segments.size());
-        }
-        if (segments.isEmpty()) {
-            return;
-        }
-        // 去除 rt 前缀，保留 schema.table.column
-        if (RT_PREFIX.equalsIgnoreCase(segments.get(0))) {
-            segments = segments.subList(1, segments.size());
-        }
-        if (segments.size() < 2) {
-            return;
-        }
-        String columnName = segments.get(segments.size() - 1);
-        if (IginxStructuredUtils.isInternalKey(columnName)) {
-            return;
-        }
-        List<String> tableSegments = segments.subList(0, segments.size() - 1);
-        if (tableSegments.isEmpty()) {
-            return;
-        }
-        String schema;
-        String table;
-        if (tableSegments.size() >= 2) {
-            schema = tableSegments.get(0);
-            table = String.join(".", tableSegments.subList(1, tableSegments.size()));
-        } else {
-            schema = "public";
-            table = tableSegments.get(0);
-        }
-
-        String schemaPath = RT_PREFIX + "." + schema;
-        String tablePath = schemaPath + "." + table;
-        // 同一表只添加一次
-        if (!structuredTables.add(tablePath)) {
-            return;
-        }
-
-        DataResourceTreeNodeVO schemaNode = ensureNode(nodeMap, root, schemaPath, schema, "schema");
-        if (schemaNode.getSourceId() == null) {
-            schemaNode.setSourceId(sourceId);
-        }
-        schemaNode.setPath(schemaPath);
-
-        DataResourceTreeNodeVO tableNode = ensureNode(nodeMap, schemaNode, tablePath, table, "table");
-        tableNode.setSchema(schema);
-        tableNode.setTable(table);
-        tableNode.setSourceId(sourceId);
-        tableNode.setPath(tablePath);
     }
 
     /**
@@ -250,7 +183,6 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         }
         return node;
     }
-
 
     /**
      * 选取默认数据源 ID（取满足类型的最小 ID）。
@@ -322,9 +254,9 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         if (!StringUtils.hasText(normalized)) {
             return List.of();
         }
-        String[] parts = normalized.split("\\.");
+        List<String> rawSegments = IginxStructuredUtils.splitPathSegments(normalized);
         List<String> segments = new ArrayList<>();
-        for (String part : parts) {
+        for (String part : rawSegments) {
             if (StringUtils.hasText(part)) {
                 segments.add(part.trim());
             }
