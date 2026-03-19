@@ -152,19 +152,6 @@ public class DataResourceController {
     }
 
     /**
-     * 删除时序数据。
-     *
-     * @param request 删除条件
-     * @return 操作结果
-     */
-    @Operation(summary = "时序数据维护")
-    @PostMapping("/ts/delete")
-    public Result<Void> deleteTimeSeries(@Valid @RequestBody TimeSeriesDeleteRequest request) {
-        dataMaintainService.deleteTimeSeries(request);
-        return Result.success();
-    }
-
-    /**
      * 删除路径及子路径数据（DELETE COLUMNS）。
      *
      * @param request 删除请求

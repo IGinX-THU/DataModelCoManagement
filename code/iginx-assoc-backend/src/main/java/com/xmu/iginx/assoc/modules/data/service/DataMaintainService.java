@@ -12,13 +12,6 @@ import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesDeleteRequest;
 public interface DataMaintainService {
 
     /**
-     * 删除时序数据。
-     *
-     * @param request 删除请求
-     */
-    void deleteTimeSeries(TimeSeriesDeleteRequest request);
-
-    /**
      * 新增结构化数据行。
      *
      * @param request 新增请求

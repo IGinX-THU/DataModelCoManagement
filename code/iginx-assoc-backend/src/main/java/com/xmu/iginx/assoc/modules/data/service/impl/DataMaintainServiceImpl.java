@@ -43,38 +43,6 @@ public class DataMaintainServiceImpl implements DataMaintainService {
     private final IginxStorageWrapper iginxStorageWrapper;
     private final IginxStructuredQueryHelper structuredQueryHelper;
 
-    /**
-     * 删除时序数据。
-     *
-     * @param request 删除请求
-     */
-    @Override
-    public void deleteTimeSeries(TimeSeriesDeleteRequest request) {
-        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
-        if (request.getPaths() == null || request.getPaths().isEmpty()) {
-            throw BizException.badRequest("测点路径不能为空");
-        }
-        if (request.getTimeRange() == null) {
-            throw BizException.badRequest("时间范围不能为空");
-        }
-        if (!"delete".equalsIgnoreCase(request.getOperation())) {
-            throw BizException.badRequest("暂不支持的时序操作类型");
-        }
-        List<String> paths = request.getPaths().stream()
-            .map(TimeSeriesPathUtils::stripRootPrefix)
-            .filter(path -> path != null && !path.isBlank())
-            .toList();
-        if (paths.isEmpty()) {
-            throw BizException.badRequest("测点路径不能为空");
-        }
-        // 将毫秒时间转换为纳秒，匹配 Iginx 删除接口
-        long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
-        long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
-        iginxStorageWrapper.executeWithSession(session -> {
-            session.deleteDataInColumns(paths, startNs, endNs);
-            return null;
-        });
-    }
 
     /**
      * 新增结构化数据行。
