@@ -17,7 +17,7 @@ public final class DataPrefixRules {
     /**
      * 校验时序路径前缀是否以 ts 开头。
      *
-     * @param path 规范化后的路径（不含 root.）
+     * @param path 规范化后的路径
      */
     public static void validateTimeSeriesPrefix(String path) {
         if (!startsWithPrefix(path, TS_PREFIX)) {
@@ -51,17 +51,6 @@ public final class DataPrefixRules {
             return normalized;
         }
         return RT_PREFIX + "." + normalized;
-    }
-
-    /**
-     * 校验模型文件前缀是否为 models。
-     *
-     * @param prefix 前缀
-     */
-    public static void validateModelPrefix(String prefix) {
-        if (!isModelPrefix(prefix)) {
-            throw BizException.badRequest("模型文件前缀必须为 models");
-        }
     }
 
     /**

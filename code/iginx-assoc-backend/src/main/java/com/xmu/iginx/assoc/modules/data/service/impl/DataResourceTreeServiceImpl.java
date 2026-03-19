@@ -77,18 +77,15 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             if (column == null || column.getPath() == null) {
                 continue;
             }
-            // 统一规范化路径（去除 root. 前缀）
-            String normalized = normalizeFullPath(column.getPath());
+            String normalized = column.getPath();
             if (!StringUtils.hasText(normalized)) {
                 continue;
             }
             if (DataPrefixRules.startsWithPrefix(normalized, TS_PREFIX)) {
-                // 时序路径：构建 group/point 节点
                 addTimeSeriesPath(normalized, tsRoot, nodeMap, tsSourceId);
                 continue;
             }
             if (DataPrefixRules.startsWithPrefix(normalized, RT_PREFIX)) {
-                // 结构化路径：构建 schema/table 节点
                 addStructuredPath(normalized, rtRoot, nodeMap, rtSourceId, structuredTables);
             }
         }
@@ -120,7 +117,7 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
     /**
      * 追加时序路径到树中。
      *
-     * @param normalizedPath 规范化路径（不含 root.）
+     * @param normalizedPath 规范化路径
      * @param root 根节点
      * @param nodeMap 节点缓存
      * @param sourceId 数据源 ID
@@ -152,11 +149,6 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
 
     /**
      * 追加结构化路径到树中。
-     * <p>
-     * 结构化路径通常形如 rt.schema.table.column，
-     * 此处只保留 schema 与 table 层级。
-     * </p>
-     *
      * @param normalizedPath 规范化路径
      * @param root 根节点
      * @param nodeMap 节点缓存
@@ -259,22 +251,6 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
         return node;
     }
 
-    /**
-     * 统一规范化路径（剥离 root. 前缀）。
-     *
-     * @param path 原始路径
-     * @return 规范化后的路径
-     */
-    private String normalizeFullPath(String path) {
-        String normalized = TimeSeriesPathUtils.normalizePath(path);
-        if (normalized == null) {
-            return "";
-        }
-        if (normalized.toLowerCase(Locale.ROOT).startsWith("root.")) {
-            return normalized.substring("root.".length());
-        }
-        return normalized;
-    }
 
     /**
      * 选取默认数据源 ID（取满足类型的最小 ID）。
