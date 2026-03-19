@@ -1,4 +1,4 @@
-﻿package com.xmu.iginx.assoc.modules.data.util;
+package com.xmu.iginx.assoc.modules.data.util;
 
 import com.xmu.iginx.assoc.framework.iginx.IginxConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
