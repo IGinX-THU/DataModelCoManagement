@@ -57,6 +57,16 @@ public class DataSourceConnectionConfig {
     private Boolean readOnly;
 
     /**
+     * IGinX 模式前缀（对应 extra 中 schema_prefix，可选）。
+     */
+    private String schemaPrefix;
+
+    /**
+     * IGinX 数据前缀（对应 extra 中 data_prefix，可选）。
+     */
+    private String dataPrefix;
+
+    /**
      * 扩展配置（可选，建议使用 JSON 字符串存储额外参数）。
      */
     private String extra;

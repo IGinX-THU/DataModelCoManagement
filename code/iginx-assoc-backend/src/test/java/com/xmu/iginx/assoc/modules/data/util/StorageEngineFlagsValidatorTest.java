@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StorageEngineFlagsValidatorTest {
 
     /**
-     * 无历史数据且只读时应拒绝。
+     * 无历史数据时，不允许只读模式。
      */
     @Test
     void validate_shouldRejectReadOnlyWithoutData() {
@@ -23,11 +23,11 @@ class StorageEngineFlagsValidatorTest {
         config.setReadOnly(true);
 
         BizException ex = assertThrows(BizException.class, () -> StorageEngineFlagsValidator.validate(config));
-        assertTrue(ex.getMessage().contains("无数据不可只读"));
+        assertTrue(ex.getMessage().contains("无数据时不允许只读"));
     }
 
     /**
-     * extra 中携带保留标志位应拒绝。
+     * extra 中不允许再传保留标志位。
      */
     @Test
     void validate_shouldRejectFlagsInExtra() {
@@ -41,6 +41,20 @@ class StorageEngineFlagsValidatorTest {
     }
 
     /**
+     * extra 中不允许再传 schema/data 前缀参数。
+     */
+    @Test
+    void validate_shouldRejectPrefixFlagsInExtra() {
+        DataSourceConnectionConfig config = new DataSourceConnectionConfig();
+        config.setHasData(true);
+        config.setReadOnly(false);
+        config.setExtra("schema_prefix=demo,data_prefix=ts");
+
+        BizException ex = assertThrows(BizException.class, () -> StorageEngineFlagsValidator.validate(config));
+        assertTrue(ex.getMessage().contains("schema_prefix"));
+    }
+
+    /**
      * 合法组合应通过校验。
      */
     @Test
@@ -48,6 +62,8 @@ class StorageEngineFlagsValidatorTest {
         DataSourceConnectionConfig config = new DataSourceConnectionConfig();
         config.setHasData(true);
         config.setReadOnly(false);
+        config.setSchemaPrefix("project_a");
+        config.setDataPrefix("ts");
         config.setExtra("database=demo");
 
         assertDoesNotThrow(() -> StorageEngineFlagsValidator.validate(config));

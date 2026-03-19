@@ -199,6 +199,8 @@ public class DataSourceServiceImpl implements DataSourceService {
                                         DataSourceConnectionConfig config) {
         String resolvedHost = storageEngineHelper.resolveStorageHost(config.getHost());
         String engineType = storageEngineHelper.resolveEngineType(sourceType);
+        String schemaPrefix = normalizePrefix(config.getSchemaPrefix());
+        String dataPrefix = normalizePrefix(config.getDataPrefix());
         int port = config.getPort() == null ? -1 : config.getPort();
         try {
             return iginxStorageWrapper.executeWithSession(session -> {
@@ -220,6 +222,12 @@ public class DataSourceServiceImpl implements DataSourceService {
                         continue;
                     }
                     if (info.getPort() != port) {
+                        continue;
+                    }
+                    if (!schemaPrefix.equals(normalizePrefix(info.getSchemaPrefix()))) {
+                        continue;
+                    }
+                    if (!dataPrefix.equals(normalizePrefix(info.getDataPrefix()))) {
                         continue;
                     }
                     return true;
@@ -280,6 +288,19 @@ public class DataSourceServiceImpl implements DataSourceService {
     }
 
     /**
+     * 规范化前缀值，便于与集群信息做稳定比较。
+     *
+     * @param prefix 前缀值
+     * @return 规范化后的值，null 统一为 ""
+     */
+    private String normalizePrefix(String prefix) {
+        if (prefix == null) {
+            return "";
+        }
+        return prefix.trim();
+    }
+
+    /**
      * 将数据源实体转换为视图对象。
      *
      * @param entity 实体
@@ -296,6 +317,8 @@ public class DataSourceServiceImpl implements DataSourceService {
         configVO.setPasswordMasked(connectionConfigCipher.maskPassword(entity.getConnConfig()));
         configVO.setHasData(config.getHasData());
         configVO.setReadOnly(config.getReadOnly());
+        configVO.setSchemaPrefix(config.getSchemaPrefix());
+        configVO.setDataPrefix(config.getDataPrefix());
         configVO.setExtra(config.getExtra());
 
         DataSourceVO vo = new DataSourceVO();

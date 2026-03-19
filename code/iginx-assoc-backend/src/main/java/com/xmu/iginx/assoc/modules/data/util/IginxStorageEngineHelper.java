@@ -75,6 +75,12 @@ public class IginxStorageEngineHelper {
         boolean readOnly = readOnlyValue != null ? readOnlyValue : false;
         params.add("has_data=" + hasData);
         params.add("is_read_only=" + readOnly);
+        if (StringUtils.hasText(config.getSchemaPrefix())) {
+            params.add("schema_prefix=" + config.getSchemaPrefix().trim());
+        }
+        if (StringUtils.hasText(config.getDataPrefix())) {
+            params.add("data_prefix=" + config.getDataPrefix().trim());
+        }
         if (sourceType == DataSourceType.INFLUXDB) {
             params.add(String.format("url=http://%s:%d/", resolvedHost, config.getPort()));
         }

@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IginxStorageEngineHelperTest {
 
     /**
-     * 验证 has_data=false 且非只读时不附加数据前缀。
+     * 未配置前缀时不应拼接 schema_prefix/data_prefix。
      */
     @Test
     void buildAddStorageEngineSql_shouldRespectHasDataAndReadOnly() {
@@ -35,14 +35,15 @@ class IginxStorageEngineHelperTest {
 
         assertTrue(sql.contains("has_data=false"));
         assertTrue(sql.contains("is_read_only=false"));
+        assertFalse(sql.contains("schema_prefix="));
         assertFalse(sql.contains("data_prefix="));
     }
 
     /**
-     * 验证 has_data=true 时仍按规则不附加 data_prefix 参数。
+     * 配置 schemaPrefix/dataPrefix 后应拼接到 extra 参数中。
      */
     @Test
-    void buildAddStorageEngineSql_shouldIncludePrefixWhenHasDataTrue() {
+    void buildAddStorageEngineSql_shouldIncludePrefixWhenConfigured() {
         IginxConfig config = new IginxConfig();
         config.setStorageHostOverride("");
         IginxStorageEngineHelper helper = new IginxStorageEngineHelper(config);
@@ -55,11 +56,14 @@ class IginxStorageEngineHelperTest {
         connection.setPassword("root");
         connection.setHasData(true);
         connection.setReadOnly(true);
+        connection.setSchemaPrefix("demo_schema");
+        connection.setDataPrefix("demo_data");
 
         String sql = helper.buildAddStorageEngineSql(DataSourceType.INFLUXDB, connection);
 
         assertTrue(sql.contains("has_data=true"));
         assertTrue(sql.contains("is_read_only=true"));
-        assertFalse(sql.contains("data_prefix="));
+        assertTrue(sql.contains("schema_prefix=demo_schema"));
+        assertTrue(sql.contains("data_prefix=demo_data"));
     }
 }

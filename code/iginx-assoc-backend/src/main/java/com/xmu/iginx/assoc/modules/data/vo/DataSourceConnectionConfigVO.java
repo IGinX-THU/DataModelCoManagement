@@ -44,6 +44,16 @@ public class DataSourceConnectionConfigVO {
     private Boolean readOnly;
 
     /**
+     * IGinX 模式前缀（schema_prefix，可选）。
+     */
+    private String schemaPrefix;
+
+    /**
+     * IGinX 数据前缀（data_prefix，可选）。
+     */
+    private String dataPrefix;
+
+    /**
      * 扩展配置（可选）。
      */
     private String extra;
