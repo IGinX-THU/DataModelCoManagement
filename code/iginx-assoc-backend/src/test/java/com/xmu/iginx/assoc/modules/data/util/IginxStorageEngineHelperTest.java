@@ -66,4 +66,26 @@ class IginxStorageEngineHelperTest {
         assertTrue(sql.contains("schema_prefix=demo_schema"));
         assertTrue(sql.contains("data_prefix=demo_data"));
     }
+
+    /**
+     * 卸载语句应按用户手册格式拼接四元组，空前缀使用空字符串。
+     */
+    @Test
+    void buildRemoveStorageEngineSql_shouldUseSchemaAndDataPrefixTuple() {
+        IginxConfig config = new IginxConfig();
+        config.setStorageHostOverride("host.docker.internal");
+        IginxStorageEngineHelper helper = new IginxStorageEngineHelper(config);
+
+        DataSourceConnectionConfig connection = new DataSourceConnectionConfig();
+        connection.setHost("127.0.0.1");
+        connection.setPort(6667);
+        connection.setSchemaPrefix("schema_a");
+        connection.setDataPrefix("");
+
+        String sql = helper.buildRemoveStorageEngineSql(connection);
+
+        assertTrue(sql.startsWith("REMOVE STORAGEENGINE (\"host.docker.internal\", 6667, "));
+        assertTrue(sql.contains(", \"schema_a\", \"\""));
+        assertTrue(sql.endsWith(");"));
+    }
 }

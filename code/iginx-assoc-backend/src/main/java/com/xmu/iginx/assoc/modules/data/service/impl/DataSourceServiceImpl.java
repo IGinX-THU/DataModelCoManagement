@@ -77,6 +77,21 @@ public class DataSourceServiceImpl implements DataSourceService {
     }
 
     /**
+     * 卸载数据源：先执行 IGinX REMOVE STORAGEENGINE，再删除本地数据源记录。
+     *
+     * @param id 数据源 ID
+     */
+    @Override
+    @Transactional
+    public void uninstallDataSource(Long id) {
+        DataResourceEntity entity = findById(id);
+        DataSourceConnectionConfig connectionConfig = connectionConfigCipher.decrypt(entity.getConnConfig());
+        String removeSql = storageEngineHelper.buildRemoveStorageEngineSql(connectionConfig);
+        iginxStorageWrapper.executeSql(removeSql);
+        dataResourceRepository.delete(entity);
+    }
+
+    /**
      * 分页查询数据源列表。
      *
      * @param request 查询请求

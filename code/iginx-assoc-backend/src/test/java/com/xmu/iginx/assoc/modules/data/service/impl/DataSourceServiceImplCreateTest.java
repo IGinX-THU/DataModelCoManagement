@@ -17,9 +17,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -76,5 +79,32 @@ class DataSourceServiceImplCreateTest {
 
         assertEquals(1L, id);
         verify(iginxStorageWrapper).executeSql(anyString());
+    }
+
+    /**
+     * 验证卸载数据源时会先执行 REMOVE STORAGEENGINE，再删除本地记录。
+     */
+    @Test
+    void uninstallDataSource_shouldRemoveStorageEngineAndDeleteEntity() {
+        DataResourceEntity entity = new DataResourceEntity();
+        entity.setId(1L);
+        entity.setConnConfig("enc");
+
+        DataSourceConnectionConfig config = new DataSourceConnectionConfig();
+        config.setHost("127.0.0.1");
+        config.setPort(6667);
+        config.setSchemaPrefix("schema_a");
+        config.setDataPrefix("data_a");
+
+        when(dataResourceRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(connectionConfigCipher.decrypt("enc")).thenReturn(config);
+        when(storageEngineHelper.buildRemoveStorageEngineSql(config))
+            .thenReturn("REMOVE STORAGEENGINE (\"127.0.0.1\", 6667, \"schema_a\", \"data_a\");");
+        when(iginxStorageWrapper.executeSql(anyString())).thenReturn(new SessionExecuteSqlResult());
+
+        dataSourceService.uninstallDataSource(1L);
+
+        verify(iginxStorageWrapper).executeSql(eq("REMOVE STORAGEENGINE (\"127.0.0.1\", 6667, \"schema_a\", \"data_a\");"));
+        verify(dataResourceRepository).delete(entity);
     }
 }

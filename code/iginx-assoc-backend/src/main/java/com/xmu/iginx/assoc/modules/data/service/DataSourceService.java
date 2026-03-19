@@ -19,6 +19,13 @@ public interface DataSourceService {
     Long createDataSource(DataSourceCreateRequest request);
 
     /**
+     * 卸载数据源并移除对应存储引擎配置。
+     *
+     * @param id 数据源 ID
+     */
+    void uninstallDataSource(Long id);
+
+    /**
      * 分页查询数据源。
      *
      * @param request 查询请求

@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 数据源管理接口，提供数据源的增删改查能力。
+ * 数据源管理接口，提供数据源新增、查询、连接测试与卸载能力。
  */
 @Tag(name = "Data Resource Management")
 @Validated
@@ -43,6 +44,19 @@ public class DataSourceController {
     @PostMapping
     public Result<Long> create(@Valid @RequestBody DataSourceCreateRequest request) {
         return Result.success(dataSourceService.createDataSource(request));
+    }
+
+    /**
+     * 卸载数据源。
+     *
+     * @param id 数据源 ID
+     * @return 操作结果
+     */
+    @Operation(summary = "卸载数据源")
+    @DeleteMapping("/{id}")
+    public Result<Void> uninstall(@PathVariable Long id) {
+        dataSourceService.uninstallDataSource(id);
+        return Result.success();
     }
 
     /**
@@ -70,6 +84,18 @@ public class DataSourceController {
     }
 
     /**
+     * 查询数据源详情（兼容旧路径）。
+     *
+     * @param id 数据源 ID
+     * @return 数据源详情
+     */
+    @Operation(summary = "查询数据源详情（兼容）")
+    @GetMapping("/{id}/detail")
+    public Result<DataSourceVO> detailCompat(@PathVariable Long id) {
+        return Result.success(dataSourceService.getDataSource(id));
+    }
+
+    /**
      * 测试数据源连接是否可用。
      *
      * @param request 连接测试参数
@@ -87,6 +113,7 @@ public class DataSourceController {
      */
     @Data
     public static class TestConnectionRequest {
+
         /**
          * 数据源类型。
          */

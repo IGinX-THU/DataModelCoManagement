@@ -1,5 +1,6 @@
 package com.xmu.iginx.assoc.modules.data.util;
 
+import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
@@ -34,6 +35,31 @@ public class IginxStorageEngineHelper {
         String extraParams = buildExtraParams(sourceType, config, resolvedHost);
         return String.format("ADD STORAGEENGINE (\"%s\", %d, \"%s\", \"%s\");",
             resolvedHost, config.getPort(), engine, escape(extraParams));
+    }
+
+    /**
+     * 构建卸载存储引擎的 SQL 语句。
+     * <p>
+     * 依据用户手册 3.3.5：REMOVE STORAGEENGINE (ip, port, schemaPrefix, dataPrefix)。
+     * schemaPrefix/dataPrefix 为空时需传空字符串。
+     * </p>
+     *
+     * @param config 数据源连接配置
+     * @return SQL 字符串
+     */
+    public String buildRemoveStorageEngineSql(DataSourceConnectionConfig config) {
+        if (config == null) {
+            throw BizException.badRequest("卸载数据源失败：连接配置不能为空");
+        }
+        String resolvedHost = resolveStorageHost(config.getHost());
+        Integer port = config.getPort();
+        if (!StringUtils.hasText(resolvedHost) || port == null || port < 0 || port > 65535) {
+            throw BizException.badRequest("卸载数据源失败：主机或端口无效");
+        }
+        String schemaPrefix = normalizePrefix(config.getSchemaPrefix());
+        String dataPrefix = normalizePrefix(config.getDataPrefix());
+        return String.format("REMOVE STORAGEENGINE (\"%s\", %d, \"%s\", \"%s\");",
+            escape(resolvedHost), port, escape(schemaPrefix), escape(dataPrefix));
     }
 
     /**
@@ -118,6 +144,19 @@ public class IginxStorageEngineHelper {
             return iginxConfig.getStorageHostOverride().trim();
         }
         return host.trim();
+    }
+
+    /**
+     * 规范化前缀参数，空值统一为空字符串。
+     *
+     * @param prefix 前缀值
+     * @return 规范化后的前缀
+     */
+    private String normalizePrefix(String prefix) {
+        if (!StringUtils.hasText(prefix)) {
+            return "";
+        }
+        return prefix.trim();
     }
 
     /**
