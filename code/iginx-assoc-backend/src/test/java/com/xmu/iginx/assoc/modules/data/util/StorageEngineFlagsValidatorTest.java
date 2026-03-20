@@ -62,10 +62,24 @@ class StorageEngineFlagsValidatorTest {
         DataSourceConnectionConfig config = new DataSourceConnectionConfig();
         config.setHasData(true);
         config.setReadOnly(false);
-        config.setSchemaPrefix("project_a");
+        config.setSchemaPrefix("ts");
         config.setDataPrefix("ts");
         config.setExtra("database=demo");
 
         assertDoesNotThrow(() -> StorageEngineFlagsValidator.validate(config));
+    }
+
+    /**
+     * schemaPrefix 仅允许 rt/ts。
+     */
+    @Test
+    void validate_shouldRejectInvalidSchemaPrefix() {
+        DataSourceConnectionConfig config = new DataSourceConnectionConfig();
+        config.setHasData(true);
+        config.setReadOnly(false);
+        config.setSchemaPrefix("abc");
+
+        BizException ex = assertThrows(BizException.class, () -> StorageEngineFlagsValidator.validate(config));
+        assertTrue(ex.getMessage().contains("schemaPrefix"));
     }
 }

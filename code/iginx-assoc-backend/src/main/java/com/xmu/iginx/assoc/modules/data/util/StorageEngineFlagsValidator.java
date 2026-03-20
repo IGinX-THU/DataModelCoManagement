@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.data.util;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -32,6 +33,7 @@ public final class StorageEngineFlagsValidator {
         if (Boolean.FALSE.equals(hasData) && Boolean.TRUE.equals(readOnly)) {
             throw BizException.badRequest("无数据时不允许只读，请调整 hasData/readOnly 组合");
         }
+        validateSchemaPrefix(config.getSchemaPrefix());
 
         String extra = config.getExtra();
         if (containsFlag(extra, HAS_DATA_PATTERN)
@@ -47,5 +49,16 @@ public final class StorageEngineFlagsValidator {
             return false;
         }
         return pattern.matcher(extra).find();
+    }
+
+    private static void validateSchemaPrefix(String schemaPrefix) {
+        if (schemaPrefix == null || schemaPrefix.isBlank()) {
+            return;
+        }
+        String normalized = schemaPrefix.trim().toLowerCase(Locale.ROOT);
+        if (!DataPrefixRules.TS_PREFIX.equals(normalized)
+            && !DataPrefixRules.RT_PREFIX.equals(normalized)) {
+            throw BizException.badRequest("schemaPrefix 仅支持 rt 或 ts");
+        }
     }
 }
