@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 /**
- * 导出文件存储服务，负责生成与解析文件路径。
+ * 文件存储服务，负责生成与解析文件路径。
  */
 @Component
 @RequiredArgsConstructor

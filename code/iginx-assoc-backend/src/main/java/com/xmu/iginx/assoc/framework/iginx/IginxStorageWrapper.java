@@ -2,12 +2,21 @@ package com.xmu.iginx.assoc.framework.iginx;
 
 import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
+import cn.edu.tsinghua.iginx.thrift.FileChunk;
+import cn.edu.tsinghua.iginx.utils.Pair;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -19,6 +28,7 @@ import java.util.Locale;
 public class IginxStorageWrapper {
 
     private static final String IGINX_UNAVAILABLE_MESSAGE = "IGinX service unavailable, please retry later.";
+    private static final int LOAD_CSV_CHUNK_SIZE = 1024 * 1024;
 
     private final IginxConfig config;
     private volatile Session session;
@@ -114,6 +124,72 @@ public class IginxStorageWrapper {
     }
 
     /**
+     * 组装并执行 IGinX CSV 导入 SQL。
+     * <p>
+     * 语法参考《用户手册-v0.8.0》3.2.1.3：LOAD DATA FROM INFILE ... AS CSV INTO ... [SET KEY "colName"]。
+     * </p>
+     *
+     * @param csvFilePath CSV 文件绝对路径
+     * @param targetPath 导入目标路径前缀
+     * @param keyColumn KEY 列名；为空时走自动生成 KEY
+     * @return SQL 执行结果
+     */
+    public SessionExecuteSqlResult executeLoadDataFromCsv(String csvFilePath, String targetPath, String keyColumn) {
+        Path csvPath = normalizeCsvFilePath(csvFilePath);
+        String sql = buildLoadDataFromCsvSql(csvPath.toString(), targetPath, keyColumn);
+        try {
+            return executeWithSession(current -> {
+                log.debug("Executing SQL: {}", sql);
+                SessionExecuteSqlResult result = current.executeSql(sql);
+                if (result != null && StringUtils.hasText(result.getParseErrorMsg())) {
+                    throw BizException.badRequest(result.getParseErrorMsg().trim());
+                }
+
+                String loadCsvPath = result == null ? null : result.getLoadCsvPath();
+                if (!StringUtils.hasText(loadCsvPath)) {
+                    return result;
+                }
+
+                String uploadFileName = current.getSessionId() + "-" + System.currentTimeMillis() + ".csv";
+                uploadCsvFileChunks(current, csvPath, uploadFileName);
+                Pair<List<String>, Long> loadResult = current.executeLoadCSV(sql, uploadFileName);
+                Long importedRows = loadResult == null ? null : loadResult.getV();
+                log.info("IGinX CSV import finished. file={}, rows={}", csvPath, importedRows);
+                return result;
+            });
+        } catch (BizException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw BizException.badRequest(safeMessage(ex));
+        }
+    }
+
+    /**
+     * 组装 LOAD DATA FROM INFILE ... AS CSV SQL。
+     *
+     * @param csvFilePath CSV 文件绝对路径
+     * @param targetPath 导入目标路径前缀
+     * @param keyColumn KEY 列名；为空时走自动生成 KEY
+     * @return 完整 SQL
+     */
+    public String buildLoadDataFromCsvSql(String csvFilePath, String targetPath, String keyColumn) {
+        String normalizedFilePath = normalizeRequiredText(csvFilePath, "导入文件路径不能为空");
+        String normalizedTargetPath = normalizeTargetPath(targetPath);
+        StringBuilder sql = new StringBuilder();
+        sql.append("LOAD DATA FROM INFILE \"")
+            .append(escapeDoubleQuotedLiteral(normalizedFilePath))
+            .append("\" AS CSV INTO ")
+            .append(normalizedTargetPath);
+        if (StringUtils.hasText(keyColumn)) {
+            sql.append(" SET KEY \"")
+                .append(escapeDoubleQuotedLiteral(keyColumn.trim()))
+                .append("\"");
+        }
+        sql.append(";");
+        return sql.toString();
+    }
+
+    /**
      * 保证 Session 已初始化。
      */
     private void ensureSessionAvailable() {
@@ -134,6 +210,125 @@ public class IginxStorageWrapper {
             throw BizException.internal(IGINX_UNAVAILABLE_MESSAGE);
         }
         return current;
+    }
+
+    /**
+     * 校验并规范化目标路径，避免非法段导致 SQL 拼接错误。
+     *
+     * @param targetPath 原始路径
+     * @return 规范化后的路径
+     */
+    private String normalizeTargetPath(String targetPath) {
+        String normalized = normalizeRequiredText(targetPath, "导入目标路径不能为空");
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isBlank()) {
+            throw BizException.badRequest("导入目标路径不能为空");
+        }
+        String[] parts = normalized.split("\\.");
+        List<String> normalizedParts = new ArrayList<>();
+        for (String part : parts) {
+            String segment = part == null ? "" : part.trim();
+            if (segment.isEmpty()) {
+                throw BizException.badRequest("导入目标路径不合法: " + targetPath);
+            }
+            normalizedParts.add(quotePathSegment(segment));
+        }
+        return String.join(".", normalizedParts);
+    }
+
+    /**
+     * 校验并规范化必填文本。
+     *
+     * @param text 原始文本
+     * @param message 校验失败提示
+     * @return 去空白后的文本
+     */
+    private String normalizeRequiredText(String text, String message) {
+        if (!StringUtils.hasText(text)) {
+            throw BizException.badRequest(message);
+        }
+        return text.trim();
+    }
+
+    /**
+     * 规范化并校验 CSV 文件路径。
+     *
+     * @param csvFilePath 原始路径
+     * @return 规范化后的绝对路径
+     */
+    private Path normalizeCsvFilePath(String csvFilePath) {
+        String normalized = normalizeRequiredText(csvFilePath, "导入文件路径不能为空");
+        final Path path;
+        try {
+            path = Path.of(normalized).toAbsolutePath().normalize();
+        } catch (InvalidPathException ex) {
+            throw BizException.badRequest("导入文件路径不合法: " + normalized);
+        }
+        if (!Files.exists(path)) {
+            throw BizException.badRequest("导入文件不存在: " + path);
+        }
+        if (!Files.isRegularFile(path)) {
+            throw BizException.badRequest("导入文件不是普通文件: " + path);
+        }
+        return path;
+    }
+
+    /**
+     * 以分片方式上传 CSV 文件，匹配 IGinX 客户端的 LOAD DATA 执行流程。
+     *
+     * @param current 当前会话
+     * @param csvPath 本地 CSV 路径
+     * @param uploadFileName 服务端暂存文件名
+     * @throws Exception 上传异常
+     */
+    private void uploadCsvFileChunks(Session current, Path csvPath, String uploadFileName) throws Exception {
+        long offset = 0L;
+        byte[] buffer = new byte[LOAD_CSV_CHUNK_SIZE];
+        try (var inputStream = Files.newInputStream(csvPath)) {
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                if (read == 0) {
+                    continue;
+                }
+                byte[] chunkBytes = buffer;
+                if (read < buffer.length) {
+                    chunkBytes = new byte[read];
+                    System.arraycopy(buffer, 0, chunkBytes, 0, read);
+                }
+                FileChunk chunk = new FileChunk(uploadFileName, offset, ByteBuffer.wrap(chunkBytes), read);
+                current.uploadFileChunk(chunk);
+                offset += read;
+            }
+        }
+    }
+
+    /**
+     * 规范化路径段：普通标识符直出，其他字符使用反引号包裹。
+     *
+     * @param segment 路径段
+     * @return 处理后的路径段
+     */
+    private String quotePathSegment(String segment) {
+        String raw = segment;
+        if (raw.startsWith("`") && raw.endsWith("`") && raw.length() >= 2) {
+            raw = raw.substring(1, raw.length() - 1);
+        }
+        if (raw.matches("[A-Za-z0-9_]+")) {
+            return raw;
+        }
+        return "`" + raw.replace("\\", "\\\\").replace("`", "\\`") + "`";
+    }
+
+    /**
+     * 转义双引号字符串字面量中的特殊字符。
+     *
+     * @param value 原始值
+     * @return 转义后字符串
+     */
+    private String escapeDoubleQuotedLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /**
