@@ -32,6 +32,11 @@ public class DataImportServiceImpl implements DataImportService {
     private final IginxStorageWrapper iginxStorageWrapper;
     private final DataFileStorageService fileStorageService;
 
+    private enum ImportType {
+        TS,
+        RT
+    }
+
     /**
      * 执行统一 CSV 导入。
      *
@@ -86,9 +91,18 @@ public class DataImportServiceImpl implements DataImportService {
             throw BizException.badRequest("导入目标路径不能为空");
         }
         if (request.getKeyMode() == null) {
-            throw BizException.badRequest("KEY方式不能为空");
+            request.setKeyMode(DataImportRequest.KeyMode.AUTO_GENERATED);
         }
-        if (request.getKeyMode() == DataImportRequest.KeyMode.COLUMN && !StringUtils.hasText(request.getKeyColumn())) {
+        ImportType importType = resolveImportTypeByPath(request.getTargetPath());
+        if (importType == ImportType.TS) {
+            if (request.getKeyMode() != DataImportRequest.KeyMode.COLUMN) {
+                throw BizException.badRequest("ts 路径导入必须指定时间列作为 KEY");
+            }
+            if (!StringUtils.hasText(request.getKeyColumn())) {
+                throw BizException.badRequest("ts 路径导入时，KEY 列名不能为空");
+            }
+        } else if (request.getKeyMode() == DataImportRequest.KeyMode.COLUMN
+            && !StringUtils.hasText(request.getKeyColumn())) {
             throw BizException.badRequest("当 KEY 方式为“使用某一列作为 KEY”时，KEY 列名不能为空");
         }
 
@@ -111,6 +125,23 @@ public class DataImportServiceImpl implements DataImportService {
             return request.getKeyColumn().trim();
         }
         return null;
+    }
+
+    /**
+     * 根据目标路径识别导入类型，仅允许 ts.* 或 rt.*。
+     *
+     * @param targetPath 导入目标路径
+     * @return 导入类型
+     */
+    private ImportType resolveImportTypeByPath(String targetPath) {
+        String normalized = StringUtils.hasText(targetPath) ? targetPath.trim().toLowerCase(Locale.ROOT) : "";
+        if (normalized.equals("ts") || normalized.startsWith("ts.")) {
+            return ImportType.TS;
+        }
+        if (normalized.equals("rt") || normalized.startsWith("rt.")) {
+            return ImportType.RT;
+        }
+        throw BizException.badRequest("导入路径必须以 ts 或 rt 开头");
     }
 
     /**
