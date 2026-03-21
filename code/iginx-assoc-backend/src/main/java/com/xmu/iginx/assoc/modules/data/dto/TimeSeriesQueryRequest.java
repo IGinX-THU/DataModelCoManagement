@@ -12,13 +12,6 @@ import java.util.List;
  */
 @Data
 public class TimeSeriesQueryRequest {
-
-    /**
-     * 数据源 ID。
-     */
-    @NotNull(message = "数据源不能为空")
-    private Long sourceId;
-
     /**
      * 待查询的测点路径列表。
      */
