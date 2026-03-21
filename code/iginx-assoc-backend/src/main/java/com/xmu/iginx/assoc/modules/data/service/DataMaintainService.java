@@ -4,7 +4,7 @@ import com.xmu.iginx.assoc.modules.data.dto.StructuredRowCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowUpdateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
-import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesDeleteRequest;
+
 
 /**
  * 数据维护服务接口。
