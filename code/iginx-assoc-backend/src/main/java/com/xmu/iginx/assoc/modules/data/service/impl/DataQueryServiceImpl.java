@@ -17,7 +17,6 @@ import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StructuredSqlBuilder;
 import com.xmu.iginx.assoc.modules.data.util.TimeParser;
-import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.data.vo.StructuredQueryResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.TimeSeriesQueryResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.TimeSeriesSeriesVO;
@@ -108,11 +107,9 @@ public class DataQueryServiceImpl implements DataQueryService {
      * @return 结构化查询结果     */
     @Override
     public StructuredQueryResultVO queryStructured(StructuredQueryRequest request) {
-        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         try {
-            // 统一结构化 schema 路径，确保与真实表路径一致
-            String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
-            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schemaPath, request.getTable());
+            String rtPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
+            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(rtPath, request.getTable());
             if (columnTypes == null || columnTypes.isEmpty()) {
                 throw BizException.badRequest("表结构不存在或无字段");
             }
@@ -123,7 +120,7 @@ public class DataQueryServiceImpl implements DataQueryService {
             StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
                 request.getConditions(), sqlTypeMap.keySet(), sqlTypeMap);
             String selectList = "*";
-            String tablePath = IginxStructuredUtils.buildTablePath(schemaPath, request.getTable());
+            String tablePath = IginxStructuredUtils.buildTablePath(rtPath, request.getTable());
             // 追加 KEY 过滤条件，避免查询内部占位行
             String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
             String orderBy = buildOrderBy(request.getOrderBy(), request.getOrderDirection(), columns);
