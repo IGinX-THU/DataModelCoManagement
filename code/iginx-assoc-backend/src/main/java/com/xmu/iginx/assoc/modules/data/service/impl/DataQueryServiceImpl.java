@@ -9,73 +9,81 @@ import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesQueryRequest;
-import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
 import com.xmu.iginx.assoc.modules.data.service.DataQueryService;
-import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
-import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredUtils;
 import com.xmu.iginx.assoc.modules.data.util.StructuredSqlBuilder;
 import com.xmu.iginx.assoc.modules.data.util.TimeParser;
 import com.xmu.iginx.assoc.modules.data.vo.StructuredQueryResultVO;
+import com.xmu.iginx.assoc.modules.data.vo.StructuredSchemaColumnVO;
+import com.xmu.iginx.assoc.modules.data.vo.StructuredSchemaVO;
 import com.xmu.iginx.assoc.modules.data.vo.TimeSeriesQueryResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.TimeSeriesSeriesVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.sql.Types;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * 数据查询服务实现，支持时序与结构化数据查询。 */
+ * 数据查询服务实现，支持时序与结构化查询。
+ */
 @Service
 @RequiredArgsConstructor
 public class DataQueryServiceImpl implements DataQueryService {
 
-    private final DataSourceAccessor dataSourceAccessor;
     private final IginxStructuredQueryHelper structuredQueryHelper;
     private final IginxStorageWrapper iginxStorageWrapper;
     private final StructuredSqlBuilder structuredSqlBuilder = new StructuredSqlBuilder();
 
     /**
-     * 查询时序数据，支持可选的降采样聚合。     *
+     * 查询时序数据，支持可选的降采样聚合。
+     *
      * @param request 查询请求
      * @return 时序查询结果
      */
     @Override
     public TimeSeriesQueryResultVO queryTimeSeries(TimeSeriesQueryRequest request) {
-        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
         if (request.getPaths() == null || request.getPaths().isEmpty()) {
             throw BizException.badRequest("测点路径不能为空");
         }
         if (request.getTimeRange() == null) {
             throw BizException.badRequest("时间范围不能为空");
         }
+
+        // IGinX 0.8.0 的 queryData/downsampleQuery 会在内部对路径集合排序，
+        // 这里必须使用可变 List，避免 stream().toList() 生成不可变集合导致 UnsupportedOperationException。
         List<String> resolvedPaths = request.getPaths().stream()
             .filter(path -> path != null && !path.isBlank())
-            .toList();
+            .collect(Collectors.toCollection(ArrayList::new));
         if (resolvedPaths.isEmpty()) {
             throw BizException.badRequest("测点路径不能为空");
         }
-        // 将毫秒时间转换为纳秒，匹配 Iginx 查询接口
+
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
         SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session -> {
             if (request.isDownsample() && request.getPrecisionMs() != null) {
-                // 降采样查询，按聚合方式与精度返回结果
                 AggregateType aggregateType = mapAggregateType(request.getAggregator());
                 return session.downsampleQuery(resolvedPaths, startNs, endNs, aggregateType,
                     TimeParser.toNano(request.getPrecisionMs()));
             }
             return session.queryData(resolvedPaths, startNs, endNs);
         });
+
         List<Long> timestamps = new ArrayList<>();
         for (long key : dataSet.getKeys()) {
             timestamps.add(TimeParser.toMillis(key));
         }
+
         List<List<Object>> values = dataSet.getValues();
         List<String> paths = dataSet.getPaths();
         List<TimeSeriesSeriesVO> series = new ArrayList<>();
@@ -85,9 +93,9 @@ public class DataQueryServiceImpl implements DataQueryService {
             List<Object> columnValues = new ArrayList<>();
             for (List<Object> row : values) {
                 Object value = row.get(i);
-                // 二进制值按字符串展示，避免前端无法解析
+                // 二进制值统一转 UTF-8 字符串，避免前端无法直接展示。
                 if (value instanceof byte[] bytes) {
-                    columnValues.add(new String(bytes));
+                    columnValues.add(new String(bytes, StandardCharsets.UTF_8));
                 } else {
                     columnValues.add(value);
                 }
@@ -95,6 +103,7 @@ public class DataQueryServiceImpl implements DataQueryService {
             item.setValues(columnValues);
             series.add(item);
         }
+
         TimeSeriesQueryResultVO result = new TimeSeriesQueryResultVO();
         result.setTimestamps(timestamps);
         result.setSeries(series);
@@ -102,203 +111,260 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 查询结构化数据，支持条件过滤与分页。     *
+     * 查询结构化表结构。
+     *
+     * <p>按 IGinX 用户手册建议，使用 SHOW COLUMNS rt.xxx.* 获取列名与类型。</p>
+     *
+     * @param rawTablePath 表路径（例如 rt.user）
+     * @return 结构化表结构
+     */
+    @Override
+    public StructuredSchemaVO queryStructuredSchema(String rawTablePath) {
+        StructuredTablePath tablePath = normalizeStructuredTablePath(rawTablePath);
+        Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypesByTablePath(tablePath.sqlPath());
+        if (columnTypes == null || columnTypes.isEmpty()) {
+            throw BizException.badRequest("表结构不存在或无字段");
+        }
+
+        List<StructuredSchemaColumnVO> columns = new ArrayList<>();
+        for (Map.Entry<String, DataType> entry : columnTypes.entrySet()) {
+            StructuredSchemaColumnVO column = new StructuredSchemaColumnVO();
+            column.setName(entry.getKey());
+            column.setType(entry.getValue() == null ? DataType.BINARY.name() : entry.getValue().name());
+            columns.add(column);
+        }
+
+        StructuredSchemaVO schema = new StructuredSchemaVO();
+        schema.setTablePath(tablePath.displayPath());
+        schema.setColumns(columns);
+        return schema;
+    }
+
+    /**
+     * 查询结构化表数据。
+     *
+     * <p>实现策略：</p>
+     * <p>1. 校验并规范化表路径；</p>
+     * <p>2. 读取列类型，用于条件值类型转换；</p>
+     * <p>3. 直接拼接 SELECT * ... WHERE ... ORDER BY ... LIMIT ... OFFSET ...；</p>
+     * <p>4. 执行 COUNT(*) 获取分页总数。</p>
+     *
      * @param request 查询请求
-     * @return 结构化查询结果     */
+     * @return 结构化查询结果
+     */
     @Override
     public StructuredQueryResultVO queryStructured(StructuredQueryRequest request) {
         try {
-            String rtPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
-            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(rtPath, request.getTable());
+            StructuredTablePath tablePath = normalizeStructuredTablePath(request.getTablePath());
+            Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypesByTablePath(tablePath.sqlPath());
             if (columnTypes == null || columnTypes.isEmpty()) {
                 throw BizException.badRequest("表结构不存在或无字段");
             }
-            Map<String, Integer> sqlTypeMap = IginxStructuredUtils.mapIginxTypesToSqlTypes(columnTypes);
-            sqlTypeMap = new java.util.LinkedHashMap<>(sqlTypeMap);
-            sqlTypeMap.put(IginxStructuredUtils.INTERNAL_KEY, java.sql.Types.BIGINT);
-            Set<String> columns = columnTypes.keySet();
+
+            Set<String> allowedColumns = new LinkedHashSet<>(columnTypes.keySet());
+            //allowedColumns.add("KEY");
+            //allowedColumns.add(IginxStructuredUtils.INTERNAL_KEY);
+
+            Map<String, Integer> sqlTypeMap = new LinkedHashMap<>(IginxStructuredUtils.mapIginxTypesToSqlTypes(columnTypes));
+            //sqlTypeMap.put("KEY", Types.BIGINT);
+            //sqlTypeMap.put(IginxStructuredUtils.INTERNAL_KEY, Types.BIGINT);
+
             StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
-                request.getConditions(), sqlTypeMap.keySet(), sqlTypeMap);
-            String selectList = "*";
-            String tablePath = IginxStructuredUtils.buildTablePath(rtPath, request.getTable());
-            // 追加 KEY 过滤条件，避免查询内部占位行
-            String whereClause = appendKeyFilter(rewriteInternalKey(where.sql()));
-            String orderBy = buildOrderBy(request.getOrderBy(), request.getOrderDirection(), columns);
-            String sql = "SELECT " + selectList + " FROM " + tablePath + whereClause + orderBy;
-            String finalSql = IginxStructuredUtils.renderSqlWithParams(sql, where.params());
-            QueryDataSet dataSet = structuredQueryHelper.executeQuery(finalSql, request.getPageSize());
+                request.getConditions(), allowedColumns, sqlTypeMap);
+            String whereSql = where.sql();
+            String orderBySql = buildOrderBy(request.getOrderBy(), request.getOrderDirection(), columnTypes.keySet());
+
+            int pageNum = safePageNum(request.getPageNum());
+            int pageSize = safePageSize(request.getPageSize());
+            long offset = (long) (pageNum - 1) * pageSize;
+
+            String dataSqlTemplate = "SELECT * FROM " + tablePath.sqlPath()
+                + whereSql + orderBySql
+                + " LIMIT " + pageSize + " OFFSET " + offset;
+            String dataSql = IginxStructuredUtils.renderSqlWithParams(dataSqlTemplate, where.params());
+
+            QueryDataSet dataSet = structuredQueryHelper.executeQuery(dataSql, pageSize);
+            List<String> headers;
+            List<Map<String, Object>> records;
             try {
-                List<String> rawHeader = dataSet.getColumnList();
-                List<String> header = IginxStructuredUtils.normalizeStructuredHeaders(rawHeader);
-                List<Map<String, Object>> records = structuredQueryHelper.readAll(dataSet, header);
-                // 统一内部键展示格式，保持前端展示一致
-                normalizeInternalKey(records);
-                // 过滤逻辑删除行，避免前端展示空记录
-                List<Map<String, Object>> visibleRecords = filterDeletedStructuredRecords(records, header);
-                List<Map<String, Object>> pageRecords = paginateStructuredRecords(
-                    visibleRecords, request.getPageNum(), request.getPageSize());
-                StructuredQueryResultVO result = new StructuredQueryResultVO();
-                result.setColumns(header);
-                result.setPage(PageResult.of(pageRecords, visibleRecords.size(), request.getPageNum(), request.getPageSize()));
-                return result;
+                headers = IginxStructuredUtils.normalizeStructuredHeaders(dataSet.getColumnList());
+                records = structuredQueryHelper.readAll(dataSet, headers);
             } finally {
                 closeQuietly(dataSet);
             }
-        } catch (BizException e) {
-            throw e;
+
+            long total = queryStructuredTotal(tablePath.sqlPath(), whereSql, where.params());
+            StructuredQueryResultVO result = new StructuredQueryResultVO();
+            result.setColumns(headers);
+            result.setPage(PageResult.of(records, total, pageNum, pageSize));
+            return result;
+        } catch (BizException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw BizException.internal("结构化查询失败: " + ex.getMessage());
         }
     }
 
     /**
-     * 过滤结构化数据中的逻辑删除行。     *
-     * @param records 鍘熷璁板綍
-     * @param headers 表头
-     * @return 过滤后的记录
+     * 执行 COUNT(*) 获取总记录数。
      */
-    private List<Map<String, Object>> filterDeletedStructuredRecords(List<Map<String, Object>> records,
-                                                                     List<String> headers) {
-        if (records == null || records.isEmpty()) {
-            return records == null ? List.of() : records;
-        }
-        List<String> dataColumns = new ArrayList<>();
-        if (headers != null) {
-            for (String header : headers) {
-                if (IginxStructuredUtils.isInternalKey(header)) {
-                    continue;
+    private long queryStructuredTotal(String tableSqlPath, String whereSql, List<Object> params) {
+        String countSqlTemplate = "SELECT COUNT(*) FROM " + tableSqlPath + whereSql;
+        String countSql = IginxStructuredUtils.renderSqlWithParams(countSqlTemplate, params);
+        QueryDataSet countSet = structuredQueryHelper.executeQuery(countSql, 1);
+        try {
+            Object[] row = nextRowQuietly(countSet);
+            if (row == null || row.length == 0) {
+                return 0L;
+            }
+            for (Object value : row) {
+                long parsed = parseCountValue(value);
+                if (parsed >= 0) {
+                    return parsed;
                 }
-                // 仅关注业务列是否有值
-                dataColumns.add(header);
             }
+            return 0L;
+        } finally {
+            closeQuietly(countSet);
         }
-        if (dataColumns.isEmpty()) {
-            return records;
-        }
-        List<Map<String, Object>> filtered = new ArrayList<>();
-        for (Map<String, Object> record : records) {
-            if (record == null) {
-                continue;
-            }
-            if (!isDeletedStructuredRecord(record, dataColumns)) {
-                filtered.add(record);
-            }
-        }
-        return filtered;
     }
 
     /**
-     * 判断结构化记录是否为逻辑删除行。     *
-     * @param record 璁板綍
-     * @param dataColumns 业务列     * @return 是否删除
+     * 解析 COUNT(*) 返回值。
+     *
+     * @param value 原始值
+     * @return 非负总数；无法解析时返回 -1
      */
-    private boolean isDeletedStructuredRecord(Map<String, Object> record, List<String> dataColumns) {
-        for (String column : dataColumns) {
-            if (record.get(column) != null) {
-                return false;
-            }
+    private long parseCountValue(Object value) {
+        if (value == null) {
+            return -1L;
         }
-        return true;
+        if (value instanceof Number number) {
+            return Math.max(0L, number.longValue());
+        }
+        if (value instanceof byte[] bytes) {
+            return parseCountText(new String(bytes, StandardCharsets.UTF_8));
+        }
+        return parseCountText(String.valueOf(value));
     }
 
     /**
-     * 对结构化记录进行内存分页。     *
-     * @param records 记录列表
-     * @param pageNum 椤电爜
-     * @param pageSize 页大小     * @return 分页结果
+     * 解析文本计数。
      */
-    private List<Map<String, Object>> paginateStructuredRecords(List<Map<String, Object>> records,
-                                                                int pageNum,
-                                                                int pageSize) {
-        if (records == null || records.isEmpty()) {
-            return List.of();
+    private long parseCountText(String text) {
+        if (text == null || text.isBlank()) {
+            return -1L;
         }
-        int safePageNum = Math.max(pageNum, 1);
-        int safePageSize = Math.max(pageSize, 1);
-        long offset = (long) (safePageNum - 1) * safePageSize;
-        if (offset >= records.size()) {
-            return List.of();
+        try {
+            return Math.max(0L, Long.parseLong(text.trim()));
+        } catch (Exception ex) {
+            return -1L;
         }
-        int fromIndex = (int) offset;
-        int toIndex = (int) Math.min(records.size(), offset + safePageSize);
-        return new ArrayList<>(records.subList(fromIndex, toIndex));
     }
 
     /**
-     * 构建 ORDER BY 子句。     *
-     * @param orderBy 排序字段     * @param direction 排序方向
-     * @param columns 有效列集合     * @return ORDER BY 子句（含前导空格）     */
+     * 构建 ORDER BY 子句。
+     */
     private String buildOrderBy(String orderBy, String direction, Set<String> columns) {
         if (orderBy == null || orderBy.isBlank()) {
             return "";
         }
-        if (IginxStructuredUtils.isInternalKey(orderBy)) {
-            // 内部键列统一映射为 KEY
-            return " ORDER BY KEY " + IginxStructuredUtils.normalizeOrderDirection(direction);
-        }
-        if (!columns.contains(orderBy)) {
+        String matchedColumn = findMatchedColumn(orderBy, columns);
+        if (matchedColumn == null) {
             return "";
         }
-        String dir = IginxStructuredUtils.normalizeOrderDirection(direction);
-        return " ORDER BY " + IginxStructuredUtils.quoteIdentifier(orderBy) + " " + dir;
+        return " ORDER BY " + IginxStructuredUtils.quoteIdentifier(matchedColumn)
+            + " " + IginxStructuredUtils.normalizeOrderDirection(direction);
     }
 
     /**
-     * 追加 KEY 过滤条件，排除虚拟占位行。     *
-     * @param whereSql 原始条件
-     * @return 追加后的条件
+     * 忽略大小写匹配字段名。
      */
-    private String appendKeyFilter(String whereSql) {
-        String keyFilter = "KEY <> " + IginxStructuredUtils.DUMMY_KEY;
-        if (whereSql == null || whereSql.isBlank()) {
-            return " WHERE " + keyFilter;
+    private String findMatchedColumn(String orderBy, Set<String> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return null;
         }
-        return whereSql + " AND " + keyFilter;
-    }
-
-    /**
-     * 将内部键字段重写为 KEY。     *
-     * @param whereSql 原始条件
-     * @return 重写后的条件
-     */
-    private String rewriteInternalKey(String whereSql) {
-        if (whereSql == null || whereSql.isBlank()) {
-            return whereSql;
-        }
-        String normalized = whereSql;
-        String quotedInternal = IginxStructuredUtils.quoteIdentifier(IginxStructuredUtils.INTERNAL_KEY);
-        normalized = normalized.replace(quotedInternal, "KEY");
-        normalized = normalized.replace(IginxStructuredUtils.INTERNAL_KEY, "KEY");
-        return normalized;
-    }
-
-    /**
-     * 统一内部键字段为字符串类型，避免前端类型不一致。     *
-     * @param records 记录列表
-     */
-    private void normalizeInternalKey(List<Map<String, Object>> records) {
-        if (records == null || records.isEmpty()) {
-            return;
-        }
-        for (Map<String, Object> record : records) {
-            if (record == null) {
-                continue;
-            }
-            Object raw = record.get(IginxStructuredUtils.INTERNAL_KEY);
-            if (raw == null) {
-                continue;
-            }
-            if (raw instanceof Number number) {
-                record.put(IginxStructuredUtils.INTERNAL_KEY, String.valueOf(number.longValue()));
-            } else {
-                record.put(IginxStructuredUtils.INTERNAL_KEY, String.valueOf(raw));
+        for (String column : columns) {
+            if (column != null && column.equalsIgnoreCase(orderBy)) {
+                return column;
             }
         }
+        return null;
     }
 
     /**
-     * 安静关闭查询结果集。     *
-     * @param dataSet 查询结果
+     * 规范化结构化表路径。
+     *
+     * <p>输出两个版本：</p>
+     * <p>1. displayPath：返回给前端展示，形如 rt.user；</p>
+     * <p>2. sqlPath：拼 SQL 使用，必要时自动加反引号。</p>
+     */
+    private StructuredTablePath normalizeStructuredTablePath(String rawTablePath) {
+        if (rawTablePath == null || rawTablePath.isBlank()) {
+            throw BizException.badRequest("IGinX 表路径不能为空");
+        }
+        List<String> segments = IginxStructuredUtils.splitPathSegments(rawTablePath.trim());
+        // 兼容传入 rt.xxx.* 的场景：末尾 * 代表列通配符，不属于表路径本体。
+        if (!segments.isEmpty() && "*".equals(segments.get(segments.size() - 1))) {
+            segments = new ArrayList<>(segments.subList(0, segments.size() - 1));
+        }
+        if (segments.size() < 2) {
+            throw BizException.badRequest("IGinX 表路径格式错误，应为 rt.xxx");
+        }
+        for (String segment : segments) {
+            if (segment == null || segment.isBlank()) {
+                throw BizException.badRequest("IGinX 表路径格式错误，应为 rt.xxx");
+            }
+            if (segment.contains("*")) {
+                throw BizException.badRequest("IGinX 表路径不能包含通配符");
+            }
+        }
+        if (!"rt".equalsIgnoreCase(segments.get(0))) {
+            throw BizException.badRequest("结构化查询仅支持 rt 路径");
+        }
+        String displayPath = String.join(".", segments);
+        String sqlPath = segments.stream()
+            .map(IginxStructuredUtils::quoteIdentifier)
+            .collect(Collectors.joining("."));
+        return new StructuredTablePath(displayPath, sqlPath);
+    }
+
+    /**
+     * 安全读取页码。
+     */
+    private int safePageNum(Integer pageNum) {
+        if (pageNum == null || pageNum < 1) {
+            return 1;
+        }
+        return pageNum;
+    }
+
+    /**
+     * 安全读取分页大小。
+     */
+    private int safePageSize(Integer pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return 50;
+        }
+        return Math.min(pageSize, 500);
+    }
+
+    /**
+     * 安全读取下一行。
+     */
+    private Object[] nextRowQuietly(QueryDataSet dataSet) {
+        if (dataSet == null) {
+            return null;
+        }
+        try {
+            return dataSet.nextRow();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /**
+     * 安静关闭结果集。
      */
     private void closeQuietly(QueryDataSet dataSet) {
         if (dataSet == null) {
@@ -311,8 +377,7 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
-     * 将聚合器字符串映射为 Iginx 聚合类型。     *
-     * @param aggregator 聚合器名     * @return 聚合类型
+     * 将聚合器字符串映射为 IGinX 聚合类型。
      */
     private AggregateType mapAggregateType(String aggregator) {
         if (aggregator == null) {
@@ -328,10 +393,10 @@ public class DataQueryServiceImpl implements DataQueryService {
             default -> AggregateType.AVG;
         };
     }
+
+    /**
+     * 结构化表路径封装。
+     */
+    private record StructuredTablePath(String displayPath, String sqlPath) {
+    }
 }
-
-
-
-
-
-

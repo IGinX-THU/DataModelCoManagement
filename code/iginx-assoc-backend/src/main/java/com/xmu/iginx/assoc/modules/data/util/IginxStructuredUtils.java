@@ -30,32 +30,6 @@ public final class IginxStructuredUtils {
     }
 
     /**
-     * 判断字段是否为内部键字段。
-     *
-     * @param column 字段名
-     * @return 是否内部键
-     */
-    public static boolean isInternalKey(String column) {
-        if (column == null) {
-            return false;
-        }
-        String trimmed = column.trim();
-        return INTERNAL_KEY.equalsIgnoreCase(trimmed)
-            || trimmed.endsWith(".RELATIONAL+KEY")
-            || "RELATIONAL+KEY".equalsIgnoreCase(trimmed);
-    }
-
-    /**
-     * 判断是否为保留键。
-     *
-     * @param key 键值
-     * @return 是否保留键
-     */
-    public static boolean isReservedKey(long key) {
-        return key == DUMMY_KEY || key == Long.MAX_VALUE;
-    }
-
-    /**
      * 为 SQL 标识符添加必要的反引号。
      *
      * @param identifier 标识符
@@ -102,92 +76,6 @@ public final class IginxStructuredUtils {
         }
         return segments.stream().map(IginxStructuredUtils::quoteIdentifier)
             .collect(java.util.stream.Collectors.joining("."));
-    }
-
-    /**
-     * 构建列路径。
-     *
-     * @param schema schema 路径
-     * @param table 表名
-     * @param column 列名
-     * @return 列路径
-     */
-    public static String buildColumnPath(String schema, String table, String column) {
-        return buildTablePath(schema, table) + "." + quoteIdentifier(column);
-    }
-
-    /**
-     * 构建 INSERT 字段列表中的列。
-     *
-     * @param column 列名
-     * @return 处理后的列名
-     */
-    public static String buildInsertColumn(String column) {
-        if (column == null || column.isBlank()) {
-            return "";
-        }
-        List<String> segments = splitPathSegments(column);
-        if (segments.isEmpty()) {
-            return "";
-        }
-        return segments.stream()
-            .map(IginxStructuredUtils::quoteIdentifier)
-            .collect(java.util.stream.Collectors.joining("."));
-    }
-
-    /**
-     * 构建 SELECT 列表。
-     *
-     * @param schema schema 路径
-     * @param table 表名
-     * @param columns 列名列表
-     * @param includeKey 是否包含内部键
-     * @return SELECT 列表
-     */
-    public static String buildSelectList(String schema, String table, List<String> columns, boolean includeKey) {
-        return buildSelectList(schema, table, columns, includeKey, true);
-    }
-
-    /**
-     * 构建 SELECT 列表（支持别名）。
-     *
-     * @param schema schema 路径
-     * @param table 表名
-     * @param columns 列名列表
-     * @param includeKey 是否包含内部键
-     * @param useAlias 是否使用别名
-     * @return SELECT 列表
-     */
-    public static String buildSelectList(String schema,
-                                         String table,
-                                         List<String> columns,
-                                         boolean includeKey,
-                                         boolean useAlias) {
-        List<String> parts = new ArrayList<>();
-        if (includeKey) {
-            if (useAlias) {
-                parts.add("KEY AS " + quoteIdentifier(INTERNAL_KEY));
-            } else {
-                parts.add("KEY");
-            }
-        }
-        if (columns != null) {
-            for (String column : columns) {
-                if (column == null || column.isBlank()) {
-                    continue;
-                }
-                String path = buildColumnPath(schema, table, column);
-                if (useAlias) {
-                    parts.add(path + " AS " + quoteIdentifier(column));
-                } else {
-                    parts.add(path);
-                }
-            }
-        }
-        if (parts.isEmpty()) {
-            return "*";
-        }
-        return String.join(", ", parts);
     }
 
     /**
@@ -319,10 +207,6 @@ public final class IginxStructuredUtils {
                 continue;
             }
             String trimmed = header.trim();
-            if ("KEY".equalsIgnoreCase(trimmed) || isInternalKey(trimmed)) {
-                result.add(INTERNAL_KEY);
-                continue;
-            }
             result.add(extractColumnName(trimmed));
         }
         return result;

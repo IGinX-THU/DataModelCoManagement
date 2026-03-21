@@ -56,7 +56,8 @@ public class StructuredSqlBuilder {
                 where.append(' ').append(normalizeLogic(condition.getLogic())).append(' ');
             }
             where.append(IginxStructuredUtils.quoteIdentifier(field)).append(' ').append(op).append(' ');
-            if ("IN".equals(op)) {
+            // IN / NOT IN 均走列表参数拼接逻辑。
+            if ("IN".equals(op) || "NOT IN".equals(op)) {
                 List<String> values = splitValues(condition.getValue());
                 if (values.isEmpty()) {
                     where.append("(NULL)");
@@ -122,7 +123,7 @@ public class StructuredSqlBuilder {
         }
         String normalized = op.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "=", "!=", "<>", "<", ">", "<=", ">=", "LIKE", "IN" -> normalized;
+            case "=", "!=", "<>", "<", ">", "<=", ">=", "LIKE", "IN", "NOT IN" -> normalized;
             default -> "=";
         };
     }

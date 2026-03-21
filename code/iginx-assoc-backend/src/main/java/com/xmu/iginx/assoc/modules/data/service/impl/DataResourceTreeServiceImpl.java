@@ -87,10 +87,6 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             if (root == null) {
                 continue;
             }
-            String lastSegment = segments.get(segments.size() - 1);
-            if (IginxStructuredUtils.isInternalKey(lastSegment)) {
-                continue;
-            }
             appendPathSegments(segments, root, nodeMap, root.getSourceId());
         }
 

@@ -410,7 +410,12 @@ public class IginxStorageWrapper {
                 return BizException.badRequest(trimmed);
             }
         }
-        return BizException.internal(IGINX_UNAVAILABLE_MESSAGE);
+        // 某些异常（如 UnsupportedOperationException）可能没有 message，
+        // 此时根据异常链判定是否连接问题，避免误报为“服务不可用”。
+        if (isConnectionIssue(ex)) {
+            return BizException.internal(IGINX_UNAVAILABLE_MESSAGE);
+        }
+        return BizException.badRequest("IGinX request failed: " + ex.getClass().getSimpleName());
     }
 
     /**
@@ -431,14 +436,39 @@ public class IginxStorageWrapper {
     }
 
     /**
+     * 判断异常链是否属于连接层问题。
+     *
+     * @param ex 异常
+     * @return 是否连接类错误
+     */
+    private boolean isConnectionIssue(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && isConnectionIssue(message)) {
+                return true;
+            }
+            String className = current.getClass().getName().toLowerCase(Locale.ROOT);
+            if (className.contains("transportexception")
+                || className.contains("socket")
+                || className.contains("connectexception")
+                || className.contains("sockettimeoutexception")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    /**
      * 判断是否需要重试。
      *
      * @param ex 异常
      * @return 是否重试
      */
     private boolean shouldRetry(Exception ex) {
-        String message = extractMessage(ex);
-        return message == null || message.isBlank() || isConnectionIssue(message);
+        // 仅在明确识别为连接层问题时才重试，避免业务异常被误判后重连。
+        return isConnectionIssue(ex);
     }
 
     /**

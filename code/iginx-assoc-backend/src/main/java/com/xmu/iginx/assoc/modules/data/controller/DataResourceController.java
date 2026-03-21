@@ -20,6 +20,7 @@ import com.xmu.iginx.assoc.modules.data.vo.DataExportResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataImportResultVO;
 import com.xmu.iginx.assoc.modules.data.vo.DataResourceTreeNodeVO;
 import com.xmu.iginx.assoc.modules.data.vo.StructuredQueryResultVO;
+import com.xmu.iginx.assoc.modules.data.vo.StructuredSchemaVO;
 import com.xmu.iginx.assoc.modules.data.vo.TimeSeriesQueryResultVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,8 +52,8 @@ import java.util.List;
  *
  * <p>说明：</p>
  * <p>1. 导入接口统一为一个入口，不再由控制层区分“时序/结构化”；</p>
- * <p>2. 导入语义由 `targetPath` 前缀决定（`ts.*` 或 `rt.*`）；</p>
- * <p>3. 其它查询、维护、导出能力保持现有接口语义不变。</p>
+ * <p>2. 导入语义由 targetPath 前缀决定（ts.* 或 rt.*）；</p>
+ * <p>3. 结构化查询拆分为“查表结构”和“查表数据”两个接口。</p>
  */
 @Tag(name = "Data Resource Operations")
 @Validated
@@ -105,7 +107,18 @@ public class DataResourceController {
     }
 
     /**
-     * 查询行键语义数据。
+     * 查询结构化表结构（仅列定义）。
+     *
+     * <p>内部使用 SHOW COLUMNS rt.xxx.* 语法，遵循 IGinX 用户手册。</p>
+     */
+    @Operation(summary = "Query Structured Schema")
+    @GetMapping("/query/struct/schema")
+    public Result<StructuredSchemaVO> queryStructuredSchema(@RequestParam String tablePath) {
+        return Result.success(dataQueryService.queryStructuredSchema(tablePath));
+    }
+
+    /**
+     * 查询结构化表数据。
      */
     @Operation(summary = "Query Structured Data")
     @PostMapping("/query/struct")
@@ -166,7 +179,7 @@ public class DataResourceController {
      * 下载导入/导出错误文件。
      *
      * <p>这里会做两层安全校验：</p>
-     * <p>1. 拒绝 `..` 目录穿越；</p>
+     * <p>1. 拒绝 .. 目录穿越；</p>
      * <p>2. 校验解析后的真实路径必须位于文件根目录下。</p>
      */
     @Operation(summary = "Download Export File")

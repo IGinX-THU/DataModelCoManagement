@@ -53,12 +53,26 @@ public class IginxStructuredQueryHelper {
      */
     public Map<String, DataType> loadColumnTypes(String schema, String table) {
         String tablePath = IginxStructuredUtils.buildTablePath(schema, table);
-        String sql = "SHOW COLUMNS " + tablePath + ".*;";
+        return loadColumnTypesByTablePath(tablePath);
+    }
+
+    /**
+     * 按完整表路径加载列类型映射。
+     *
+     * @param tablePath 表路径
+     * @return 列类型映射
+     */
+    public Map<String, DataType> loadColumnTypesByTablePath(String tablePath) {
+        if (tablePath == null || tablePath.isBlank()) {
+            return Map.of();
+        }
+        String normalizedTablePath = tablePath.trim();
+        String sql = "SHOW COLUMNS " + normalizedTablePath + ".*;";
         Map<String, DataType> result = readColumnTypes(sql, null);
         if (result != null && !result.isEmpty()) {
             return result;
         }
-        List<String> tableSegments = IginxStructuredUtils.splitPathSegments(tablePath);
+        List<String> tableSegments = IginxStructuredUtils.splitPathSegments(normalizedTablePath);
         if (tableSegments.isEmpty()) {
             return result == null ? Map.of() : result;
         }
@@ -109,9 +123,6 @@ public class IginxStructuredQueryHelper {
                 if (columnName == null || columnName.isBlank()) {
                     continue;
                 }
-                if (IginxStructuredUtils.isInternalKey(columnName)) {
-                    continue;
-                }
                 DataType dataType = parseDataType(rawType);
                 result.put(columnName, dataType);
             }
@@ -156,21 +167,6 @@ public class IginxStructuredQueryHelper {
             records.add(record);
         }
         return records;
-    }
-
-    /**
-     * 读取结果集为行数组列表。
-     *
-     * @param dataSet 查询结果集
-     * @return 行列表
-     */
-    public List<Object[]> readRows(QueryDataSet dataSet) {
-        List<Object[]> rows = new ArrayList<>();
-        Object[] row;
-        while ((row = nextRowQuietly(dataSet)) != null) {
-            rows.add(row);
-        }
-        return rows;
     }
 
     /**
