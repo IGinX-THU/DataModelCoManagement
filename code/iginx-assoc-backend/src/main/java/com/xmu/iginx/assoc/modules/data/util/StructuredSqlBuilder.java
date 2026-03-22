@@ -82,17 +82,6 @@ public class StructuredSqlBuilder {
     }
 
     /**
-     * 构建 WHERE 子句（不带类型映射）。
-     *
-     * @param conditions 查询条件
-     * @param allowedColumns 允许的列
-     * @return SQL 与参数
-     */
-    public SqlWithParams buildWhereClause(List<StructuredQueryCondition> conditions, Set<String> allowedColumns) {
-        return buildWhereClause(conditions, allowedColumns, null);
-    }
-
-    /**
      * 按字段类型转换参数值。
      *
      * @param field 字段名

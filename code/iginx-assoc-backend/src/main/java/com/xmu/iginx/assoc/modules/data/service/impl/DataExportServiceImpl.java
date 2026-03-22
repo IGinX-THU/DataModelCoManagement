@@ -168,9 +168,11 @@ public class DataExportServiceImpl implements DataExportService {
             throw BizException.badRequest("时间范围不能为空");
         }
         // 统一路径前缀，避免路径不一致导致查询失败
+        // IGinX Java Session 在查询时会排序路径列表，因此这里显式构造可变集合，
+        // 避免 Java 17 的 toList() 返回不可变集合导致 UnsupportedOperationException。
         List<String> paths = request.getPaths().stream()
             .filter(path -> path != null && !path.isBlank())
-            .toList();
+            .collect(Collectors.toCollection(ArrayList::new));
         if (paths.isEmpty()) {
             throw BizException.badRequest("导出路径不能为空");
         }
@@ -501,9 +503,6 @@ public class DataExportServiceImpl implements DataExportService {
         Map<String, Integer> lowerIndexMap = new java.util.LinkedHashMap<>();
         for (int i = 0; i < headers.size(); i++) {
             String header = headers.get(i);
-            if (IginxStructuredUtils.isInternalKey(header)) {
-                continue;
-            }
             // 记录可见列并构建大小写索引，支持不区分大小写匹配
             visibleHeaders.add(header);
             visibleIndices.add(i);
@@ -571,9 +570,6 @@ public class DataExportServiceImpl implements DataExportService {
                 continue;
             }
             String trimmed = column.trim();
-            if (IginxStructuredUtils.isInternalKey(trimmed)) {
-                continue;
-            }
             deduplicated.add(trimmed);
         }
         if (deduplicated.isEmpty()) {

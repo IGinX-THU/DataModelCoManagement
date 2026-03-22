@@ -229,7 +229,14 @@ public final class IginxStructuredUtils {
         }
         int lastDot = normalized.lastIndexOf('.');
         String name = lastDot >= 0 ? normalized.substring(lastDot + 1) : normalized;
-        return stripBackticks(name);
+        String columnName = stripBackticks(name);
+        if (columnName == null) {
+            return null;
+        }
+        if ("KEY".equalsIgnoreCase(columnName) || INTERNAL_KEY.equalsIgnoreCase(columnName)) {
+            return "KEY";
+        }
+        return columnName;
     }
 
     /**

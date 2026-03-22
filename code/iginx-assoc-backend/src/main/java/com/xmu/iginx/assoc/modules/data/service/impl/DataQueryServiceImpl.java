@@ -7,6 +7,7 @@ import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.xmu.iginx.assoc.common.PageResult;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
+import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryCondition;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryRequest;
 import com.xmu.iginx.assoc.modules.data.dto.TimeSeriesQueryRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataQueryService;
@@ -162,15 +163,18 @@ public class DataQueryServiceImpl implements DataQueryService {
             }
 
             Set<String> allowedColumns = new LinkedHashSet<>(columnTypes.keySet());
-            //allowedColumns.add("KEY");
-            //allowedColumns.add(IginxStructuredUtils.INTERNAL_KEY);
+            allowedColumns.add("KEY");
+            allowedColumns.add(IginxStructuredUtils.INTERNAL_KEY);
 
             Map<String, Integer> sqlTypeMap = new LinkedHashMap<>(IginxStructuredUtils.mapIginxTypesToSqlTypes(columnTypes));
-            //sqlTypeMap.put("KEY", Types.BIGINT);
-            //sqlTypeMap.put(IginxStructuredUtils.INTERNAL_KEY, Types.BIGINT);
+            sqlTypeMap.put("KEY", Types.BIGINT);
+            sqlTypeMap.put(IginxStructuredUtils.INTERNAL_KEY, Types.BIGINT);
+
+            List<StructuredQueryCondition> normalizedConditions = normalizeStructuredConditions(
+                request.getConditions(), allowedColumns);
 
             StructuredSqlBuilder.SqlWithParams where = structuredSqlBuilder.buildWhereClause(
-                request.getConditions(), allowedColumns, sqlTypeMap);
+                normalizedConditions, allowedColumns, sqlTypeMap);
             String whereSql = where.sql();
             String orderBySql = buildOrderBy(request.getOrderBy(), request.getOrderDirection(), columnTypes.keySet());
 
@@ -265,6 +269,49 @@ public class DataQueryServiceImpl implements DataQueryService {
     /**
      * 构建 ORDER BY 子句。
      */
+    /**
+     * 归一化结构化查询条件字段名：
+     * 1. 忽略大小写匹配真实列名；
+     * 2. 将 KEY/_iginx_key 统一为 KEY。
+     */
+    private List<StructuredQueryCondition> normalizeStructuredConditions(List<StructuredQueryCondition> conditions,
+                                                                         Set<String> allowedColumns) {
+        if (conditions == null || conditions.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> canonicalFieldMap = new LinkedHashMap<>();
+        if (allowedColumns != null) {
+            for (String column : allowedColumns) {
+                if (column == null || column.isBlank()) {
+                    continue;
+                }
+                String key = column.trim().toLowerCase(Locale.ROOT);
+                canonicalFieldMap.putIfAbsent(key, column.trim());
+            }
+        }
+        canonicalFieldMap.putIfAbsent("key", "KEY");
+        canonicalFieldMap.putIfAbsent(IginxStructuredUtils.INTERNAL_KEY.toLowerCase(Locale.ROOT), "KEY");
+
+        List<StructuredQueryCondition> normalized = new ArrayList<>();
+        for (StructuredQueryCondition condition : conditions) {
+            if (condition == null || condition.getField() == null || condition.getField().isBlank()) {
+                continue;
+            }
+            String rawField = condition.getField().trim();
+            String mappedField = canonicalFieldMap.get(rawField.toLowerCase(Locale.ROOT));
+            if (mappedField == null || mappedField.isBlank()) {
+                continue;
+            }
+            StructuredQueryCondition item = new StructuredQueryCondition();
+            item.setLogic(condition.getLogic());
+            item.setField("KEY".equalsIgnoreCase(mappedField) ? "KEY" : mappedField);
+            item.setOp(condition.getOp());
+            item.setValue(condition.getValue());
+            normalized.add(item);
+        }
+        return normalized;
+    }
+
     private String buildOrderBy(String orderBy, String direction, Set<String> columns) {
         if (orderBy == null || orderBy.isBlank()) {
             return "";

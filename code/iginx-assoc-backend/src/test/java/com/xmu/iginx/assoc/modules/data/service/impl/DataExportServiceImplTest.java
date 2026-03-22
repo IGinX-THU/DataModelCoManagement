@@ -1,6 +1,8 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
+import cn.edu.tsinghua.iginx.session.Session;
+import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
@@ -26,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +63,10 @@ class DataExportServiceImplTest {
     private IginxStorageWrapper iginxStorageWrapper;
     @Mock
     private IginxStructuredQueryHelper structuredQueryHelper;
+    @Mock
+    private Session session;
+    @Mock
+    private SessionQueryDataSet sessionQueryDataSet;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -76,6 +84,12 @@ class DataExportServiceImplTest {
     void setUp() {
         when(dataSourceAccessor.getDetail(anyLong(), any(DataSourceType[].class)))
             .thenReturn(buildStructuredSourceDetail());
+        lenient().when(iginxStorageWrapper.executeWithSession(any())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            IginxStorageWrapper.SessionExecutor<Object> executor =
+                (IginxStorageWrapper.SessionExecutor<Object>) invocation.getArgument(0);
+            return executor.apply(session);
+        });
     }
 
     /**
@@ -162,6 +176,44 @@ class DataExportServiceImplTest {
         assertEquals("ok", lines.get(1));
         assertEquals(2, lines.size());
         verify(structuredQueryHelper, never()).loadColumnTypes(anyString(), anyString());
+    }
+
+    /**
+     * 验证时序导出传入的是可变路径集合，避免 IGinX Session 内部排序时报错。
+     */
+    @Test
+    void exportData_shouldUseMutablePathListForTimeSeriesQuery() throws Exception {
+        DataExportRequest request = new DataExportRequest();
+        request.setType("TS");
+        request.setSourceId(1L);
+        request.setFormat("CSV");
+        request.setPaths(List.of("root.factory.device_b", "root.factory.device_a"));
+        var range = new com.xmu.iginx.assoc.modules.data.dto.TimeRangeDTO();
+        range.setStart("0");
+        range.setEnd("10");
+        request.setTimeRange(range);
+
+        Path exportPath = tempDir.resolve("timeseries-export.csv");
+        when(fileStorageService.createFile(anyString(), eq(".csv")))
+            .thenReturn(new DataFileStorageService.StoredFile("timeseries-export.csv", exportPath));
+        when(session.queryData(any(), anyLong(), anyLong())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<String> paths = invocation.getArgument(0, List.class);
+            // IGinX SDK 内部会执行排序；这里主动排序用于验证传入集合是否可变。
+            Collections.sort(paths);
+            return sessionQueryDataSet;
+        });
+        when(sessionQueryDataSet.getPaths()).thenReturn(List.of("root.factory.device_a", "root.factory.device_b"));
+        when(sessionQueryDataSet.getKeys()).thenReturn(new long[]{1_000_000_000L});
+        when(sessionQueryDataSet.getValues()).thenReturn(List.of(List.of(12.3d, 45.6d)));
+
+        DataExportResultVO result = dataExportService.exportData(request);
+
+        List<String> lines = Files.readAllLines(exportPath, StandardCharsets.UTF_8);
+        assertEquals("SUCCESS", result.getStatus());
+        assertTrue(lines.get(0).contains("root.factory.device_a"));
+        assertTrue(lines.get(0).contains("root.factory.device_b"));
+        assertEquals(2, lines.size());
     }
 
     /**
