@@ -44,7 +44,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
 
     private static final long MAX_FILE_SIZE = 500L * 1024 * 1024;
     private static final Set<String> TEXT_TYPES = Set.of("PY", "MAT", "AME", "CSV");
-    private static final Set<String> ALLOWED_TYPES = Set.of("PY", "MAT", "AME", "DLL", "FMU", "ZIP", "CSV", "XLSX");
+    private static final Set<String> ALLOWED_TYPES = Set.of("PY", "MAT", "AME", "CPP","DLL", "FMU", "ZIP", "CSV", "XLSX");
 
     private final MetaModelProfileRepository profileRepository;
     private final ModelAssetRepository assetRepository;
@@ -168,12 +168,27 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         profile.setDeveloper(request.getDeveloper());
         profile.setUsageScope(request.getUsageScope());
         if (StringUtils.hasText(request.getIoSchema())) {
-            profile.setIoSchema(validateSchemaJson(request.getIoSchema()));
-            // 同步最新版本的结构定义，便于前端展示
-            assetRepository.findFirstByProfileIdAndIsLatestTrue(profileId).ifPresent(asset -> {
-                asset.setIoSchema(profile.getIoSchema());
-                assetRepository.save(asset);
-            });
+            String validatedSchema = validateSchemaJson(request.getIoSchema());
+            Long targetAssetId = request.getAssetId();
+            ModelAssetEntity targetAsset;
+            if (targetAssetId != null) {
+                targetAsset = findAsset(targetAssetId);
+                if (!profileId.equals(targetAsset.getProfileId())) {
+                    throw BizException.badRequest("目标版本不属于当前模型档案");
+                }
+            } else {
+                targetAsset = findLatestAsset(profileId);
+            }
+            if (targetAsset == null) {
+                throw BizException.badRequest("模型版本不存在，无法更新结构定义");
+            }
+            targetAsset.setIoSchema(validatedSchema);
+            assetRepository.save(targetAsset);
+
+            // 仅当更新的是最新版本时，同步档案级 Schema，避免覆盖其他历史版本语义。
+            if (targetAssetId == null || Boolean.TRUE.equals(targetAsset.getIsLatest())) {
+                profile.setIoSchema(validatedSchema);
+            }
         }
         profile.setUpdateTime(LocalDateTime.now());
         profileRepository.save(profile);
@@ -759,5 +774,23 @@ public class ModelAssetServiceImpl implements ModelAssetService {
     private ModelAssetEntity findAsset(Long assetId) {
         return assetRepository.findById(assetId)
             .orElseThrow(() -> BizException.badRequest("模型版本不存在，id=" + assetId));
+    }
+
+    /**
+     * 查询档案最新版本；若最新标记缺失，则回退为上传时间最晚的版本。
+     *
+     * @param profileId 档案 ID
+     * @return 最新版本，若不存在则返回 null
+     */
+    private ModelAssetEntity findLatestAsset(Long profileId) {
+        ModelAssetEntity latest = assetRepository.findFirstByProfileIdAndIsLatestTrue(profileId).orElse(null);
+        if (latest != null) {
+            return latest;
+        }
+        List<ModelAssetEntity> assets = assetRepository.findByProfileIdOrderByUploadTimeAsc(profileId);
+        if (assets.isEmpty()) {
+            return null;
+        }
+        return assets.get(assets.size() - 1);
     }
 }

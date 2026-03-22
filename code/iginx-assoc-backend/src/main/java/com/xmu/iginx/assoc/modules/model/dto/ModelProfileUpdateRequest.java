@@ -9,6 +9,12 @@ import lombok.Data;
 @Data
 public class ModelProfileUpdateRequest {
 
+    /**
+     * 需要更新结构定义的模型版本 ID（可选）。
+     * 为空时默认更新当前最新版本。
+     */
+    private Long assetId;
+
     @NotBlank(message = "模型名称不能为空")
     private String name;
 
