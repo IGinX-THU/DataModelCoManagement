@@ -1,9 +1,6 @@
 {
   "name": "demo_rule_power",
   "modelId": 1,
-  "dataId": null,
-  "triggerType": "MANUAL",
-  "cronExp": "",
   "bindings": {
     "temperature": "root.demo.temperature",
     "pressure": "root.demo.pressure",

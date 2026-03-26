@@ -18,12 +18,6 @@ public class AssociationRuleCreateRequest {
     @NotNull(message = "模型版本不能为空")
     private Long modelId;
 
-    private Long dataId;
-
-    private String triggerType = "MANUAL";
-
-    private String cronExp;
-
     @NotNull(message = "输入绑定不能为空")
     private Map<String, String> bindings;
 

@@ -48,10 +48,7 @@ CREATE TABLE IF NOT EXISTS model_asset (
 CREATE TABLE IF NOT EXISTS association_rule (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    data_id BIGINT REFERENCES sys_data_resource(id),
     model_id BIGINT REFERENCES model_asset(id),
-    trigger_type VARCHAR(20) NOT NULL,
-    cron_exp VARCHAR(50),
     output_target JSONB NOT NULL,
     mapping_json JSONB NOT NULL,
     enabled BOOLEAN DEFAULT TRUE,

@@ -29,17 +29,8 @@ public class AssociationRuleEntity {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(name = "data_id")
-    private Long dataId;
-
     @Column(name = "model_id")
     private Long modelId;
-
-    @Column(name = "trigger_type", nullable = false, length = 20)
-    private String triggerType;
-
-    @Column(name = "cron_exp", length = 50)
-    private String cronExp;
 
     @Column(name = "output_target", nullable = false, columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)

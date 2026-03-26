@@ -9,14 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface AssociationRuleRepository extends JpaRepository<AssociationRuleEntity, Long> {
 
     /**
-     * 判断数据资源是否被规则引用。
-     *
-     * @param dataId 数据 ID
-     * @return 是否存在引用
-     */
-    boolean existsByDataId(Long dataId);
-
-    /**
      * 判断模型是否被规则引用。
      *
      * @param modelId 模型 ID

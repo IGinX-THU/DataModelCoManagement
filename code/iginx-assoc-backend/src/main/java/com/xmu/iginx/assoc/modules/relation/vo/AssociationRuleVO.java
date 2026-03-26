@@ -17,9 +17,6 @@ public class AssociationRuleVO {
     private String modelName;
     private String modelVersion;
     private String modelType;
-    private Long dataId;
-    private String triggerType;
-    private String cronExp;
     private Map<String, String> bindings;
     private Map<String, String> results;
     private Boolean enabled;
