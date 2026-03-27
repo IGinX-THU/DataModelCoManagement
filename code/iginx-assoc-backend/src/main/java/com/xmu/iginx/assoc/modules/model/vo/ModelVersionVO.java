@@ -21,4 +21,5 @@ public class ModelVersionVO {
     private boolean latest;
     private List<ModelSchemaParam> inputs;
     private List<ModelSchemaParam> outputs;
+    private List<ModelFunctionOptionVO> functions;
 }

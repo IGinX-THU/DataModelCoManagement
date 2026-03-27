@@ -88,6 +88,23 @@ public interface ModelAssetService {
     ModelSchemaParseVO parseSchemaByFunction(MultipartFile file, String functionName);
 
     /**
+     * 获取已上传模型版本的函数列表。
+     *
+     * @param assetId 模型版本 ID
+     * @return 函数列表
+     */
+    List<ModelFunctionOptionVO> listFunctionsByAsset(Long assetId);
+
+    /**
+     * 按模型版本与函数名解析输入输出结构。
+     *
+     * @param assetId 模型版本 ID
+     * @param functionName 函数名
+     * @return 解析结果
+     */
+    ModelSchemaParseVO parseSchemaByAssetFunction(Long assetId, String functionName);
+
+    /**
      * 获取版本实体。
      *
      * @param assetId 版本 ID

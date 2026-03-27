@@ -54,6 +54,10 @@ public class ModelAssetEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     private String ioSchema;
 
+    @Column(name = "function_list", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String functionList;
+
     @Column(name = "is_latest")
     private Boolean isLatest;
 }

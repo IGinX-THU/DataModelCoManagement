@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -180,5 +181,29 @@ public class ModelAssetController {
     public Result<ModelSchemaParseVO> parseByFunction(@RequestPart("file") MultipartFile file,
                                                       @RequestPart("functionName") String functionName) {
         return Result.success(modelAssetService.parseSchemaByFunction(file, functionName));
+    }
+
+    /**
+     * 获取已上传模型版本可用函数列表。
+     *
+     * @param assetId 模型版本 ID
+     * @return 函数列表
+     */
+    @GetMapping("/assets/{assetId}/functions")
+    public Result<List<ModelFunctionOptionVO>> listFunctionsByAsset(@PathVariable Long assetId) {
+        return Result.success(modelAssetService.listFunctionsByAsset(assetId));
+    }
+
+    /**
+     * 按模型版本与函数名解析 Schema。
+     *
+     * @param assetId 模型版本 ID
+     * @param functionName 函数名
+     * @return 解析结果
+     */
+    @GetMapping("/assets/{assetId}/functions/schema")
+    public Result<ModelSchemaParseVO> parseByAssetFunction(@PathVariable Long assetId,
+                                                           @RequestParam("functionName") String functionName) {
+        return Result.success(modelAssetService.parseSchemaByAssetFunction(assetId, functionName));
     }
 }

@@ -1,5 +1,6 @@
 package com.xmu.iginx.assoc.modules.model.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
@@ -95,6 +96,10 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         String fileType = normalizeType(request.getType());
         validateFileType(file, fileType);
 
+        // 解析函数列表（脚本类模型）
+        List<ModelFunctionOptionVO> functionOptions = parseFunctionsFromFile(file, fileType);
+        String functionListJson = writeFunctionList(functionOptions);
+
         // 解析或补全结构定义
         ModelIoSchema ioSchema = resolveSchema(request, file, fileType);
         String ioSchemaJson = writeSchema(ioSchema);
@@ -142,6 +147,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         asset.setFileMd5(storedFile.md5());
         asset.setFileSize(file.getSize());
         asset.setIoSchema(ioSchemaJson);
+        asset.setFunctionList(functionListJson);
         asset.setIsLatest(true);
         assetRepository.save(asset);
 
@@ -281,21 +287,12 @@ public class ModelAssetServiceImpl implements ModelAssetService {
     public List<ModelFunctionOptionVO> listFunctions(MultipartFile file) {
         validateFile(file);
         String fileType = normalizeType(getExtension(file.getOriginalFilename()));
-        if (!"PY".equals(fileType) && !"MAT".equals(fileType)) {
+        if (!supportsFunctionParsing(fileType)) {
             // 仅脚本类模型支持函数解析
             return Collections.emptyList();
         }
         byte[] fileBytes = readFileBytes(file);
-        return functionSchemaParser.listFunctions(fileBytes, fileType).stream()
-            .map(item -> {
-                ModelFunctionOptionVO vo = new ModelFunctionOptionVO();
-                vo.setName(item.name());
-                vo.setDisplayName(item.displayName());
-                vo.setSignature(item.signature());
-                vo.setLineNumber(item.lineNumber());
-                return vo;
-            })
-            .collect(Collectors.toList());
+        return parseFunctionsByBytes(fileBytes, fileType);
     }
 
     /**
@@ -311,9 +308,10 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         if (!StringUtils.hasText(functionName)) {
             throw BizException.badRequest("函数名不能为空");
         }
+        String targetFunction = functionName.trim();
         String fileType = normalizeType(getExtension(file.getOriginalFilename()));
         ModelSchemaParseVO vo = new ModelSchemaParseVO();
-        if (!"PY".equals(fileType) && !"MAT".equals(fileType)) {
+        if (!supportsFunctionParsing(fileType)) {
             // 非脚本类模型直接返回空结构并说明原因
             vo.setInputs(Collections.emptyList());
             vo.setOutputs(Collections.emptyList());
@@ -323,15 +321,71 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         }
 
         byte[] fileBytes = readFileBytes(file);
-        List<ModelFunctionSchemaParser.FunctionMeta> functions = functionSchemaParser.listFunctions(fileBytes, fileType);
-        boolean exists = functions.stream().anyMatch(item -> item.name().equals(functionName));
-        if (!exists) {
-            throw BizException.badRequest("未找到函数: " + functionName);
-        }
+        ensureFunctionExists(fileBytes, fileType, targetFunction);
 
         // 按指定函数解析输入输出结构
         ModelFunctionSchemaParser.ParseSchemaResult result =
-            functionSchemaParser.parseByFunction(fileBytes, fileType, functionName);
+            functionSchemaParser.parseByFunction(fileBytes, fileType, targetFunction);
+        vo.setInputs(defaultList(result.schema().getInputs()));
+        vo.setOutputs(defaultList(result.schema().getOutputs()));
+        vo.setParseMode(result.parseMode());
+        vo.setMessage(result.message());
+        return vo;
+    }
+
+    /**
+     * 获取已上传模型版本的函数列表。
+     *
+     * @param assetId 模型版本 ID
+     * @return 函数列表
+     */
+    @Override
+    public List<ModelFunctionOptionVO> listFunctionsByAsset(Long assetId) {
+        ModelAssetEntity asset = findAsset(assetId);
+        List<ModelFunctionOptionVO> cached = readFunctionList(asset.getFunctionList());
+        if (!cached.isEmpty()) {
+            return cached;
+        }
+        if (!supportsFunctionParsing(asset.getFileType())) {
+            return Collections.emptyList();
+        }
+        byte[] fileBytes = readAssetFileBytes(asset);
+        List<ModelFunctionOptionVO> parsed = parseFunctionsByBytes(fileBytes, asset.getFileType());
+        if (!parsed.isEmpty()) {
+            asset.setFunctionList(writeFunctionList(parsed));
+            assetRepository.save(asset);
+        }
+        return parsed;
+    }
+
+    /**
+     * 按模型版本与函数名解析结构。
+     *
+     * @param assetId 模型版本 ID
+     * @param functionName 函数名
+     * @return 结构解析结果
+     */
+    @Override
+    public ModelSchemaParseVO parseSchemaByAssetFunction(Long assetId, String functionName) {
+        if (!StringUtils.hasText(functionName)) {
+            throw BizException.badRequest("函数名不能为空");
+        }
+        String targetFunction = functionName.trim();
+        ModelAssetEntity asset = findAsset(assetId);
+        String fileType = normalizeType(asset.getFileType());
+        if (!supportsFunctionParsing(fileType)) {
+            ModelSchemaParseVO vo = new ModelSchemaParseVO();
+            vo.setInputs(Collections.emptyList());
+            vo.setOutputs(Collections.emptyList());
+            vo.setParseMode(ModelFunctionSchemaParser.PARSE_MODE_COMMENT_FALLBACK);
+            vo.setMessage("该模型类型不支持按函数解析");
+            return vo;
+        }
+        byte[] fileBytes = readAssetFileBytes(asset);
+        ensureFunctionExists(fileBytes, fileType, targetFunction);
+        ModelFunctionSchemaParser.ParseSchemaResult result = functionSchemaParser.parseByFunction(fileBytes, fileType, targetFunction);
+
+        ModelSchemaParseVO vo = new ModelSchemaParseVO();
         vo.setInputs(defaultList(result.schema().getInputs()));
         vo.setOutputs(defaultList(result.schema().getOutputs()));
         vo.setParseMode(result.parseMode());
@@ -470,7 +524,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
     private ModelIoSchema resolveSchema(ModelUploadRequest request, MultipartFile file, String fileType) {
         if (StringUtils.hasText(request.getIoSchema())) {
             try {
-                return objectMapper.readValue(request.getIoSchema(), ModelIoSchema.class);
+                return normalizeSchema(objectMapper.readValue(request.getIoSchema(), ModelIoSchema.class));
             } catch (IOException e) {
                 throw BizException.badRequest("IO Schema 解析失败，请检查 JSON 格式");
             }
@@ -482,7 +536,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         schema.setInputs(Collections.emptyList());
         schema.setOutputs(Collections.emptyList());
         schema.setDependencies(Collections.emptyList());
-        return schema;
+        return normalizeSchema(schema);
     }
 
     /**
@@ -493,7 +547,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
      */
     private ModelIoSchema parseSchemaFromFile(MultipartFile file) {
         try {
-            return schemaParser.parse(file.getBytes());
+            return normalizeSchema(schemaParser.parse(file.getBytes()));
         } catch (IOException e) {
             throw BizException.internal("模型文件解析失败");
         }
@@ -511,6 +565,89 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         } catch (IOException e) {
             throw BizException.internal("读取模型文件失败");
         }
+    }
+
+    /**
+     * 读取已上传模型版本的文件字节。
+     *
+     * @param asset 模型版本
+     * @return 文件字节
+     */
+    private byte[] readAssetFileBytes(ModelAssetEntity asset) {
+        return fileStorageService.readAsBytes(asset.getStoragePath(), asset.getFileSize());
+    }
+
+    /**
+     * 从上传文件中解析函数列表。
+     *
+     * @param file 模型文件
+     * @param fileType 文件类型
+     * @return 函数列表
+     */
+    private List<ModelFunctionOptionVO> parseFunctionsFromFile(MultipartFile file, String fileType) {
+        if (!supportsFunctionParsing(fileType)) {
+            return Collections.emptyList();
+        }
+        byte[] fileBytes = readFileBytes(file);
+        return parseFunctionsByBytes(fileBytes, fileType);
+    }
+
+    /**
+     * 从字节数组解析函数列表。
+     *
+     * @param fileBytes 文件字节
+     * @param fileType 文件类型
+     * @return 函数列表
+     */
+    private List<ModelFunctionOptionVO> parseFunctionsByBytes(byte[] fileBytes, String fileType) {
+        if (!supportsFunctionParsing(fileType)) {
+            return Collections.emptyList();
+        }
+        return functionSchemaParser.listFunctions(fileBytes, fileType).stream()
+            .map(this::toFunctionOptionVO)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 判断模型类型是否支持函数级解析。
+     *
+     * @param fileType 文件类型
+     * @return 是否支持
+     */
+    private boolean supportsFunctionParsing(String fileType) {
+        String normalized = normalizeType(fileType);
+        return "PY".equals(normalized) || "MAT".equals(normalized);
+    }
+
+    /**
+     * 校验目标函数是否存在。
+     *
+     * @param fileBytes 模型文件字节
+     * @param fileType 文件类型
+     * @param functionName 函数名
+     */
+    private void ensureFunctionExists(byte[] fileBytes, String fileType, String functionName) {
+        String target = functionName.trim();
+        boolean exists = functionSchemaParser.listFunctions(fileBytes, fileType).stream()
+            .anyMatch(item -> target.equals(item.name()));
+        if (!exists) {
+            throw BizException.badRequest("未找到函数: " + functionName);
+        }
+    }
+
+    /**
+     * 转换函数元信息为视图对象。
+     *
+     * @param meta 函数元信息
+     * @return 函数选项
+     */
+    private ModelFunctionOptionVO toFunctionOptionVO(ModelFunctionSchemaParser.FunctionMeta meta) {
+        ModelFunctionOptionVO vo = new ModelFunctionOptionVO();
+        vo.setName(meta.name());
+        vo.setDisplayName(meta.displayName());
+        vo.setSignature(meta.signature());
+        vo.setLineNumber(meta.lineNumber());
+        return vo;
     }
 
     /**
@@ -631,6 +768,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         version.setLatest(Boolean.TRUE.equals(asset.getIsLatest()));
         version.setInputs(defaultList(schema.getInputs()));
         version.setOutputs(defaultList(schema.getOutputs()));
+        version.setFunctions(readFunctionList(asset.getFunctionList()));
         return version;
     }
 
@@ -645,7 +783,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
             return emptySchema();
         }
         try {
-            return objectMapper.readValue(json, ModelIoSchema.class);
+            return normalizeSchema(objectMapper.readValue(json, ModelIoSchema.class));
         } catch (IOException e) {
             return emptySchema();
         }
@@ -682,10 +820,67 @@ public class ModelAssetServiceImpl implements ModelAssetService {
      */
     private String writeSchema(ModelIoSchema schema) {
         try {
-            return objectMapper.writeValueAsString(schema);
+            return objectMapper.writeValueAsString(normalizeSchema(schema));
         } catch (JsonProcessingException e) {
             throw BizException.internal("模型结构序列化失败");
         }
+    }
+
+    /**
+     * 序列化函数列表。
+     *
+     * @param functions 函数列表
+     * @return JSON 字符串
+     */
+    private String writeFunctionList(List<ModelFunctionOptionVO> functions) {
+        try {
+            List<ModelFunctionOptionVO> safe = functions == null ? Collections.emptyList() : functions;
+            return objectMapper.writeValueAsString(safe);
+        } catch (JsonProcessingException e) {
+            throw BizException.internal("模型函数列表序列化失败");
+        }
+    }
+
+    /**
+     * 读取函数列表 JSON。
+     *
+     * @param json 函数列表 JSON
+     * @return 函数列表
+     */
+    private List<ModelFunctionOptionVO> readFunctionList(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Collections.emptyList();
+        }
+        try {
+            List<ModelFunctionOptionVO> list = objectMapper.readValue(json, new TypeReference<>() {});
+            if (list == null) {
+                return Collections.emptyList();
+            }
+            return list.stream()
+                .filter(item -> item != null && StringUtils.hasText(item.getName()))
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 归一化 Schema，确保依赖字段与入口函数格式统一。
+     *
+     * @param schema 原始结构
+     * @return 归一化后的结构
+     */
+    private ModelIoSchema normalizeSchema(ModelIoSchema schema) {
+        if (schema == null) {
+            return emptySchema();
+        }
+        if (schema.getInputs() == null) {
+            schema.setInputs(Collections.emptyList());
+        }
+        if (schema.getOutputs() == null) {
+            schema.setOutputs(Collections.emptyList());
+        }
+        return schema;
     }
 
     /**
@@ -747,8 +942,8 @@ public class ModelAssetServiceImpl implements ModelAssetService {
      */
     private String validateSchemaJson(String ioSchema) {
         try {
-            objectMapper.readValue(ioSchema, ModelIoSchema.class);
-            return ioSchema;
+            ModelIoSchema schema = objectMapper.readValue(ioSchema, ModelIoSchema.class);
+            return writeSchema(schema);
         } catch (IOException e) {
             throw BizException.badRequest("IO Schema 解析失败，请检查 JSON 格式");
         }
