@@ -32,6 +32,9 @@ public class AssociationRuleEntity {
     @Column(name = "model_id")
     private Long modelId;
 
+    @Column(name = "function_name", length = 120)
+    private String functionName;
+
     @Column(name = "output_target", nullable = false, columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
     private String outputTarget;

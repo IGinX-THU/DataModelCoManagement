@@ -18,6 +18,9 @@ public class AssociationRuleCreateRequest {
     @NotNull(message = "模型版本不能为空")
     private Long modelId;
 
+    @NotBlank(message = "模型函数不能为空")
+    private String functionName;
+
     @NotNull(message = "输入绑定不能为空")
     private Map<String, String> bindings;
 

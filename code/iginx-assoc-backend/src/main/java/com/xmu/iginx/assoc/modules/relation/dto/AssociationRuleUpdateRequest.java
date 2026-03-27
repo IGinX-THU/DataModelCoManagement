@@ -15,9 +15,8 @@ public class AssociationRuleUpdateRequest {
     @NotBlank(message = "规则名称不能为空")
     private String name;
 
-    private String triggerType;
-
-    private String cronExp;
+    @NotBlank(message = "模型函数不能为空")
+    private String functionName;
 
     @NotNull(message = "输入绑定不能为空")
     private Map<String, String> bindings;
