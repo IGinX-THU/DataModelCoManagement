@@ -4,9 +4,7 @@ import com.xmu.iginx.assoc.modules.analysis.dto.TaskCompareRequest;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskExportRequest;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskReportRequest;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskSeriesRequest;
-import com.xmu.iginx.assoc.modules.analysis.vo.TaskSeriesVO;
-
-import java.util.List;
+import com.xmu.iginx.assoc.modules.analysis.vo.TaskAnalysisResultVO;
 
 /**
  * 分析模块服务接口。
@@ -18,17 +16,17 @@ public interface AnalysisService {
      *
      * @param taskId 任务 ID
      * @param request 曲线请求参数
-     * @return 曲线数据列表
+     * @return 分析结果
      */
-    List<TaskSeriesVO> queryTaskSeries(String taskId, TaskSeriesRequest request);
+    TaskAnalysisResultVO queryTaskSeries(String taskId, TaskSeriesRequest request);
 
     /**
      * 对多个任务进行曲线对比。
      *
      * @param request 对比请求参数
-     * @return 曲线数据列表
+     * @return 分析结果
      */
-    List<TaskSeriesVO> compareTasks(TaskCompareRequest request);
+    TaskAnalysisResultVO compareTasks(TaskCompareRequest request);
 
     /**
      * 导出任务资源包。

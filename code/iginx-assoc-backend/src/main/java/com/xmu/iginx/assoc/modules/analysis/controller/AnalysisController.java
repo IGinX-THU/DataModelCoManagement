@@ -6,7 +6,7 @@ import com.xmu.iginx.assoc.modules.analysis.dto.TaskExportRequest;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskReportRequest;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskSeriesRequest;
 import com.xmu.iginx.assoc.modules.analysis.service.AnalysisService;
-import com.xmu.iginx.assoc.modules.analysis.vo.TaskSeriesVO;
+import com.xmu.iginx.assoc.modules.analysis.vo.TaskAnalysisResultVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,9 +17,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-
 /**
  * 分析模块接口，提供任务曲线、对比、导出与报告生成能力。
  */
@@ -36,12 +33,12 @@ public class AnalysisController {
      *
      * @param taskId 任务 ID
      * @param request 曲线请求参数
-     * @return 曲线数据列表
+     * @return 分析结果
      */
     @Operation(summary = "获取任务曲线")
     @GetMapping("/tasks/{taskId}/series")
-    public Result<List<TaskSeriesVO>> series(@PathVariable String taskId,
-                                             TaskSeriesRequest request) {
+    public Result<TaskAnalysisResultVO> series(@PathVariable String taskId,
+                                               TaskSeriesRequest request) {
         return Result.success(analysisService.queryTaskSeries(taskId, request));
     }
 
@@ -49,11 +46,11 @@ public class AnalysisController {
      * 对多个任务进行曲线对比。
      *
      * @param request 对比请求
-     * @return 曲线数据列表
+     * @return 分析结果
      */
     @Operation(summary = "任务对比曲线")
     @PostMapping("/tasks/compare")
-    public Result<List<TaskSeriesVO>> compare(@Valid @RequestBody TaskCompareRequest request) {
+    public Result<TaskAnalysisResultVO> compare(@Valid @RequestBody TaskCompareRequest request) {
         return Result.success(analysisService.compareTasks(request));
     }
 
