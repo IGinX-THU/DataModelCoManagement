@@ -809,7 +809,15 @@ public class ModelFunctionSchemaParser {
      * 归一化文件类型。
      */
     private String normalizeFileType(String fileType) {
-        return fileType == null ? "" : fileType.trim().toUpperCase(Locale.ROOT);
+        if (fileType == null) {
+            return "";
+        }
+        String value = fileType.trim().toUpperCase(Locale.ROOT);
+        return switch (value) {
+            case "PYTHON", "PY" -> "PY";
+            case "MATLAB", "MAT", "M" -> "MAT";
+            default -> value;
+        };
     }
 
     /**

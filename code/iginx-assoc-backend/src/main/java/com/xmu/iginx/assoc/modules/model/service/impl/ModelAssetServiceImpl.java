@@ -678,7 +678,10 @@ public class ModelAssetServiceImpl implements ModelAssetService {
             throw BizException.badRequest("不支持的模型类型: " + fileType);
         }
         String extension = getExtension(file.getOriginalFilename());
-        if (StringUtils.hasText(extension) && !extension.equalsIgnoreCase(fileType)) {
+        // MATLAB 源文件实际后缀通常为 `.m`，而系统内部统一使用 `MAT` 表示模型类型，
+        // 因此这里需要先将文件后缀归一化，再与请求中的模型类型进行比较。
+        String extensionType = normalizeType(extension);
+        if (StringUtils.hasText(extensionType) && !extensionType.equalsIgnoreCase(fileType)) {
             throw BizException.badRequest("模型文件后缀与类型不匹配");
         }
     }
@@ -896,8 +899,9 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         String value = rawType.trim().toUpperCase(Locale.ROOT);
         return switch (value) {
             case "PYTHON", "PY" -> "PY";
-            case "MATLAB", "MAT" -> "MAT";
+            case "MATLAB", "MAT", "M" -> "MAT";
             case "AMESIM", "AME" -> "AME";
+            case "C++", "CPP" -> "CPP";
             case "DLL" -> "DLL";
             case "FMU" -> "FMU";
             case "ZIP" -> "ZIP";
