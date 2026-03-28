@@ -29,6 +29,7 @@ public class ReportPdfBuilder {
     @Data
     public static class ReportContent {
         private String title = "Experiment Report";
+        private String analysisMode = "TIME_SERIES";
         private String generatedAt = "-";
         private String taskId = "-";
         private String ruleName = "-";
@@ -42,6 +43,7 @@ public class ReportPdfBuilder {
         private String endTime = "-";
         private List<String> outputPaths = List.of();
         private List<MetricRow> metrics = List.of();
+        private List<TableBlock> tableBlocks = List.of();
         private ChartData chartData;
         private boolean includeStats = true;
         private boolean includeCharts = true;
@@ -80,6 +82,16 @@ public class ReportPdfBuilder {
     }
 
     /**
+     * 结构化表格预览块。
+     *
+     * @param title 标题
+     * @param columns 列
+     * @param rows 行
+     */
+    public record TableBlock(String title, List<String> columns, List<java.util.Map<String, Object>> rows) {
+    }
+
+    /**
      * 构建 PDF 字节。
      *
      * @param content 报告内容
@@ -112,6 +124,7 @@ public class ReportPdfBuilder {
             if (content.isIncludeStats()) {
                 drawStats(content.getMetrics());
             }
+            drawTableBlocks(content.getTableBlocks());
             if (content.isIncludeCharts()) {
                 drawCharts(content.getChartData());
             }
@@ -151,6 +164,7 @@ public class ReportPdfBuilder {
             drawSectionTitle("Task Overview");
             drawKeyValue("Task ID", content.getTaskId());
             drawKeyValue("Rule", content.getRuleName());
+            drawKeyValue("Analysis Mode", content.getAnalysisMode());
             drawKeyValue("Model", content.getModelName());
             drawKeyValue("Model Version", content.getModelVersion());
             drawKeyValue("Executor", content.getExecutor());
@@ -164,6 +178,72 @@ public class ReportPdfBuilder {
             } else {
                 drawKeyValue("Output Paths", String.join(", ", content.getOutputPaths()));
             }
+        }
+
+        /**
+         * 绘制结构化表格预览块。
+         *
+         * @param tableBlocks 表格块列表
+         */
+        private void drawTableBlocks(List<TableBlock> tableBlocks) {
+            if (tableBlocks == null || tableBlocks.isEmpty()) {
+                return;
+            }
+            for (TableBlock block : tableBlocks) {
+                drawSectionTitle(block.title());
+                drawDataTable(block.columns(), block.rows());
+            }
+        }
+
+        /**
+         * 绘制普通数据表格。
+         *
+         * @param columns 列集合
+         * @param rows 行集合
+         */
+        private void drawDataTable(List<String> columns, List<java.util.Map<String, Object>> rows) {
+            if (columns == null || columns.isEmpty() || rows == null || rows.isEmpty()) {
+                drawNote("No table data available.");
+                return;
+            }
+            int columnCount = Math.max(1, columns.size());
+            float contentWidth = PAGE_WIDTH - MARGIN_X * 2f;
+            float[] colWidths = new float[columnCount];
+            float columnWidth = contentWidth / columnCount;
+            for (int index = 0; index < columnCount; index++) {
+                colWidths[index] = columnWidth;
+            }
+            drawTableHeader(colWidths, columns.toArray(String[]::new));
+
+            float rowHeight = 18f;
+            for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+                if (cursorY + rowHeight > PAGE_HEIGHT - MARGIN_BOTTOM) {
+                    doc.newPage();
+                    cursorY = MARGIN_TOP;
+                    drawSectionTitle("Table Preview (cont.)");
+                    drawTableHeader(colWidths, columns.toArray(String[]::new));
+                }
+                if (rowIndex % 2 == 1) {
+                    doc.setFillColor(0.97f, 0.98f, 0.99f);
+                    doc.drawRect(MARGIN_X, cursorY, contentWidth, rowHeight, true, false);
+                }
+                doc.setStrokeColor(0.9f, 0.9f, 0.9f);
+                doc.setLineWidth(0.4f);
+                doc.drawRect(MARGIN_X, cursorY, contentWidth, rowHeight, false, true);
+
+                float x = MARGIN_X + 4f;
+                float textY = cursorY + 13f;
+                java.util.Map<String, Object> row = rows.get(rowIndex);
+                for (int colIndex = 0; colIndex < columns.size(); colIndex++) {
+                    String column = columns.get(colIndex);
+                    String cell = row == null ? "-" : safeText(String.valueOf(row.getOrDefault(column, "-")), "-");
+                    doc.setFillColor(0.25f, 0.25f, 0.25f);
+                    doc.drawText(x, textY, 9, truncate(cell, (int) maxChars(colWidths[colIndex] - 6f, 9)), false);
+                    x += colWidths[colIndex];
+                }
+                cursorY += rowHeight;
+            }
+            cursorY += 8f;
         }
 
         /**
