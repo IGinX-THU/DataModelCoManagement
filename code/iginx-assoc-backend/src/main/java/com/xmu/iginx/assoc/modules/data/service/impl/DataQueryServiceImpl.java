@@ -70,7 +70,7 @@ public class DataQueryServiceImpl implements DataQueryService {
         }
 
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
-        long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
+        long endNs = toInclusiveEndExclusiveNs(request.getTimeRange().getEnd());
         SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session -> {
             if (request.isDownsample() && request.getPrecisionMs() != null) {
                 AggregateType aggregateType = mapAggregateType(request.getAggregator());
@@ -109,6 +109,24 @@ public class DataQueryServiceImpl implements DataQueryService {
         result.setTimestamps(timestamps);
         result.setSeries(series);
         return result;
+    }
+
+    /**
+     * 将用户输入的结束时间转换为查询使用的“开区间上界”。
+     *
+     * <p>原因：IGinX 的 queryData/downsampleQuery 在结束时间上采用开区间语义，</p>
+     * <p>而前端用户通常会把结束时间理解为“包含该时刻”。</p>
+     * <p>这里统一加 1 毫秒，保证秒级/毫秒级导入的数据在结束时刻能够被查到。</p>
+     *
+     * @param endValue 用户输入的结束时间
+     * @return 对应的纳秒级开区间上界
+     */
+    private long toInclusiveEndExclusiveNs(String endValue) {
+        long endMillis = TimeParser.parseToMillis(endValue, null);
+        if (endMillis >= Long.MAX_VALUE - 1) {
+            return TimeParser.toNano(endMillis);
+        }
+        return TimeParser.toNano(endMillis + 1);
     }
 
     /**
