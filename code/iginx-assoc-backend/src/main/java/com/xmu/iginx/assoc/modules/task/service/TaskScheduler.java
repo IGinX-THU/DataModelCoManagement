@@ -13,7 +13,16 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 简单任务调度器，基于线程池执行任务并维护任务句柄。
+ * 任务调度器。
+ * <p>
+ * 这里继续使用轻量级线程池，原因是当前任务执行本质上是：
+ * 1. 读取 IGinX 数据；
+ * 2. 启动 Python / MATLAB 子进程；
+ * 3. 将结果写回 IGinX。
+ * </p>
+ * <p>
+ * 对于当前系统规模，这种方案足够直观且便于中止运行中的任务。
+ * </p>
  */
 @Component("assocTaskScheduler")
 public class TaskScheduler {
@@ -22,26 +31,25 @@ public class TaskScheduler {
     private final Map<String, Future<?>> futures = new ConcurrentHashMap<>();
 
     public TaskScheduler() {
-        // 保留 1 个核心线程用于业务处理
-        int coreSize = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
+        int coreSize = Math.max(2, Runtime.getRuntime().availableProcessors());
         this.executor = new ThreadPoolExecutor(
             coreSize,
             coreSize,
-            60,
+            60L,
             TimeUnit.SECONDS,
             new ArrayBlockingQueue<>(100)
         );
     }
 
     /**
-     * 提交任务到线程池。
+     * 提交任务。
      *
      * @param taskId 任务 ID
-     * @param task 任务逻辑
+     * @param runnable 任务逻辑
      */
-    public void submit(String taskId, Runnable task) {
+    public void submit(String taskId, Runnable runnable) {
         try {
-            Future<?> future = executor.submit(task);
+            Future<?> future = executor.submit(runnable);
             futures.put(taskId, future);
         } catch (RejectedExecutionException ex) {
             throw BizException.busy("系统繁忙，当前排队任务过多，请稍后重试。");
@@ -49,17 +57,17 @@ public class TaskScheduler {
     }
 
     /**
-     * 取消指定任务。
+     * 取消任务。
      *
      * @param taskId 任务 ID
-     * @return 是否成功取消
+     * @return 是否成功发送取消信号
      */
     public boolean cancel(String taskId) {
         Future<?> future = futures.remove(taskId);
-        if (future != null) {
-            return future.cancel(true);
+        if (future == null) {
+            return false;
         }
-        return false;
+        return future.cancel(true);
     }
 
     /**
@@ -72,7 +80,7 @@ public class TaskScheduler {
     }
 
     /**
-     * 关闭线程池。
+     * 容器关闭时释放线程池。
      */
     @PreDestroy
     public void shutdown() {

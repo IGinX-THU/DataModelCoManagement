@@ -15,7 +15,11 @@ public class TaskSubmitRequest {
     @NotNull(message = "规则ID不能为空")
     private Long ruleId;
 
-    @NotNull(message = "时间范围不能为空")
+    /**
+     * 时间范围参数：
+     * 1. 当规则输入包含 ts.* 时必填；
+     * 2. 当规则输入全部为 rt.* 时可为空（表示直接按当前绑定数据执行）。
+     */
     private TimeRange timeRange;
 
     /**

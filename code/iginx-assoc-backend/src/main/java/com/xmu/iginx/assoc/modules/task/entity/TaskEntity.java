@@ -6,6 +6,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -42,6 +44,16 @@ public class TaskEntity {
 
     @Column(name = "result_link", length = 255)
     private String resultLink;
+
+    /**
+     * 任务执行快照，持久化本次任务的输入/输出绑定、函数名、模型类型与实际输出路径。
+     * <p>
+     * 这样即使后续关联规则被修改，历史任务仍然可以按当时的真实执行上下文进行追溯、分析与导出。
+     * </p>
+     */
+    @Column(name = "execution_snapshot", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String executionSnapshot;
 
     @Column(name = "exec_log", columnDefinition = "text")
     private String execLog;
