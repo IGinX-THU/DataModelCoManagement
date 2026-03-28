@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS model_asset (
     file_md5 CHAR(32) NOT NULL,
     file_size BIGINT DEFAULT 0,
     io_schema JSONB,
+    function_list JSONB,
     is_latest BOOLEAN DEFAULT FALSE
 );
 
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS association_rule (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     model_id BIGINT REFERENCES model_asset(id),
+    function_name VARCHAR(120),
     output_target JSONB NOT NULL,
     mapping_json JSONB NOT NULL,
     enabled BOOLEAN DEFAULT TRUE,
@@ -65,6 +67,7 @@ CREATE TABLE IF NOT EXISTS task (
     start_time TIMESTAMP,
     end_time TIMESTAMP,
     result_link VARCHAR(255),
+    execution_snapshot JSONB,
     exec_log TEXT,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -98,3 +101,16 @@ CREATE TABLE IF NOT EXISTS external_job (
     start_time TIMESTAMP,
     finish_time TIMESTAMP
 );
+
+-- 兼容旧版本表结构：若表已存在则补充新增列
+ALTER TABLE IF EXISTS model_asset
+    ADD COLUMN IF NOT EXISTS function_list JSONB;
+
+ALTER TABLE IF EXISTS association_rule
+    ADD COLUMN IF NOT EXISTS function_name VARCHAR(120);
+
+ALTER TABLE IF EXISTS association_rule
+    DROP COLUMN IF EXISTS trigger_type;
+
+ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS execution_snapshot JSONB;
