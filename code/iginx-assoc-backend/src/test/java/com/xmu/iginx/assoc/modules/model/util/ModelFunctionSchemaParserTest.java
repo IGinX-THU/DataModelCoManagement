@@ -135,6 +135,57 @@ class ModelFunctionSchemaParserTest {
     }
 
     /**
+     * `.m` 后缀应被识别为 MATLAB 脚本。
+     */
+    @Test
+    void listFunctions_shouldTreatMExtensionAsMatlab() {
+        String script = """
+            function result = predict_power(temperature, pressure, flow)
+            arguments
+                temperature (1,1) double
+                pressure (1,1) double
+                flow (1,1) double
+            end
+            result = 0.2 * temperature + 0.05 * pressure + 1.5 * flow;
+            end
+            """;
+
+        List<ModelFunctionSchemaParser.FunctionMeta> functions = parser.listFunctions(bytes(script), "M");
+
+        assertEquals(1, functions.size());
+        assertEquals("predict_power", functions.get(0).name());
+    }
+
+    /**
+     * `.m` 后缀下也应按 MATLAB 语法正确解析输入输出。
+     */
+    @Test
+    void parseByFunction_shouldTreatMExtensionAsMatlab() {
+        String script = """
+            function result = predict_power(temperature, pressure, flow)
+            arguments
+                temperature (1,1) double
+                pressure (1,1) double
+                flow (1,1) double
+            end
+            result = 0.2 * temperature + 0.05 * pressure + 1.5 * flow;
+            end
+            """;
+
+        ModelFunctionSchemaParser.ParseSchemaResult result =
+            parser.parseByFunction(bytes(script), "M", "predict_power");
+
+        assertEquals(ModelFunctionSchemaParser.PARSE_MODE_SYNTAX, result.parseMode());
+        assertEquals(3, result.schema().getInputs().size());
+        assertEquals("FLOAT", result.schema().getInputs().get(0).getType());
+        assertEquals("FLOAT", result.schema().getInputs().get(1).getType());
+        assertEquals("FLOAT", result.schema().getInputs().get(2).getType());
+        assertEquals(1, result.schema().getOutputs().size());
+        assertEquals("result", result.schema().getOutputs().get(0).getName());
+        assertEquals("STRING", result.schema().getOutputs().get(0).getType());
+    }
+
+    /**
      * 语法解析失败时回退到注释解析。
      */
     @Test

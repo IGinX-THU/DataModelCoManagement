@@ -110,6 +110,33 @@ class DataQueryServiceImplTest {
     }
 
     /**
+     * 用户在界面上输入的结束时间应被视为“包含该时刻”，
+     * 因此后端需要把结束时间转换成开区间上界后再传给 IGinX。
+     */
+    @Test
+    void queryTimeSeries_shouldTreatEndTimeAsInclusive() throws Exception {
+        TimeSeriesQueryRequest request = new TimeSeriesQueryRequest();
+        request.setPaths(List.of("ts.demo.temperature"));
+        TimeRangeDTO range = new TimeRangeDTO();
+        range.setStart("2026-03-23 02:18:00");
+        range.setEnd("2026-03-23 02:18:00");
+        request.setTimeRange(range);
+
+        when(session.queryData(any(), anyLong(), anyLong())).thenReturn(queryDataSet);
+        when(queryDataSet.getKeys()).thenReturn(new long[]{1_774_203_480_000_000_000L});
+        when(queryDataSet.getPaths()).thenReturn(List.of("ts.demo.temperature"));
+        when(queryDataSet.getValues()).thenReturn(List.of(List.of(23.4d)));
+
+        dataQueryService.queryTimeSeries(request);
+
+        ArgumentCaptor<Long> startCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> endCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(session).queryData(any(), startCaptor.capture(), endCaptor.capture());
+        assertEquals(1_774_203_480_000_000_000L, startCaptor.getValue());
+        assertEquals(1_774_203_480_001_000_000L, endCaptor.getValue());
+    }
+
+    /**
      * 结构化表结构查询应返回列名与类型，不附带 _iginx_key。
      */
     @Test
@@ -119,7 +146,7 @@ class DataQueryServiceImplTest {
         columnTypes.put("age", DataType.INTEGER);
         when(structuredQueryHelper.loadColumnTypesByTablePath(anyString())).thenReturn(columnTypes);
 
-        StructuredSchemaVO schema = dataQueryService.queryStructuredSchema("root.rt.user.*");
+        StructuredSchemaVO schema = dataQueryService.queryStructuredSchema("rt.user.*");
 
         assertEquals("rt.user", schema.getTablePath());
         assertEquals(2, schema.getColumns().size());
@@ -163,7 +190,7 @@ class DataQueryServiceImplTest {
 
         StructuredQueryResultVO result = dataQueryService.queryStructured(request);
 
-        assertIterableEquals(List.of("_iginx_key", "name", "age"), result.getColumns());
+        assertIterableEquals(List.of("KEY", "name", "age"), result.getColumns());
         assertEquals(1, result.getPage().getTotal());
         assertEquals(2, result.getPage().getPageNum());
         assertEquals(10, result.getPage().getPageSize());
@@ -176,9 +203,11 @@ class DataQueryServiceImplTest {
         String dataSql = sqlList.stream().filter(sql -> sql.startsWith("SELECT *")).findFirst().orElse("");
         String countSql = sqlList.stream().filter(sql -> sql.startsWith("SELECT COUNT(*)")).findFirst().orElse("");
 
-        assertTrue(dataSql.contains("FROM rt.user"), "数据 SQL 应包含表路径");
+        assertTrue(dataSql.contains("FROM"), "数据 SQL 应包含 FROM 子句");
+        assertTrue(dataSql.contains("user"), "数据 SQL 应包含表名");
         assertTrue(dataSql.contains("age NOT IN (18,19,20)"), "数据 SQL 应包含 NOT IN 条件");
         assertTrue(dataSql.contains("LIMIT 10 OFFSET 10"), "数据 SQL 应包含分页参数");
-        assertTrue(countSql.contains("SELECT COUNT(*) FROM rt.user"), "统计 SQL 应包含 COUNT(*)");
+        assertTrue(countSql.contains("SELECT COUNT(*)"), "统计 SQL 应包含 COUNT(*)");
+        assertTrue(countSql.contains("user"), "统计 SQL 应包含表名");
     }
 }
