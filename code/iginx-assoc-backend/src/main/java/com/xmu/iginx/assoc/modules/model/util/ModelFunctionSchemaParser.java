@@ -18,6 +18,10 @@ import java.util.regex.Pattern;
 
 /**
  * 模型函数结构解析器，支持从脚本语法或注释中提取输入输出结构。
+ * Python：支持多个顶层 def，类里的方法不会当成可选模型函数
+ * C++：支持多个顶层函数，类成员函数不会当成可选模型函数
+ * MATLAB：支持一个文件里多个 function ... end
+ * C++ 同名重载函数 目前不算稳妥支持，因为现在是按函数名找目标函数，重载场景可能会命中第一个同名函数
  */
 @Component
 @RequiredArgsConstructor
