@@ -25,6 +25,11 @@ public class TaskExecutionProperties {
     private String matlabExecutable = "matlab";
 
     /**
+     * C++ 编译器可执行文件。
+     */
+    private String cppCompilerExecutable = "g++";
+
+    /**
      * 模型执行超时时间（秒）。
      */
     private long timeoutSeconds = 300L;

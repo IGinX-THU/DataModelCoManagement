@@ -55,6 +55,7 @@ assoc:
   task:
     python-executable: ${ASSOC_TASK_PYTHON:python}
     matlab-executable: ${ASSOC_TASK_MATLAB:matlab}
+    cpp-compiler-executable: ${ASSOC_TASK_CPP_COMPILER:g++}
     timeout-seconds: ${ASSOC_TASK_TIMEOUT_SECONDS:300}
     work-dir: ${ASSOC_TASK_WORK_DIR:E:/毕设/基于IGinX的数据与模型智能关联管理系统设计与实现/DataModelCoManagement_repo/code/iginx-assoc-backend/storage/task-runtime}
 

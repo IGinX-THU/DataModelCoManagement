@@ -837,6 +837,7 @@ public class TaskServiceImpl implements TaskService {
         return switch (type) {
             case "PYTHON", "PY" -> "PY";
             case "MATLAB", "MAT" -> "MAT";
+            case "C++", "CPP" -> "CPP";
             default -> type;
         };
     }
@@ -845,7 +846,7 @@ public class TaskServiceImpl implements TaskService {
      * 是否支持函数级解析。
      */
     private boolean supportsFunctionBinding(String modelType) {
-        return "PY".equals(modelType) || "MAT".equals(modelType);
+        return "PY".equals(modelType) || "MAT".equals(modelType) || "CPP".equals(modelType);
     }
 
     /**

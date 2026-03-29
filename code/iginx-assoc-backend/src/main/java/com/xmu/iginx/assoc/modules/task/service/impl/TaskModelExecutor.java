@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 /**
  * 模型执行器接口。
  * <p>
- * 不同模型类型（Python / MATLAB）各自负责：
+ * 不同模型类型（Python / MATLAB / C++）各自负责：
  * 1. 根据执行计划装配运行时文件；
  * 2. 调用指定函数；
  * 3. 将原始函数返回值转成 Java 可继续处理的对象。

@@ -53,6 +53,11 @@ public class ModelFunctionSchemaParser {
                 .map(item -> new FunctionMeta(item.name(), item.name() + " (line " + item.lineNumber() + ")", item.signature(), item.lineNumber()))
                 .toList();
         }
+        if ("CPP".equals(normalizedType)) {
+            return CppFunctionSupport.listFunctions(text).stream()
+                .map(item -> new FunctionMeta(item.name(), item.displayName(), item.signature(), item.lineNumber()))
+                .toList();
+        }
         return Collections.emptyList();
     }
 
@@ -67,14 +72,19 @@ public class ModelFunctionSchemaParser {
     public ParseSchemaResult parseByFunction(byte[] fileBytes, String fileType, String functionName) {
         String normalizedType = normalizeFileType(fileType);
         ModelIoSchema fallbackSchema = safeCommentSchema(fileBytes);
-        if (!"PY".equals(normalizedType) && !"MAT".equals(normalizedType)) {
+        if (!"PY".equals(normalizedType) && !"MAT".equals(normalizedType) && !"CPP".equals(normalizedType)) {
             return fallbackResult(fallbackSchema, "文件类型不支持语法解析，已回退到注释解析。") ;
         }
         try {
             String text = toText(fileBytes);
-            ModelIoSchema syntaxSchema = "PY".equals(normalizedType)
-                ? parsePythonSchema(text, functionName, fallbackSchema)
-                : parseMatlabSchema(text, functionName, fallbackSchema);
+            ModelIoSchema syntaxSchema;
+            if ("PY".equals(normalizedType)) {
+                syntaxSchema = parsePythonSchema(text, functionName, fallbackSchema);
+            } else if ("MAT".equals(normalizedType)) {
+                syntaxSchema = parseMatlabSchema(text, functionName, fallbackSchema);
+            } else {
+                syntaxSchema = parseCppSchema(text, functionName, fallbackSchema);
+            }
             if (shouldFallback(syntaxSchema, fallbackSchema)) {
                 return fallbackResult(fallbackSchema, "语法未提取到输入输出，已回退到注释解析。") ;
             }
@@ -144,6 +154,80 @@ public class ModelFunctionSchemaParser {
         schema.setOutputs(outputs);
         schema.setDependencies(Collections.emptyList());
         return schema;
+    }
+
+    /**
+     * 解析 C++ 函数的输入输出结构。
+     */
+    private ModelIoSchema parseCppSchema(String text, String functionName, ModelIoSchema fallbackSchema) {
+        CppFunctionSupport.CppFunctionDescriptor target = CppFunctionSupport.findFunction(text, functionName);
+        if (target == null) {
+            throw new IllegalArgumentException("未找到函数: " + functionName);
+        }
+
+        Map<String, ModelSchemaParam> inputComments = toParamMap(fallbackSchema.getInputs());
+        List<ModelSchemaParam> outputComments = safeList(fallbackSchema.getOutputs());
+        Map<String, ModelSchemaParam> outputCommentMap = toParamMap(outputComments);
+
+        List<ModelSchemaParam> inputs = new ArrayList<>();
+        for (CppFunctionSupport.CppParameterDescriptor parameter : target.parameters()) {
+            ModelSchemaParam comment = inputComments.get(parameter.name().toLowerCase(Locale.ROOT));
+            ModelSchemaParam item = new ModelSchemaParam();
+            item.setName(parameter.name());
+            item.setType(comment != null && StringUtils.hasText(comment.getType())
+                ? normalizeType(comment.getType())
+                : normalizeType(parameter.schemaType()));
+            item.setUnit(comment != null && StringUtils.hasText(comment.getUnit()) ? comment.getUnit() : "-");
+            item.setDescription(comment != null && StringUtils.hasText(comment.getDescription()) ? comment.getDescription() : "");
+            item.setRequired(true);
+            inputs.add(item);
+        }
+
+        List<ModelSchemaParam> outputs = buildCppOutputs(target.returnType(), outputComments, outputCommentMap);
+        ModelIoSchema schema = new ModelIoSchema();
+        schema.setInputs(inputs);
+        schema.setOutputs(outputs);
+        schema.setDependencies(Collections.emptyList());
+        return schema;
+    }
+
+    /**
+     * 构建 C++ 函数输出参数列表。
+     */
+    private List<ModelSchemaParam> buildCppOutputs(String returnType,
+                                                   List<ModelSchemaParam> outputComments,
+                                                   Map<String, ModelSchemaParam> outputCommentMap) {
+        if (CppFunctionSupport.isVoidReturnType(returnType)) {
+            return Collections.emptyList();
+        }
+        List<ModelSchemaParam> outputs = new ArrayList<>();
+        if (CppFunctionSupport.isTupleReturnType(returnType) || CppFunctionSupport.isPairReturnType(returnType)) {
+            List<String> componentTypes = CppFunctionSupport.splitReturnComponentTypes(returnType);
+            for (int index = 0; index < componentTypes.size(); index++) {
+                String name = "out" + (index + 1);
+                ModelSchemaParam comment = resolveCommentOutputByIndexOrName(outputComments, outputCommentMap, index, name);
+                outputs.add(buildOutputParam(name, CppFunctionSupport.toSchemaType(componentTypes.get(index)), comment));
+            }
+            return outputs;
+        }
+        ModelSchemaParam comment = resolveCommentOutputByIndexOrName(outputComments, outputCommentMap, 0, "result");
+        outputs.add(buildOutputParam("result", CppFunctionSupport.toSchemaType(returnType), comment));
+        return outputs;
+    }
+
+    /**
+     * 解析指定 C++ 函数描述，供任务执行器复用。
+     *
+     * @param fileBytes 文件内容
+     * @param functionName 函数名
+     * @return C++ 函数描述
+     */
+    public CppFunctionSupport.CppFunctionDescriptor resolveCppFunctionDescriptor(byte[] fileBytes, String functionName) {
+        CppFunctionSupport.CppFunctionDescriptor descriptor = CppFunctionSupport.findFunction(toText(fileBytes), functionName);
+        if (descriptor == null) {
+            throw new IllegalArgumentException("未找到函数: " + functionName);
+        }
+        return descriptor;
     }
 
     /**
@@ -816,6 +900,7 @@ public class ModelFunctionSchemaParser {
         return switch (value) {
             case "PYTHON", "PY" -> "PY";
             case "MATLAB", "MAT", "M" -> "MAT";
+            case "C++", "CPP" -> "CPP";
             default -> value;
         };
     }

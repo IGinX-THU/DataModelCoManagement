@@ -474,6 +474,7 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         return switch (value) {
             case "PYTHON", "PY" -> "PY";
             case "MATLAB", "MAT" -> "MAT";
+            case "C++", "CPP" -> "CPP";
             default -> value;
         };
     }
@@ -482,7 +483,7 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
      * 判断是否支持函数级绑定。
      */
     private boolean supportsFunctionBinding(String fileType) {
-        return "PY".equals(fileType) || "MAT".equals(fileType);
+        return "PY".equals(fileType) || "MAT".equals(fileType) || "CPP".equals(fileType);
     }
 
     /**

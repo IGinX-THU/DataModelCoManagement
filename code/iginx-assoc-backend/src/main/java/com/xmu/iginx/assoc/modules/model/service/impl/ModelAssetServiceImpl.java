@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 public class ModelAssetServiceImpl implements ModelAssetService {
 
     private static final long MAX_FILE_SIZE = 500L * 1024 * 1024;
-    private static final Set<String> TEXT_TYPES = Set.of("PY", "MAT", "AME", "CSV");
+    private static final Set<String> TEXT_TYPES = Set.of("PY", "MAT", "CPP", "AME", "CSV");
     private static final Set<String> ALLOWED_TYPES = Set.of("PY", "MAT", "AME", "CPP","DLL", "FMU", "ZIP", "CSV", "XLSX");
 
     private final MetaModelProfileRepository profileRepository;
@@ -616,7 +616,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
      */
     private boolean supportsFunctionParsing(String fileType) {
         String normalized = normalizeType(fileType);
-        return "PY".equals(normalized) || "MAT".equals(normalized);
+        return "PY".equals(normalized) || "MAT".equals(normalized) || "CPP".equals(normalized);
     }
 
     /**

@@ -186,6 +186,63 @@ class ModelFunctionSchemaParserTest {
     }
 
     /**
+     * 仅返回 C++ 顶层函数，忽略类成员函数。
+     */
+    @Test
+    void listFunctions_shouldOnlyReturnTopLevelCppFunctions() {
+        String script = """
+            #include <tuple>
+
+            double predict_power(double temperature, double pressure) {
+                return temperature * 0.2 + pressure;
+            }
+
+            class Demo {
+            public:
+                double inner(double x) {
+                    return x;
+                }
+            };
+
+            std::tuple<double, bool> classify(double value) {
+                return { value * 0.5, value > 20.0 };
+            }
+            """;
+
+        List<ModelFunctionSchemaParser.FunctionMeta> functions = parser.listFunctions(bytes(script), "CPP");
+
+        assertEquals(2, functions.size());
+        assertEquals("predict_power", functions.get(0).name());
+        assertEquals("classify", functions.get(1).name());
+    }
+
+    /**
+     * 解析 C++ 函数的输入与 tuple 输出。
+     */
+    @Test
+    void parseByFunction_shouldParseCppInputsAndTupleOutputs() {
+        String script = """
+            #include <tuple>
+
+            std::tuple<double, bool> classify(double temperature, bool enabled) {
+                return { temperature * 0.5, enabled };
+            }
+            """;
+
+        ModelFunctionSchemaParser.ParseSchemaResult result = parser.parseByFunction(bytes(script), "CPP", "classify");
+
+        assertEquals(ModelFunctionSchemaParser.PARSE_MODE_SYNTAX, result.parseMode());
+        assertEquals(2, result.schema().getInputs().size());
+        assertEquals("FLOAT", result.schema().getInputs().get(0).getType());
+        assertEquals("BOOLEAN", result.schema().getInputs().get(1).getType());
+        assertEquals(2, result.schema().getOutputs().size());
+        assertEquals("out1", result.schema().getOutputs().get(0).getName());
+        assertEquals("FLOAT", result.schema().getOutputs().get(0).getType());
+        assertEquals("out2", result.schema().getOutputs().get(1).getName());
+        assertEquals("BOOLEAN", result.schema().getOutputs().get(1).getType());
+    }
+
+    /**
      * 语法解析失败时回退到注释解析。
      */
     @Test

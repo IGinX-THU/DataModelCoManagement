@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * <p>
  * 负责串联以下步骤：
  * 1. 从 IGinX 读取已绑定的 ts.* / rt.* 输入；
- * 2. 根据模型类型自动选择 Python 或 MATLAB 执行器；
+ * 2. 根据模型类型自动选择 Python / MATLAB / C++ 执行器；
  * 3. 将函数实际返回结果与规则定义输出做严格对齐；
  * 4. 通过 IGinX SQL 将结果写回默认或自定义路径。
  * </p>
@@ -181,7 +181,7 @@ public class TaskModelExecutionEngine {
      * 按整表列读取纯 rt.* 输入。
      * <p>
      * 当任务输入全部来自结构化表时，需要将每个绑定列的完整数据作为序列传入模型，
-     * 以便 Python / MATLAB 执行器逐行调用模型函数，并生成完整结果序列。
+     * 以便 Python / MATLAB / C++ 执行器逐行调用模型函数，并生成完整结果序列。
      * </p>
      */
     private StructuredRtInputs loadStructuredRtSeriesInputs(List<TaskExecutionBinding> rtBindings) {
