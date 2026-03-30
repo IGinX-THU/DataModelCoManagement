@@ -34,10 +34,12 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
+import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -62,6 +64,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
 
+    private static final DateTimeFormatter TASK_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private final TaskRepository taskRepository;
     private final AssociationRuleRepository associationRuleRepository;
     private final ModelAssetRepository modelAssetRepository;
@@ -71,6 +75,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskModelExecutionEngine taskModelExecutionEngine;
     private final ModelFileStorageService modelFileStorageService;
     private final ModelFunctionSchemaParser functionSchemaParser;
+    private final Map<String, String> taskAbortReasons = new ConcurrentHashMap<>();
 
     /**
      * 提交任务。
@@ -88,6 +93,7 @@ public class TaskServiceImpl implements TaskService {
 
         String taskId = UUID.randomUUID().toString().replace("-", "");
         TaskExecutionPlan plan = buildExecutionPlan(taskId, rule, asset, request);
+        validateScheduleWindow(request);
 
         TaskEntity task = new TaskEntity();
         task.setId(taskId);
@@ -95,10 +101,12 @@ public class TaskServiceImpl implements TaskService {
         task.setStatus(TaskStatus.PENDING.name());
         task.setRangeStart(plan.getSnapshot().getRangeStart());
         task.setRangeEnd(plan.getSnapshot().getRangeEnd());
+        task.setScheduledStartTime(request.getScheduledStartTime());
+        task.setScheduledEndTime(request.getScheduledEndTime());
         task.setCreateTime(LocalDateTime.now());
         task.setResultLink(resolveResultLink(plan.getSnapshot()));
         task.setExecutionSnapshot(writeJson(plan.getSnapshot()));
-        task.setExecLog("任务已提交，等待执行");
+        task.setExecLog(buildPendingExecLog(request.getScheduledStartTime(), request.getScheduledEndTime()));
         taskRepository.save(task);
 
         Runnable runner = () -> executeTask(taskId, plan);
@@ -106,11 +114,11 @@ public class TaskServiceImpl implements TaskService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    submitAsyncTask(taskId, runner);
+                    scheduleTask(taskId, runner, request.getScheduledStartTime(), request.getScheduledEndTime());
                 }
             });
         } else {
-            submitAsyncTask(taskId, runner);
+            scheduleTask(taskId, runner, request.getScheduledStartTime(), request.getScheduledEndTime());
         }
         return taskId;
     }
@@ -121,17 +129,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public void stopTask(String taskId) {
-        TaskEntity task = findTask(taskId);
-        if (TaskStatus.SUCCESS.name().equals(task.getStatus())
-            || TaskStatus.FAILED.name().equals(task.getStatus())
-            || TaskStatus.ABORTED.name().equals(task.getStatus())) {
-            return;
-        }
-        taskScheduler.cancel(taskId);
-        task.setStatus(TaskStatus.ABORTED.name());
-        task.setEndTime(LocalDateTime.now());
-        task.setExecLog("任务被用户终止");
-        taskRepository.save(task);
+        abortTask(taskId, buildUserPendingAbortMessage(), buildUserRunningAbortMessage());
     }
 
     /**
@@ -156,10 +154,25 @@ public class TaskServiceImpl implements TaskService {
     /**
      * 异步提交任务。
      */
-    private void submitAsyncTask(String taskId, Runnable runner) {
+    private void scheduleTask(String taskId,
+                              Runnable runner,
+                              LocalDateTime scheduledStartTime,
+                              LocalDateTime scheduledEndTime) {
         try {
-            taskScheduler.submit(taskId, runner);
+            if (scheduledEndTime != null) {
+                taskScheduler.scheduleDeadline(taskId, scheduledEndTime,
+                    () -> abortTask(taskId,
+                        buildTimeoutPendingAbortMessage(scheduledEndTime),
+                        buildTimeoutRunningAbortMessage(scheduledEndTime)));
+            }
+            if (scheduledStartTime != null && scheduledStartTime.isAfter(LocalDateTime.now())) {
+                taskScheduler.schedule(taskId, runner, scheduledStartTime,
+                    ex -> handleDelayedSubmitFailure(taskId, ex));
+            } else {
+                taskScheduler.submit(taskId, runner);
+            }
         } catch (BizException ex) {
+            taskScheduler.clear(taskId);
             markTaskFailed(taskId, "任务提交失败: " + ex.getMessage());
             throw ex;
         }
@@ -170,9 +183,14 @@ public class TaskServiceImpl implements TaskService {
      */
     private void executeTask(String taskId, TaskExecutionPlan plan) {
         TaskEntity task = findTask(taskId);
+        if (isTerminalStatus(task.getStatus())) {
+            taskScheduler.clear(taskId);
+            taskAbortReasons.remove(taskId);
+            return;
+        }
         task.setStatus(TaskStatus.RUNNING.name());
         task.setStartTime(LocalDateTime.now());
-        task.setExecLog("任务开始执行，模型函数: " + plan.getSnapshot().getFunctionName());
+        task.setExecLog(buildRunningExecLog(plan, task.getScheduledEndTime()));
         taskRepository.save(task);
 
         try {
@@ -183,11 +201,11 @@ public class TaskServiceImpl implements TaskService {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             task.setStatus(TaskStatus.ABORTED.name());
-            task.setExecLog("任务执行过程中被终止");
+            task.setExecLog(resolveAbortReason(taskId, "任务执行过程中被终止"));
         } catch (BizException ex) {
             if (Thread.currentThread().isInterrupted()) {
                 task.setStatus(TaskStatus.ABORTED.name());
-                task.setExecLog("任务执行过程中被终止");
+                task.setExecLog(resolveAbortReason(taskId, "任务执行过程中被终止"));
             } else {
                 task.setStatus(TaskStatus.FAILED.name());
                 task.setExecLog("任务执行失败: " + ex.getMessage());
@@ -195,7 +213,7 @@ public class TaskServiceImpl implements TaskService {
         } catch (Exception ex) {
             if (Thread.currentThread().isInterrupted()) {
                 task.setStatus(TaskStatus.ABORTED.name());
-                task.setExecLog("任务执行过程中被终止");
+                task.setExecLog(resolveAbortReason(taskId, "任务执行过程中被终止"));
             } else {
                 log.error("任务执行失败，taskId={}", taskId, ex);
                 task.setStatus(TaskStatus.FAILED.name());
@@ -205,6 +223,7 @@ public class TaskServiceImpl implements TaskService {
             task.setEndTime(LocalDateTime.now());
             taskRepository.save(task);
             taskScheduler.clear(taskId);
+            taskAbortReasons.remove(taskId);
         }
     }
 
@@ -660,6 +679,9 @@ public class TaskServiceImpl implements TaskService {
             task.setExecLog(message);
             taskRepository.save(task);
         } catch (Exception ignored) {
+        } finally {
+            taskScheduler.clear(taskId);
+            taskAbortReasons.remove(taskId);
         }
     }
 
@@ -681,6 +703,8 @@ public class TaskServiceImpl implements TaskService {
         vo.setStatus(entity.getStatus());
         vo.setRangeStart(entity.getRangeStart());
         vo.setRangeEnd(entity.getRangeEnd());
+        vo.setScheduledStartTime(entity.getScheduledStartTime());
+        vo.setScheduledEndTime(entity.getScheduledEndTime());
         vo.setStartTime(entity.getStartTime());
         vo.setEndTime(entity.getEndTime());
         vo.setResultLink(entity.getResultLink());
@@ -854,6 +878,155 @@ public class TaskServiceImpl implements TaskService {
      */
     private String safeTrim(Object value) {
         return value == null ? "" : value.toString().trim();
+    }
+
+    /**
+     * 校验计划开始/终止时间窗口。
+     */
+    private void validateScheduleWindow(TaskSubmitRequest request) {
+        LocalDateTime scheduledEndTime = request.getScheduledEndTime();
+        if (scheduledEndTime == null) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime scheduledStartTime = request.getScheduledStartTime();
+        LocalDateTime effectiveStartTime = scheduledStartTime != null && scheduledStartTime.isAfter(now)
+            ? scheduledStartTime
+            : now;
+        if (!scheduledEndTime.isAfter(effectiveStartTime)) {
+            if (scheduledStartTime != null && scheduledStartTime.isAfter(now)) {
+                throw BizException.badRequest("任务终止时间必须晚于计划开始时间");
+            }
+            throw BizException.badRequest("任务终止时间必须晚于当前时间");
+        }
+    }
+
+    /**
+     * 构建待执行日志。
+     */
+    private String buildPendingExecLog(LocalDateTime scheduledStartTime, LocalDateTime scheduledEndTime) {
+        StringBuilder builder = new StringBuilder("任务已提交");
+        if (scheduledStartTime != null && scheduledStartTime.isAfter(LocalDateTime.now())) {
+            builder.append("，将于 ").append(formatTaskTime(scheduledStartTime)).append(" 开始执行");
+        } else {
+            builder.append("，等待执行");
+        }
+        if (scheduledEndTime != null) {
+            builder.append("，最晚终止时间: ").append(formatTaskTime(scheduledEndTime));
+        }
+        return builder.toString();
+    }
+
+    /**
+     * 构建运行中日志。
+     */
+    private String buildRunningExecLog(TaskExecutionPlan plan, LocalDateTime scheduledEndTime) {
+        StringBuilder builder = new StringBuilder("任务开始执行，模型函数: ")
+            .append(plan.getSnapshot().getFunctionName());
+        if (scheduledEndTime != null) {
+            builder.append("，最晚终止时间: ").append(formatTaskTime(scheduledEndTime));
+        }
+        return builder.toString();
+    }
+
+    /**
+     * 延迟提交失败后的处理。
+     */
+    private void handleDelayedSubmitFailure(String taskId, BizException ex) {
+        taskScheduler.clear(taskId);
+        markTaskFailed(taskId, "任务提交失败: " + ex.getMessage());
+    }
+
+    /**
+     * 统一终止任务。
+     */
+    private void abortTask(String taskId, String pendingMessage, String runningMessage) {
+        TaskEntity task;
+        try {
+            task = findTask(taskId);
+        } catch (BizException ex) {
+            taskAbortReasons.remove(taskId);
+            taskScheduler.clear(taskId);
+            return;
+        }
+        if (isTerminalStatus(task.getStatus())) {
+            taskAbortReasons.remove(taskId);
+            taskScheduler.clear(taskId);
+            return;
+        }
+        boolean started = hasTaskStarted(task);
+        String message = started ? runningMessage : pendingMessage;
+        taskAbortReasons.put(taskId, message);
+        taskScheduler.cancel(taskId);
+        task.setStatus(TaskStatus.ABORTED.name());
+        task.setExecLog(message);
+        if (!started) {
+            task.setEndTime(LocalDateTime.now());
+            taskRepository.save(task);
+            taskAbortReasons.remove(taskId);
+            taskScheduler.clear(taskId);
+            return;
+        }
+        taskRepository.save(task);
+    }
+
+    /**
+     * 是否已进入执行阶段。
+     */
+    private boolean hasTaskStarted(TaskEntity task) {
+        return task != null
+            && (task.getStartTime() != null || TaskStatus.RUNNING.name().equals(task.getStatus()));
+    }
+
+    /**
+     * 是否为终态。
+     */
+    private boolean isTerminalStatus(String status) {
+        return TaskStatus.SUCCESS.name().equals(status)
+            || TaskStatus.FAILED.name().equals(status)
+            || TaskStatus.ABORTED.name().equals(status);
+    }
+
+    /**
+     * 解析终止原因。
+     */
+    private String resolveAbortReason(String taskId, String defaultMessage) {
+        return taskAbortReasons.getOrDefault(taskId, defaultMessage);
+    }
+
+    /**
+     * 用户在任务尚未开始前终止时的提示。
+     */
+    private String buildUserPendingAbortMessage() {
+        return "任务在开始执行前被用户终止";
+    }
+
+    /**
+     * 用户终止运行中任务时的提示。
+     */
+    private String buildUserRunningAbortMessage() {
+        return "任务被用户终止";
+    }
+
+    /**
+     * 到达终止时间但尚未开始执行时的提示。
+     */
+    private String buildTimeoutPendingAbortMessage(LocalDateTime scheduledEndTime) {
+        return "任务在计划开始前已到达终止时间(" + formatTaskTime(scheduledEndTime) + ")，系统已取消执行";
+    }
+
+    /**
+     * 到达终止时间时终止运行中任务的提示。
+     */
+    private String buildTimeoutRunningAbortMessage(LocalDateTime scheduledEndTime) {
+        return "任务到达执行终止时间(" + formatTaskTime(scheduledEndTime) + ")，系统已强制终止";
+    }
+
+    /**
+     * 格式化任务时间。
+     */
+    private String formatTaskTime(LocalDateTime time) {
+        return time == null ? "-" : time.format(TASK_TIME_FORMATTER);
     }
 
     /**

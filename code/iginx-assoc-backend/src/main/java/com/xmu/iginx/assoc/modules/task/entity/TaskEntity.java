@@ -36,6 +36,12 @@ public class TaskEntity {
     @Column(name = "range_end")
     private LocalDateTime rangeEnd;
 
+    @Column(name = "scheduled_start_time")
+    private LocalDateTime scheduledStartTime;
+
+    @Column(name = "scheduled_end_time")
+    private LocalDateTime scheduledEndTime;
+
     @Column(name = "start_time")
     private LocalDateTime startTime;
 

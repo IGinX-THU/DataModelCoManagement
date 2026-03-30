@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS task (
     status VARCHAR(20) NOT NULL,
     range_start TIMESTAMP,
     range_end TIMESTAMP,
+    scheduled_start_time TIMESTAMP,
+    scheduled_end_time TIMESTAMP,
     start_time TIMESTAMP,
     end_time TIMESTAMP,
     result_link VARCHAR(255),
@@ -114,3 +116,9 @@ ALTER TABLE IF EXISTS association_rule
 
 ALTER TABLE IF EXISTS task
     ADD COLUMN IF NOT EXISTS execution_snapshot JSONB;
+
+ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS scheduled_start_time TIMESTAMP;
+
+ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS scheduled_end_time TIMESTAMP;

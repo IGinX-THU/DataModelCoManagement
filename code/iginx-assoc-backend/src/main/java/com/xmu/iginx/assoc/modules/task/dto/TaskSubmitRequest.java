@@ -16,6 +16,24 @@ public class TaskSubmitRequest {
     private Long ruleId;
 
     /**
+     * 计划开始执行时间。
+     * <p>
+     * 为空时表示任务提交后立即执行。
+     * </p>
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime scheduledStartTime;
+
+    /**
+     * 计划终止时间。
+     * <p>
+     * 为空时表示不限制任务最晚终止时间。
+     * </p>
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime scheduledEndTime;
+
+    /**
      * 时间范围参数：
      * 1. 当规则输入包含 ts.* 时必填；
      * 2. 当规则输入全部为 rt.* 时可为空（表示直接按当前绑定数据执行）。
