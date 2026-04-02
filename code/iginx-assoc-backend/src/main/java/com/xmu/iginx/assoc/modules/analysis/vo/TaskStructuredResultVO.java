@@ -1,5 +1,6 @@
 package com.xmu.iginx.assoc.modules.analysis.vo;
 
+import com.xmu.iginx.assoc.common.PageResult;
 import lombok.Data;
 
 import java.util.List;
@@ -22,7 +23,7 @@ public class TaskStructuredResultVO {
     private List<String> columns;
 
     /**
-     * 结果行数据。
+     * 分页结果。
      */
-    private List<Map<String, Object>> rows;
+    private PageResult<Map<String, Object>> page;
 }

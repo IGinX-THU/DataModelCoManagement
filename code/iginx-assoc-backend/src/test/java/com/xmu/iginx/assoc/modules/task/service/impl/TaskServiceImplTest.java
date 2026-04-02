@@ -118,11 +118,98 @@ class TaskServiceImplTest {
         ArgumentCaptor<TaskEntity> captor = ArgumentCaptor.forClass(TaskEntity.class);
         verify(taskRepository).save(captor.capture());
         TaskEntity saved = captor.getValue();
+        assertNotNull(saved.getTaskName());
+        assertTrue(saved.getTaskName().startsWith("规则A_"));
         assertNotNull(saved.getResultLink());
         assertTrue(saved.getResultLink().startsWith("task.result."));
         assertNull(saved.getRangeStart());
         assertNull(saved.getRangeEnd());
         verify(taskScheduler).submit(eq(taskId), any(Runnable.class));
+    }
+
+    /**
+     * 设置计划开始/终止时间后，应进入定时调度流程并持久化调度信息。
+     */
+    @Test
+    void submitTask_shouldScheduleWhenScheduledWindowProvided() {
+        AssociationRuleEntity rule = new AssociationRuleEntity();
+        rule.setId(2L);
+        rule.setEnabled(true);
+        rule.setModelId(9L);
+        rule.setName("规则Schedule");
+        rule.setFunctionName("predict");
+        rule.setMappingJson("{\"function_name\":\"predict\",\"mappings\":[{\"param\":\"temperature\",\"param_type\":\"FLOAT\",\"direction\":\"INPUT\",\"source_path\":\"rt.factory.demo.temperature\"}],"
+            + "\"output_target\":{\"paths\":{\"power\":\"\"}}}");
+        rule.setOutputTarget("{\"paths\":{\"power\":\"\"},\"meta\":[{\"param\":\"power\",\"param_type\":\"FLOAT\",\"direction\":\"OUTPUT\"}]}");
+
+        ModelAssetEntity asset = new ModelAssetEntity();
+        asset.setId(9L);
+        asset.setProfileId(2L);
+        asset.setFileType("PY");
+        asset.setVersion("v1");
+        asset.setIoSchema("{\"inputs\":[{\"name\":\"temperature\",\"type\":\"FLOAT\",\"required\":true}],"
+            + "\"outputs\":[{\"name\":\"power\",\"type\":\"FLOAT\"}]}");
+
+        when(associationRuleRepository.findById(2L)).thenReturn(Optional.of(rule));
+        when(modelAssetRepository.findById(9L)).thenReturn(Optional.of(asset));
+        when(taskRepository.save(any(TaskEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LocalDateTime scheduledStartTime = LocalDateTime.now().plusMinutes(10);
+        LocalDateTime scheduledEndTime = scheduledStartTime.plusMinutes(20);
+        TaskSubmitRequest request = new TaskSubmitRequest();
+        request.setRuleId(2L);
+        request.setScheduledStartTime(scheduledStartTime);
+        request.setScheduledEndTime(scheduledEndTime);
+
+        String taskId = taskService.submitTask(request);
+
+        ArgumentCaptor<TaskEntity> captor = ArgumentCaptor.forClass(TaskEntity.class);
+        verify(taskRepository).save(captor.capture());
+        TaskEntity saved = captor.getValue();
+        assertEquals(scheduledStartTime, saved.getScheduledStartTime());
+        assertEquals(scheduledEndTime, saved.getScheduledEndTime());
+        assertTrue(saved.getExecLog().contains("将于"));
+        verify(taskScheduler).schedule(eq(taskId), any(Runnable.class), eq(scheduledStartTime), any());
+        verify(taskScheduler).scheduleDeadline(eq(taskId), eq(scheduledEndTime), any(Runnable.class));
+    }
+
+    /**
+     * 用户手动输入任务名称时，应按输入名称保存，避免被默认名称覆盖。
+     */
+    @Test
+    void submitTask_shouldUseCustomTaskNameWhenProvided() {
+        AssociationRuleEntity rule = new AssociationRuleEntity();
+        rule.setId(12L);
+        rule.setEnabled(true);
+        rule.setModelId(9L);
+        rule.setName("规则自定义任务名");
+        rule.setFunctionName("predict");
+        rule.setMappingJson("{\"function_name\":\"predict\",\"mappings\":[{\"param\":\"temperature\",\"param_type\":\"FLOAT\",\"direction\":\"INPUT\",\"source_path\":\"rt.factory.demo.temperature\"}],"
+            + "\"output_target\":{\"paths\":{\"power\":\"\"}}}");
+        rule.setOutputTarget("{\"paths\":{\"power\":\"\"},\"meta\":[{\"param\":\"power\",\"param_type\":\"FLOAT\",\"direction\":\"OUTPUT\"}]}");
+
+        ModelAssetEntity asset = new ModelAssetEntity();
+        asset.setId(9L);
+        asset.setProfileId(2L);
+        asset.setFileType("PY");
+        asset.setVersion("v1");
+        asset.setIoSchema("{\"inputs\":[{\"name\":\"temperature\",\"type\":\"FLOAT\",\"required\":true}],"
+            + "\"outputs\":[{\"name\":\"power\",\"type\":\"FLOAT\"}]}");
+
+        when(associationRuleRepository.findById(12L)).thenReturn(Optional.of(rule));
+        when(modelAssetRepository.findById(9L)).thenReturn(Optional.of(asset));
+        when(taskRepository.save(any(TaskEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TaskSubmitRequest request = new TaskSubmitRequest();
+        request.setRuleId(12L);
+        request.setTaskName("锅炉功率预测-晚高峰");
+
+        taskService.submitTask(request);
+
+        ArgumentCaptor<TaskEntity> captor = ArgumentCaptor.forClass(TaskEntity.class);
+        verify(taskRepository).save(captor.capture());
+        TaskEntity saved = captor.getValue();
+        assertEquals("锅炉功率预测-晚高峰", saved.getTaskName());
     }
 
     /**
@@ -158,6 +245,43 @@ class TaskServiceImplTest {
         assertTrue(ex.getMessage().contains("必须选择时间区间"));
         verify(taskRepository, never()).save(any(TaskEntity.class));
         verify(taskScheduler, never()).submit(any(String.class), any(Runnable.class));
+    }
+
+    /**
+     * 若终止时间不晚于当前生效开始时间，应拒绝提交。
+     */
+    @Test
+    void submitTask_shouldRejectWhenScheduledEndTimeIsInvalid() {
+        AssociationRuleEntity rule = new AssociationRuleEntity();
+        rule.setId(3L);
+        rule.setEnabled(true);
+        rule.setModelId(9L);
+        rule.setName("规则InvalidSchedule");
+        rule.setFunctionName("predict");
+        rule.setMappingJson("{\"function_name\":\"predict\",\"mappings\":[{\"param\":\"temperature\",\"param_type\":\"FLOAT\",\"direction\":\"INPUT\",\"source_path\":\"rt.factory.demo.temperature\"}],"
+            + "\"output_target\":{\"paths\":{\"power\":\"\"}}}");
+        rule.setOutputTarget("{\"paths\":{\"power\":\"\"},\"meta\":[{\"param\":\"power\",\"param_type\":\"FLOAT\",\"direction\":\"OUTPUT\"}]}");
+
+        ModelAssetEntity asset = new ModelAssetEntity();
+        asset.setId(9L);
+        asset.setProfileId(2L);
+        asset.setFileType("PY");
+        asset.setVersion("v1");
+        asset.setIoSchema("{\"inputs\":[{\"name\":\"temperature\",\"type\":\"FLOAT\",\"required\":true}],"
+            + "\"outputs\":[{\"name\":\"power\",\"type\":\"FLOAT\"}]}");
+
+        when(associationRuleRepository.findById(3L)).thenReturn(Optional.of(rule));
+        when(modelAssetRepository.findById(9L)).thenReturn(Optional.of(asset));
+
+        TaskSubmitRequest request = new TaskSubmitRequest();
+        request.setRuleId(3L);
+        request.setScheduledEndTime(LocalDateTime.now().minusMinutes(1));
+
+        BizException ex = assertThrows(BizException.class, () -> taskService.submitTask(request));
+        assertTrue(ex.getMessage().contains("任务终止时间必须晚于当前时间"));
+        verify(taskRepository, never()).save(any(TaskEntity.class));
+        verify(taskScheduler, never()).schedule(any(String.class), any(Runnable.class), any(LocalDateTime.class), any());
+        verify(taskScheduler, never()).scheduleDeadline(any(String.class), any(LocalDateTime.class), any(Runnable.class));
     }
 
     /**

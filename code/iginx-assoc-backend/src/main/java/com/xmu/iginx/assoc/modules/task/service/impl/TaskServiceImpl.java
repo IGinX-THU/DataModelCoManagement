@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 public class TaskServiceImpl implements TaskService {
 
     private static final DateTimeFormatter TASK_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter TASK_NAME_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final TaskRepository taskRepository;
     private final AssociationRuleRepository associationRuleRepository;
@@ -94,16 +95,19 @@ public class TaskServiceImpl implements TaskService {
         String taskId = UUID.randomUUID().toString().replace("-", "");
         TaskExecutionPlan plan = buildExecutionPlan(taskId, rule, asset, request);
         validateScheduleWindow(request);
+        LocalDateTime createTime = LocalDateTime.now();
+        String resolvedTaskName = resolveTaskName(request.getTaskName(), rule, createTime, taskId);
 
         TaskEntity task = new TaskEntity();
         task.setId(taskId);
         task.setRuleId(rule.getId());
+        task.setTaskName(resolvedTaskName);
         task.setStatus(TaskStatus.PENDING.name());
         task.setRangeStart(plan.getSnapshot().getRangeStart());
         task.setRangeEnd(plan.getSnapshot().getRangeEnd());
         task.setScheduledStartTime(request.getScheduledStartTime());
         task.setScheduledEndTime(request.getScheduledEndTime());
-        task.setCreateTime(LocalDateTime.now());
+        task.setCreateTime(createTime);
         task.setResultLink(resolveResultLink(plan.getSnapshot()));
         task.setExecutionSnapshot(writeJson(plan.getSnapshot()));
         task.setExecLog(buildPendingExecLog(request.getScheduledStartTime(), request.getScheduledEndTime()));
@@ -699,6 +703,7 @@ public class TaskServiceImpl implements TaskService {
     private TaskVO toVO(TaskEntity entity) {
         TaskVO vo = new TaskVO();
         vo.setId(entity.getId());
+        vo.setTaskName(resolveDisplayTaskName(entity));
         vo.setRuleId(entity.getRuleId());
         vo.setStatus(entity.getStatus());
         vo.setRangeStart(entity.getRangeStart());
@@ -1027,6 +1032,50 @@ public class TaskServiceImpl implements TaskService {
      */
     private String formatTaskTime(LocalDateTime time) {
         return time == null ? "-" : time.format(TASK_TIME_FORMATTER);
+    }
+
+    /**
+     * 解析任务名称，优先使用用户输入，未填写时自动生成默认名称。
+     */
+    private String resolveTaskName(String rawTaskName,
+                                   AssociationRuleEntity rule,
+                                   LocalDateTime createTime,
+                                   String taskId) {
+        if (StringUtils.hasText(rawTaskName)) {
+            return rawTaskName.trim();
+        }
+        String baseName = StringUtils.hasText(rule == null ? null : rule.getName())
+            ? rule.getName().trim()
+            : "任务";
+        return buildDefaultTaskName(baseName, createTime, taskId);
+    }
+
+    /**
+     * 解析展示用任务名称，兼容旧任务未持久化名称的情况。
+     */
+    private String resolveDisplayTaskName(TaskEntity entity) {
+        if (entity == null) {
+            return "任务";
+        }
+        if (StringUtils.hasText(entity.getTaskName())) {
+            return entity.getTaskName().trim();
+        }
+        return buildDefaultTaskName("任务", entity.getCreateTime(), entity.getId());
+    }
+
+    /**
+     * 构建默认任务名称。
+     */
+    private String buildDefaultTaskName(String baseName, LocalDateTime createTime, String taskId) {
+        String resolvedBaseName = StringUtils.hasText(baseName) ? baseName.trim() : "任务";
+        if (createTime != null) {
+            return resolvedBaseName + "_" + createTime.format(TASK_NAME_TIME_FORMATTER);
+        }
+        if (StringUtils.hasText(taskId)) {
+            String shortId = taskId.length() > 8 ? taskId.substring(0, 8) : taskId;
+            return resolvedBaseName + "_" + shortId;
+        }
+        return resolvedBaseName;
     }
 
     /**

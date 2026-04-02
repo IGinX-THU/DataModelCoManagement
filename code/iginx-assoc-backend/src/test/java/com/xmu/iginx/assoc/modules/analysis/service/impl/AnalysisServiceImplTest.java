@@ -126,9 +126,143 @@ class AnalysisServiceImplTest {
         assertEquals("STRUCTURED", result.getAnalysisMode());
         assertTrue(result.getSeries() == null || result.getSeries().isEmpty());
         assertEquals(List.of("KEY", "result"), result.getStructuredResult().getColumns());
-        assertEquals(2, result.getStructuredResult().getRows().size());
-        assertEquals(0L, result.getStructuredResult().getRows().get(0).get("KEY"));
-        assertEquals(5.399d, result.getStructuredResult().getRows().get(0).get("result"));
+        assertEquals(2L, result.getStructuredResult().getPage().getTotal());
+        assertEquals(2, result.getStructuredResult().getPage().getRecords().size());
+        assertEquals(0L, result.getStructuredResult().getPage().getRecords().get(0).get("KEY"));
+        assertEquals(5.399d, result.getStructuredResult().getPage().getRecords().get(0).get("result"));
+    }
+
+    /**
+     * 结构化结果查看应支持分页，避免一次性返回整表。
+     */
+    @Test
+    void queryTaskSeries_shouldPageStructuredRows() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        AnalysisServiceImpl service = new AnalysisServiceImpl(
+            taskRepository,
+            associationRuleRepository,
+            iginxStorageWrapper,
+            objectMapper,
+            modelAssetRepository,
+            modelFileStorageService,
+            dataFileStorageService,
+            structuredQueryHelper
+        );
+
+        TaskExecutionBinding input = new TaskExecutionBinding();
+        input.setName("temperature");
+        input.setResolvedPath("rt.factory.boiler.temperature");
+        input.setPathKind("RT");
+
+        TaskExecutionBinding output = new TaskExecutionBinding();
+        output.setName("result");
+        output.setResolvedPath("task.result.demo.result");
+
+        TaskExecutionSnapshot snapshot = new TaskExecutionSnapshot();
+        snapshot.setInputs(List.of(input));
+        snapshot.setOutputs(List.of(output));
+
+        TaskEntity task = new TaskEntity();
+        task.setId("demo-task");
+        task.setRuleId(1L);
+        task.setExecutionSnapshot(objectMapper.writeValueAsString(snapshot));
+
+        SessionQueryDataSet lastDataSet = org.mockito.Mockito.mock(SessionQueryDataSet.class);
+        when(lastDataSet.getKeys()).thenReturn(new long[]{2L});
+
+        SessionQueryDataSet pageDataSet = org.mockito.Mockito.mock(SessionQueryDataSet.class);
+        when(pageDataSet.getKeys()).thenReturn(new long[]{1L});
+        when(pageDataSet.getValues()).thenReturn(List.of(List.of(5.419d)));
+        when(pageDataSet.getPaths()).thenReturn(List.of("task.result.demo.result"));
+
+        when(taskRepository.findById("demo-task")).thenReturn(Optional.of(task));
+        when(associationRuleRepository.findById(1L)).thenReturn(Optional.empty());
+        when(iginxStorageWrapper.executeWithSession(any())).thenReturn(lastDataSet, pageDataSet);
+
+        TaskSeriesRequest request = new TaskSeriesRequest();
+        request.setPageNum(2);
+        request.setPageSize(1);
+        TaskAnalysisResultVO result = service.queryTaskSeries("demo-task", request);
+
+        assertEquals("STRUCTURED", result.getAnalysisMode());
+        assertEquals(3L, result.getStructuredResult().getPage().getTotal());
+        assertEquals(2, result.getStructuredResult().getPage().getPageNum());
+        assertEquals(1, result.getStructuredResult().getPage().getPageSize());
+        assertEquals(1, result.getStructuredResult().getPage().getRecords().size());
+        assertEquals(1L, result.getStructuredResult().getPage().getRecords().get(0).get("KEY"));
+        assertEquals(5.419d, result.getStructuredResult().getPage().getRecords().get(0).get("result"));
+    }
+
+    /**
+     * 当 IGinX 不支持 AVG 映射函数时，任务结果页应自动回退到原始查询并在本地完成降采样。
+     */
+    @Test
+    void queryTaskSeries_shouldFallbackToLocalDownsampleWhenMappingFunctionUnsupported() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        AnalysisServiceImpl service = new AnalysisServiceImpl(
+            taskRepository,
+            associationRuleRepository,
+            iginxStorageWrapper,
+            objectMapper,
+            modelAssetRepository,
+            modelFileStorageService,
+            dataFileStorageService,
+            structuredQueryHelper
+        );
+
+        TaskExecutionBinding input = new TaskExecutionBinding();
+        input.setName("temperature");
+        input.setResolvedPath("ts.factory.boiler.temperature");
+        input.setPathKind("TS");
+
+        TaskExecutionBinding output = new TaskExecutionBinding();
+        output.setName("prediction");
+        output.setResolvedPath("task.result.demo.prediction");
+
+        TaskExecutionSnapshot snapshot = new TaskExecutionSnapshot();
+        snapshot.setInputs(List.of(input));
+        snapshot.setOutputs(List.of(output));
+
+        TaskEntity task = new TaskEntity();
+        task.setId("demo-task");
+        task.setRuleId(1L);
+        task.setRangeStart(LocalDateTime.of(2026, 4, 2, 16, 30, 0));
+        task.setRangeEnd(LocalDateTime.of(2026, 4, 2, 16, 30, 4));
+        task.setExecutionSnapshot(objectMapper.writeValueAsString(snapshot));
+
+        SessionQueryDataSet rawDataSet = org.mockito.Mockito.mock(SessionQueryDataSet.class);
+        when(rawDataSet.getKeys()).thenReturn(new long[]{
+            0L,
+            1_000_000_000L,
+            2_000_000_000L
+        });
+        when(rawDataSet.getValues()).thenReturn(List.of(
+            List.of(10d),
+            List.of(20d),
+            List.of(30d)
+        ));
+        when(rawDataSet.getPaths()).thenReturn(List.of("task.result.demo.prediction"));
+
+        when(taskRepository.findById("demo-task")).thenReturn(Optional.of(task));
+        when(associationRuleRepository.findById(1L)).thenReturn(Optional.empty());
+        when(iginxStorageWrapper.executeWithSession(any()))
+            .thenThrow(BizException.badRequest("encounter error when execute set mapping function avg."))
+            .thenReturn(rawDataSet);
+
+        TaskSeriesRequest request = new TaskSeriesRequest();
+        request.setDownsample(true);
+        request.setAggregator("AVG");
+        request.setPrecisionMs(2000L);
+
+        TaskAnalysisResultVO result = service.queryTaskSeries("demo-task", request);
+
+        assertEquals("TIME_SERIES", result.getAnalysisMode());
+        assertEquals(1, result.getSeries().size());
+        assertEquals(2, result.getSeries().get(0).getPoints().size());
+        assertEquals(0L, result.getSeries().get(0).getPoints().get(0).getTimestamp());
+        assertEquals(15d, result.getSeries().get(0).getPoints().get(0).getValue());
+        assertEquals(2000L, result.getSeries().get(0).getPoints().get(1).getTimestamp());
+        assertEquals(30d, result.getSeries().get(0).getPoints().get(1).getValue());
     }
 
     /**

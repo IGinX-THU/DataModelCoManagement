@@ -3,7 +3,9 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
 import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
+import cn.edu.tsinghua.iginx.thrift.AggregateType;
 import cn.edu.tsinghua.iginx.thrift.DataType;
+import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryCondition;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryRequest;
@@ -134,6 +136,39 @@ class DataQueryServiceImplTest {
         verify(session).queryData(any(), startCaptor.capture(), endCaptor.capture());
         assertEquals(1_774_203_480_000_000_000L, startCaptor.getValue());
         assertEquals(1_774_203_480_001_000_000L, endCaptor.getValue());
+    }
+
+    /**
+     * 当 IGinX 不支持 AVG 映射函数时，应自动回退到原始查询，避免数据页面直接报错。
+     */
+    @Test
+    void queryTimeSeries_shouldFallbackToRawWhenDownsampleMappingFunctionUnsupported() throws Exception {
+        TimeSeriesQueryRequest request = new TimeSeriesQueryRequest();
+        request.setPaths(List.of("ts.demo.temperature"));
+        request.setDownsample(true);
+        request.setAggregator("AVG");
+        request.setPrecisionMs(1000L);
+        TimeRangeDTO range = new TimeRangeDTO();
+        range.setStart("0");
+        range.setEnd("10");
+        request.setTimeRange(range);
+
+        when(session.downsampleQuery(any(), anyLong(), anyLong(), eq(AggregateType.AVG), anyLong()))
+            .thenThrow(BizException.badRequest("encounter error when execute set mapping function avg."));
+        when(session.queryData(any(), anyLong(), anyLong())).thenReturn(queryDataSet);
+        when(queryDataSet.getKeys()).thenReturn(new long[]{1_000_000_000L});
+        when(queryDataSet.getPaths()).thenReturn(List.of("ts.demo.temperature"));
+        when(queryDataSet.getValues()).thenReturn(List.of(List.of(23.4d)));
+
+        TimeSeriesQueryResultVO result = dataQueryService.queryTimeSeries(request);
+
+        assertEquals(1, result.getTimestamps().size());
+        assertEquals(1000L, result.getTimestamps().get(0));
+        assertEquals(1, result.getSeries().size());
+        assertEquals("ts.demo.temperature", result.getSeries().get(0).getPath());
+        assertEquals(23.4d, result.getSeries().get(0).getValues().get(0));
+        verify(session).downsampleQuery(any(), anyLong(), anyLong(), eq(AggregateType.AVG), anyLong());
+        verify(session).queryData(any(), anyLong(), anyLong());
     }
 
     /**

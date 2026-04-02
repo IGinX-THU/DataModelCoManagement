@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 public class DashboardRecentTaskVO {
 
     private String id;
+    private String taskName;
 
     private String ruleName;
 

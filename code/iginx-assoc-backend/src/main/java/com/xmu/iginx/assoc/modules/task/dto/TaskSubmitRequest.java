@@ -2,6 +2,7 @@ package com.xmu.iginx.assoc.modules.task.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -14,6 +15,15 @@ public class TaskSubmitRequest {
 
     @NotNull(message = "规则ID不能为空")
     private Long ruleId;
+
+    /**
+     * 任务名称。
+     * <p>
+     * 允许用户手动命名；为空时由后端按规则名称和提交时间自动生成默认名称。
+     * </p>
+     */
+    @Size(max = 120, message = "任务名称长度不能超过120个字符")
+    private String taskName;
 
     /**
      * 计划开始执行时间。

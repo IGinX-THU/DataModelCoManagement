@@ -12,10 +12,13 @@ import java.util.Map;
 public class TaskVO {
 
     private String id;
+    private String taskName;
     private Long ruleId;
     private String status;
     private LocalDateTime rangeStart;
     private LocalDateTime rangeEnd;
+    private LocalDateTime scheduledStartTime;
+    private LocalDateTime scheduledEndTime;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String resultLink;

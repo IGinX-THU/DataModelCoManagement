@@ -2,6 +2,8 @@ package com.xmu.iginx.assoc.modules.analysis.service.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import cn.edu.tsinghua.iginx.thrift.AggregateType;
+import com.xmu.iginx.assoc.common.PageResult;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskCompareRequest;
@@ -41,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -60,6 +63,9 @@ public class AnalysisServiceImpl implements AnalysisService {
 
     private static final DateTimeFormatter REPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final int REPORT_MAX_POINTS = 600;
+    private static final int DEFAULT_ANALYSIS_MAX_POINTS = 1200;
+    private static final int DEFAULT_STRUCTURED_PAGE_SIZE = 50;
+    private static final int MAX_STRUCTURED_PAGE_SIZE = 500;
     private static final long STRUCTURED_RESULT_QUERY_END = Long.MAX_VALUE - 2;
 
     private final TaskRepository taskRepository;
@@ -81,8 +87,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     @Override
     public TaskAnalysisResultVO queryTaskSeries(String taskId, TaskSeriesRequest request) {
         TaskEntity task = findTask(taskId);
-        boolean relative = request != null && request.isRelative();
-        return loadTaskAnalysis(task, relative);
+        return loadTaskAnalysis(task, buildSeriesOptions(request));
     }
 
     /**
@@ -93,7 +98,7 @@ public class AnalysisServiceImpl implements AnalysisService {
      */
     @Override
     public TaskAnalysisResultVO compareTasks(TaskCompareRequest request) {
-        boolean relative = request != null && "relative".equalsIgnoreCase(request.getMode());
+        AnalysisQueryOptions options = buildCompareOptions(request);
         List<TaskSeriesVO> series = new ArrayList<>();
         for (String taskId : request.getTaskIds()) {
             TaskEntity task = findTask(taskId);
@@ -102,11 +107,11 @@ public class AnalysisServiceImpl implements AnalysisService {
             if (!"TIME_SERIES".equals(analysisMode)) {
                 throw BizException.badRequest("结构化输入任务仅支持单独查看结果表，不能与其他任务一起对比");
             }
-            series.addAll(loadSeriesForTask(task, relative));
+            series.addAll(loadSeriesForTask(task, options));
         }
         TaskAnalysisResultVO result = new TaskAnalysisResultVO();
         result.setAnalysisMode("TIME_SERIES");
-        result.setRelative(relative);
+        result.setRelative(options.relative());
         result.setSeries(series);
         return result;
     }
@@ -168,7 +173,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 entries.put("data/input." + suffix, buildStructuredTableBytes(inputTable, format));
             }
             if (request.isIncludeOutput() && !outputPathList.isEmpty()) {
-                StructuredTableData outputTable = toStructuredTableData(loadStructuredResultForTask(task, snapshot));
+                StructuredTableData outputTable = loadStructuredResultTableForTask(task, snapshot);
                 entries.put("data/output." + suffix, buildStructuredTableBytes(outputTable, format));
             }
         } else {
@@ -214,7 +219,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         ReportPdfBuilder.ReportContent reportContent;
         if ("STRUCTURED".equals(analysisMode)) {
             StructuredTableData inputTable = loadStructuredInputTable(task, rule, snapshot);
-            StructuredTableData outputTable = toStructuredTableData(loadStructuredResultForTask(task, snapshot));
+            StructuredTableData outputTable = loadStructuredResultTableForTask(task, snapshot);
             Map<String, Stats> stats = request != null && request.isIncludeStats()
                 ? calculateStructuredStats(outputTable)
                 : Map.of();
@@ -244,7 +249,7 @@ public class AnalysisServiceImpl implements AnalysisService {
      * @param relative 是否使用相对时间
      * @return 序列列表
      */
-    private TaskAnalysisResultVO loadTaskAnalysis(TaskEntity task, boolean relative) {
+    private TaskAnalysisResultVO loadTaskAnalysis(TaskEntity task, AnalysisQueryOptions options) {
         TaskExecutionSnapshot snapshot = parseExecutionSnapshot(task.getExecutionSnapshot());
         String analysisMode = resolveAnalysisMode(task, snapshot);
         TaskAnalysisResultVO result = new TaskAnalysisResultVO();
@@ -252,18 +257,18 @@ public class AnalysisServiceImpl implements AnalysisService {
         if ("STRUCTURED".equals(analysisMode)) {
             result.setRelative(false);
             result.setSeries(List.of());
-            result.setStructuredResult(loadStructuredResultForTask(task, snapshot));
+            result.setStructuredResult(loadStructuredResultForTask(task, snapshot, options.pageNum(), options.pageSize()));
             return result;
         }
-        result.setRelative(relative);
-        result.setSeries(loadSeriesForTask(task, relative));
+        result.setRelative(options.relative());
+        result.setSeries(loadSeriesForTask(task, options));
         return result;
     }
 
     /**
      * 加载任务折线图数据。
      */
-    private List<TaskSeriesVO> loadSeriesForTask(TaskEntity task, boolean relative) {
+    private List<TaskSeriesVO> loadSeriesForTask(TaskEntity task, AnalysisQueryOptions options) {
         AssociationRuleEntity rule = associationRuleRepository.findById(task.getRuleId()).orElse(null);
         TaskExecutionSnapshot snapshot = parseExecutionSnapshot(task.getExecutionSnapshot());
         Map<String, String> outputPaths = resolveOutputBindings(task, rule, snapshot);
@@ -272,7 +277,18 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
 
         List<String> pathList = new ArrayList<>(outputPaths.values());
-        SessionQueryDataSet dataSet = queryOutputSeries(task, pathList, "TIME_SERIES");
+        Long localDownsamplePrecisionMs = resolveLocalDownsamplePrecisionMs(task, options);
+        boolean shouldUseLocalDownsample = false;
+        SessionQueryDataSet dataSet;
+        try {
+            dataSet = queryOutputSeries(task, pathList, "TIME_SERIES", options);
+        } catch (BizException ex) {
+            if (!shouldFallbackToLocalDownsample(options, localDownsamplePrecisionMs, ex)) {
+                throw ex;
+            }
+            shouldUseLocalDownsample = true;
+            dataSet = queryOutputSeries(task, pathList, "TIME_SERIES", null);
+        }
 
         long[] keys = dataSet == null ? null : dataSet.getKeys();
         List<List<Object>> rows = dataSet == null ? null : dataSet.getValues();
@@ -282,7 +298,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
         int size = Math.min(keys.length, rows.size());
         // 相对时间以首个点为基准
-        long baseKey = relative ? keys[0] : 0L;
+        long baseKey = options.relative() ? keys[0] : 0L;
 
         Map<String, Integer> normalizedIndex = new LinkedHashMap<>();
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -303,18 +319,11 @@ public class AnalysisServiceImpl implements AnalysisService {
             vo.setLabel(StringUtils.hasText(outputName) ? outputName : path);
             vo.setType("OUTPUT");
             vo.setUnit("-");
-            vo.setRelative(relative);
+            vo.setRelative(options.relative());
 
-            List<TaskSeriesPointVO> points = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                List<Object> row = rows.get(i);
-                Object value = index < row.size() ? row.get(index) : null;
-                TaskSeriesPointVO point = new TaskSeriesPointVO();
-                // 相对时间用秒，绝对时间用毫秒
-                point.setTimestamp(relative ? (keys[i] - baseKey) / 1_000_000_000 : TimeParser.toMillis(keys[i]));
-                point.setValue(toDouble(value));
-                points.add(point);
-            }
+            List<TaskSeriesPointVO> points = shouldUseLocalDownsample
+                ? buildLocallyDownsampledPoints(keys, rows, size, index, options, localDownsamplePrecisionMs)
+                : buildSeriesPoints(keys, rows, size, index, options.relative(), baseKey);
             vo.setPoints(points);
             result.add(vo);
         }
@@ -324,56 +333,52 @@ public class AnalysisServiceImpl implements AnalysisService {
     /**
      * 加载结构化任务结果表。
      */
-    private TaskStructuredResultVO loadStructuredResultForTask(TaskEntity task, TaskExecutionSnapshot snapshot) {
-        AssociationRuleEntity rule = associationRuleRepository.findById(task.getRuleId()).orElse(null);
-        Map<String, String> outputPaths = resolveOutputBindings(task, rule, snapshot);
+    private TaskStructuredResultVO loadStructuredResultForTask(TaskEntity task,
+                                                               TaskExecutionSnapshot snapshot,
+                                                               int pageNum,
+                                                               int pageSize) {
+        StructuredResultContext context = buildStructuredResultContext(task, snapshot);
         TaskStructuredResultVO result = new TaskStructuredResultVO();
         result.setTaskId(task.getId());
-        if (outputPaths.isEmpty()) {
-            result.setColumns(List.of("KEY"));
-            result.setRows(List.of());
+        result.setColumns(context.columns());
+
+        int safePageNum = safePageNum(pageNum);
+        int safePageSize = safePageSize(pageSize);
+        if (context.outputPaths().isEmpty()) {
+            result.setPage(PageResult.of(List.of(), 0L, safePageNum, safePageSize));
             return result;
         }
 
-        List<String> pathList = new ArrayList<>(outputPaths.values());
-        SessionQueryDataSet dataSet = queryOutputSeries(task, pathList, "STRUCTURED");
-        if (isDataSetEmpty(dataSet)) {
-            result.setColumns(List.of("KEY"));
-            result.setRows(List.of());
+        List<String> pathList = new ArrayList<>(context.outputPaths().values());
+        long total = queryStructuredResultTotal(pathList);
+        long offset = (long) (safePageNum - 1) * safePageSize;
+        if (total <= 0 || offset >= total) {
+            result.setPage(PageResult.of(List.of(), total, safePageNum, safePageSize));
             return result;
         }
 
-        long[] keys = dataSet.getKeys();
-        List<List<Object>> rawRows = dataSet.getValues() == null ? List.of() : dataSet.getValues();
-        List<String> dataPaths = dataSet.getPaths() == null ? List.of() : dataSet.getPaths();
-        int size = Math.min(keys.length, rawRows.size());
-
-        Map<String, Integer> normalizedIndex = new LinkedHashMap<>();
-        for (int index = 0; index < dataPaths.size(); index++) {
-            normalizedIndex.putIfAbsent(normalizeMatchKey(dataPaths.get(index)), index);
-        }
-
-        List<String> columns = new ArrayList<>();
-        columns.add("KEY");
-        for (String outputName : outputPaths.keySet()) {
-            columns.add(outputName);
-        }
-
-        List<Map<String, Object>> rows = new ArrayList<>();
-        for (int rowIndex = 0; rowIndex < size; rowIndex++) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("KEY", keys[rowIndex]);
-            List<Object> rawRow = rawRows.get(rowIndex);
-            for (Map.Entry<String, String> entry : outputPaths.entrySet()) {
-                int columnIndex = resolveDataPathIndex(dataPaths, normalizedIndex, entry.getValue());
-                Object value = columnIndex >= 0 && columnIndex < rawRow.size() ? rawRow.get(columnIndex) : null;
-                row.put(entry.getKey(), normalizeStructuredDisplayValue(value));
-            }
-            rows.add(row);
-        }
-        result.setColumns(columns);
-        result.setRows(rows);
+        long endExclusive = Math.min(total, offset + safePageSize);
+        SessionQueryDataSet dataSet = safeQuerySeries(pathList, offset, endExclusive);
+        result.setPage(PageResult.of(mapStructuredResultRows(dataSet, context.outputPaths()), total, safePageNum, safePageSize));
         return result;
+    }
+
+    /**
+     * 查询结构化任务结果全集，用于资源导出与报告预览。
+     */
+    private StructuredTableData loadStructuredResultTableForTask(TaskEntity task, TaskExecutionSnapshot snapshot) {
+        StructuredResultContext context = buildStructuredResultContext(task, snapshot);
+        if (context.outputPaths().isEmpty()) {
+            return new StructuredTableData(context.columns(), List.of());
+        }
+
+        List<String> pathList = new ArrayList<>(context.outputPaths().values());
+        long total = queryStructuredResultTotal(pathList);
+        if (total <= 0) {
+            return new StructuredTableData(context.columns(), List.of());
+        }
+        SessionQueryDataSet dataSet = safeQuerySeries(pathList, 0L, total);
+        return new StructuredTableData(context.columns(), mapStructuredResultRows(dataSet, context.outputPaths()));
     }
 
     /**
@@ -396,6 +401,28 @@ public class AnalysisServiceImpl implements AnalysisService {
                 List<String> fallbackPaths = addRootPrefix(paths);
                 try {
                     return iginxStorageWrapper.executeWithSession(session -> session.queryData(fallbackPaths, startNs, endNs));
+                } catch (Exception ignored) {
+                    return null;
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * 查询最新一个点，失败时尝试补 root 前缀兜底。
+     */
+    private SessionQueryDataSet safeQueryLast(List<String> paths) {
+        if (paths == null || paths.isEmpty()) {
+            return null;
+        }
+        try {
+            return iginxStorageWrapper.executeWithSession(session -> session.queryLast(paths, 0L));
+        } catch (Exception ex) {
+            if (needsRootPrefix(paths)) {
+                List<String> fallbackPaths = addRootPrefix(paths);
+                try {
+                    return iginxStorageWrapper.executeWithSession(session -> session.queryLast(fallbackPaths, 0L));
                 } catch (Exception ignored) {
                     return null;
                 }
@@ -544,6 +571,30 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     /**
+     * 查询时序数据并在服务端执行降采样，必要时追加 root 前缀重试。
+     */
+    private SessionQueryDataSet querySeriesWithDownsample(List<String> paths,
+                                                          LocalDateTime start,
+                                                          LocalDateTime end,
+                                                          String aggregator,
+                                                          Long precisionMs) {
+        if (paths == null || paths.isEmpty() || start == null || end == null || precisionMs == null || precisionMs <= 0) {
+            return querySeries(paths, start, end);
+        }
+        long startNs = toNano(start);
+        long endNs = toNano(end);
+        List<String> primaryPaths = new ArrayList<>(paths);
+        SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session ->
+            session.downsampleQuery(primaryPaths, startNs, endNs, mapAggregateType(aggregator), TimeParser.toNano(precisionMs)));
+        if (isDataSetEmpty(dataSet) && needsRootPrefix(primaryPaths)) {
+            List<String> fallbackPaths = addRootPrefix(primaryPaths);
+            dataSet = iginxStorageWrapper.executeWithSession(session ->
+                session.downsampleQuery(fallbackPaths, startNs, endNs, mapAggregateType(aggregator), TimeParser.toNano(precisionMs)));
+        }
+        return dataSet;
+    }
+
+    /**
      * 查询任务输出序列。
      * <p>
      * 对于仅绑定 rt.* 输入的任务，任务本身没有业务时间区间，
@@ -553,13 +604,23 @@ public class AnalysisServiceImpl implements AnalysisService {
      * </p>
      */
     private SessionQueryDataSet queryOutputSeries(TaskEntity task, List<String> paths, String analysisMode) {
+        return queryOutputSeries(task, paths, analysisMode, null);
+    }
+
+    /**
+     * 查询任务输出序列，并根据分析参数决定是否做服务端降采样。
+     */
+    private SessionQueryDataSet queryOutputSeries(TaskEntity task,
+                                                  List<String> paths,
+                                                  String analysisMode,
+                                                  AnalysisQueryOptions options) {
         if ("STRUCTURED".equalsIgnoreCase(analysisMode)) {
             SessionQueryDataSet structuredDataSet = safeQuerySeries(paths, 0L, STRUCTURED_RESULT_QUERY_END);
             if (!isDataSetEmpty(structuredDataSet)) {
                 return structuredDataSet;
             }
         }
-        SessionQueryDataSet dataSet = querySeries(paths, task.getRangeStart(), task.getRangeEnd());
+        SessionQueryDataSet dataSet = queryTimeSeriesOutputSeries(task, paths, options);
         if (!isDataSetEmpty(dataSet)) {
             return dataSet;
         }
@@ -574,6 +635,107 @@ public class AnalysisServiceImpl implements AnalysisService {
         long startNs = toNano(fallbackStart.minusSeconds(1));
         long endNs = toNano(fallbackEnd.plusSeconds(1));
         return safeQuerySeries(paths, startNs, endNs);
+    }
+
+    /**
+     * 查询时序任务结果，必要时启用服务端降采样。
+     */
+    private SessionQueryDataSet queryTimeSeriesOutputSeries(TaskEntity task,
+                                                            List<String> paths,
+                                                            AnalysisQueryOptions options) {
+        if (options != null && options.downsample()) {
+            LocalDateTime start = task == null ? null : task.getRangeStart();
+            LocalDateTime end = task == null ? null : task.getRangeEnd();
+            Long precisionMs = resolveDownsamplePrecisionMs(start, end, options.precisionMs());
+            if (precisionMs != null) {
+                SessionQueryDataSet sampled = querySeriesWithDownsample(paths, start, end, options.aggregator(), precisionMs);
+                if (!isDataSetEmpty(sampled)) {
+                    return sampled;
+                }
+            }
+        }
+        return querySeries(paths, task == null ? null : task.getRangeStart(), task == null ? null : task.getRangeEnd());
+    }
+
+    /**
+     * 构建普通时序点集合。
+     */
+    private List<TaskSeriesPointVO> buildSeriesPoints(long[] keys,
+                                                      List<List<Object>> rows,
+                                                      int size,
+                                                      int index,
+                                                      boolean relative,
+                                                      long baseKey) {
+        List<TaskSeriesPointVO> points = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            List<Object> row = rows.get(i);
+            Object value = index < row.size() ? row.get(index) : null;
+            points.add(buildSeriesPoint(keys[i], value, relative, baseKey));
+        }
+        return points;
+    }
+
+    /**
+     * 在服务端降采样不可用时，使用本地聚合避免任务结果页直接报错。
+     */
+    private List<TaskSeriesPointVO> buildLocallyDownsampledPoints(long[] keys,
+                                                                  List<List<Object>> rows,
+                                                                  int size,
+                                                                  int index,
+                                                                  AnalysisQueryOptions options,
+                                                                  Long precisionMs) {
+        if (precisionMs == null || precisionMs <= 0) {
+            long baseKey = options != null && options.relative() && size > 0 ? keys[0] : 0L;
+            return buildSeriesPoints(keys, rows, size, index, options != null && options.relative(), baseKey);
+        }
+        long bucketSizeNs = TimeParser.toNano(precisionMs);
+        long firstKey = keys[0];
+        String aggregator = normalizeAggregator(options == null ? null : options.aggregator());
+        List<LocalDownsampleBucket> buckets = new ArrayList<>();
+        LocalDownsampleBucket currentBucket = null;
+        for (int i = 0; i < size; i++) {
+            long key = keys[i];
+            long bucketIndex = Math.max(0L, Math.floorDiv(key - firstKey, bucketSizeNs));
+            if (currentBucket == null || currentBucket.bucketIndex() != bucketIndex) {
+                if (currentBucket != null) {
+                    buckets.add(currentBucket);
+                }
+                currentBucket = new LocalDownsampleBucket(bucketIndex, key);
+            }
+            List<Object> row = rows.get(i);
+            Object value = index < row.size() ? row.get(index) : null;
+            currentBucket.add(value, toDouble(value));
+        }
+        if (currentBucket != null) {
+            buckets.add(currentBucket);
+        }
+        if (buckets.isEmpty()) {
+            return List.of();
+        }
+
+        boolean relative = options != null && options.relative();
+        long baseKey = relative ? buckets.get(0).timestampNs() : 0L;
+        List<TaskSeriesPointVO> points = new ArrayList<>();
+        for (LocalDownsampleBucket bucket : buckets) {
+            TaskSeriesPointVO point = new TaskSeriesPointVO();
+            point.setTimestamp(relative
+                ? (bucket.timestampNs() - baseKey) / 1_000_000_000
+                : TimeParser.toMillis(bucket.timestampNs()));
+            point.setValue(bucket.aggregate(aggregator));
+            points.add(point);
+        }
+        return points;
+    }
+
+    /**
+     * 构建单个时序点。
+     */
+    private TaskSeriesPointVO buildSeriesPoint(long key, Object value, boolean relative, long baseKey) {
+        TaskSeriesPointVO point = new TaskSeriesPointVO();
+        // 相对时间用秒，绝对时间用毫秒
+        point.setTimestamp(relative ? (key - baseKey) / 1_000_000_000 : TimeParser.toMillis(key));
+        point.setValue(toDouble(value));
+        return point;
     }
 
     /**
@@ -625,6 +787,212 @@ public class AnalysisServiceImpl implements AnalysisService {
             return new String(bytes, StandardCharsets.UTF_8);
         }
         return value;
+    }
+
+    /**
+     * 构建结构化结果查询上下文。
+     */
+    private StructuredResultContext buildStructuredResultContext(TaskEntity task, TaskExecutionSnapshot snapshot) {
+        AssociationRuleEntity rule = associationRuleRepository.findById(task.getRuleId()).orElse(null);
+        Map<String, String> resolvedOutputPaths = resolveOutputBindings(task, rule, snapshot);
+        LinkedHashMap<String, String> outputPaths = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : resolvedOutputPaths.entrySet()) {
+            if (!StringUtils.hasText(entry.getKey()) || !StringUtils.hasText(entry.getValue())) {
+                continue;
+            }
+            outputPaths.put(entry.getKey(), entry.getValue());
+        }
+        List<String> columns = new ArrayList<>();
+        columns.add("KEY");
+        columns.addAll(outputPaths.keySet());
+        return new StructuredResultContext(outputPaths, columns);
+    }
+
+    /**
+     * 计算结构化结果总行数。
+     */
+    private long queryStructuredResultTotal(List<String> paths) {
+        if (paths == null || paths.isEmpty()) {
+            return 0L;
+        }
+        long maxKey = extractMaxKey(safeQueryLast(paths));
+        if (maxKey >= 0) {
+            return maxKey + 1;
+        }
+        SessionQueryDataSet dataSet = safeQuerySeries(paths, 0L, STRUCTURED_RESULT_QUERY_END);
+        if (isDataSetEmpty(dataSet) || dataSet.getKeys() == null) {
+            return 0L;
+        }
+        return dataSet.getKeys().length;
+    }
+
+    /**
+     * 提取结果集中最大的 KEY。
+     */
+    private long extractMaxKey(SessionQueryDataSet dataSet) {
+        if (dataSet == null || dataSet.getKeys() == null || dataSet.getKeys().length == 0) {
+            return -1L;
+        }
+        long maxKey = -1L;
+        for (long key : dataSet.getKeys()) {
+            maxKey = Math.max(maxKey, key);
+        }
+        return maxKey;
+    }
+
+    /**
+     * 将结构化结果集映射为页面展示行。
+     */
+    private List<Map<String, Object>> mapStructuredResultRows(SessionQueryDataSet dataSet,
+                                                              LinkedHashMap<String, String> outputPaths) {
+        if (isDataSetEmpty(dataSet) || outputPaths == null || outputPaths.isEmpty()) {
+            return List.of();
+        }
+        long[] keys = dataSet.getKeys();
+        List<List<Object>> rawRows = dataSet.getValues() == null ? List.of() : dataSet.getValues();
+        List<String> dataPaths = dataSet.getPaths() == null ? List.of() : dataSet.getPaths();
+        int size = Math.min(keys.length, rawRows.size());
+
+        Map<String, Integer> normalizedIndex = new LinkedHashMap<>();
+        for (int index = 0; index < dataPaths.size(); index++) {
+            normalizedIndex.putIfAbsent(normalizeMatchKey(dataPaths.get(index)), index);
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < size; rowIndex++) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("KEY", keys[rowIndex]);
+            List<Object> rawRow = rawRows.get(rowIndex);
+            for (Map.Entry<String, String> entry : outputPaths.entrySet()) {
+                int columnIndex = resolveDataPathIndex(dataPaths, normalizedIndex, entry.getValue());
+                Object value = columnIndex >= 0 && columnIndex < rawRow.size() ? rawRow.get(columnIndex) : null;
+                row.put(entry.getKey(), normalizeStructuredDisplayValue(value));
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /**
+     * 将请求对象归一化为统一分析选项。
+     */
+    private AnalysisQueryOptions buildSeriesOptions(TaskSeriesRequest request) {
+        return new AnalysisQueryOptions(
+            request != null && request.isRelative(),
+            request == null || request.isDownsample(),
+            request == null ? "AVG" : request.getAggregator(),
+            request == null ? null : request.getPrecisionMs(),
+            safePageNum(request == null ? null : request.getPageNum()),
+            safePageSize(request == null ? null : request.getPageSize())
+        );
+    }
+
+    /**
+     * 将对比请求归一化为统一分析选项。
+     */
+    private AnalysisQueryOptions buildCompareOptions(TaskCompareRequest request) {
+        return new AnalysisQueryOptions(
+            request != null && "relative".equalsIgnoreCase(request.getMode()),
+            request == null || request.isDownsample(),
+            request == null ? "AVG" : request.getAggregator(),
+            request == null ? null : request.getPrecisionMs(),
+            1,
+            DEFAULT_STRUCTURED_PAGE_SIZE
+        );
+    }
+
+    /**
+     * 安全读取结构化结果页码。
+     */
+    private int safePageNum(Integer pageNum) {
+        if (pageNum == null || pageNum < 1) {
+            return 1;
+        }
+        return pageNum;
+    }
+
+    /**
+     * 安全读取结构化结果分页大小。
+     */
+    private int safePageSize(Integer pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return DEFAULT_STRUCTURED_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_STRUCTURED_PAGE_SIZE);
+    }
+
+    /**
+     * 解析降采样步长，未显式传入时按任务跨度自动估算。
+     */
+    private Long resolveDownsamplePrecisionMs(LocalDateTime start, LocalDateTime end, Long requestedPrecisionMs) {
+        if (requestedPrecisionMs != null && requestedPrecisionMs > 0) {
+            return requestedPrecisionMs;
+        }
+        if (start == null || end == null || !end.isAfter(start)) {
+            return null;
+        }
+        long durationMs = Math.max(1L, Duration.between(start, end).toMillis());
+        return Math.max(1L, (long) Math.ceil(durationMs / (double) DEFAULT_ANALYSIS_MAX_POINTS));
+    }
+
+    /**
+     * 解析本地降采样需要使用的步长。
+     */
+    private Long resolveLocalDownsamplePrecisionMs(TaskEntity task, AnalysisQueryOptions options) {
+        if (task == null || options == null || !options.downsample()) {
+            return null;
+        }
+        return resolveDownsamplePrecisionMs(task.getRangeStart(), task.getRangeEnd(), options.precisionMs());
+    }
+
+    /**
+     * 判断是否应从服务端降采样回退到本地聚合。
+     */
+    private boolean shouldFallbackToLocalDownsample(AnalysisQueryOptions options, Long precisionMs, BizException ex) {
+        if (options == null || !options.downsample() || precisionMs == null || precisionMs <= 0) {
+            return false;
+        }
+        return isUnsupportedDownsampleError(ex);
+    }
+
+    /**
+     * 判断是否属于 IGinX 不支持映射函数导致的降采样失败。
+     */
+    private boolean isUnsupportedDownsampleError(BizException ex) {
+        String message = ex == null ? null : ex.getMessage();
+        if (!StringUtils.hasText(message)) {
+            return false;
+        }
+        String lower = message.trim().toLowerCase(Locale.ROOT);
+        return lower.contains("mapping function") || lower.contains("set mapping function");
+    }
+
+    /**
+     * 归一化聚合器名称，统一本地聚合行为。
+     */
+    private String normalizeAggregator(String aggregator) {
+        if (!StringUtils.hasText(aggregator)) {
+            return "AVG";
+        }
+        return aggregator.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * 将聚合器字符串映射为 IGinX 聚合类型。
+     */
+    private AggregateType mapAggregateType(String aggregator) {
+        if (aggregator == null) {
+            return AggregateType.AVG;
+        }
+        return switch (aggregator.trim().toUpperCase(Locale.ROOT)) {
+            case "MAX" -> AggregateType.MAX;
+            case "MIN" -> AggregateType.MIN;
+            case "SUM" -> AggregateType.SUM;
+            case "COUNT" -> AggregateType.COUNT;
+            case "FIRST" -> AggregateType.FIRST;
+            case "LAST" -> AggregateType.LAST;
+            default -> AggregateType.AVG;
+        };
     }
 
     /**
@@ -847,23 +1215,6 @@ public class AnalysisServiceImpl implements AnalysisService {
             result.add(binding);
         });
         return result;
-    }
-
-    /**
-     * 将结构化任务结果 VO 转为统一表格模型。
-     *
-     * @param result 结构化结果 VO
-     * @return 表格数据
-     */
-    private StructuredTableData toStructuredTableData(TaskStructuredResultVO result) {
-        if (result == null) {
-            return new StructuredTableData(List.of("KEY"), List.of());
-        }
-        List<String> columns = result.getColumns() == null || result.getColumns().isEmpty()
-            ? List.of("KEY")
-            : result.getColumns();
-        List<Map<String, Object>> rows = result.getRows() == null ? List.of() : result.getRows();
-        return new StructuredTableData(columns, rows);
     }
 
     /**
@@ -1561,12 +1912,30 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     /**
+     * 分析查询选项。
+     */
+    private record AnalysisQueryOptions(boolean relative,
+                                        boolean downsample,
+                                        String aggregator,
+                                        Long precisionMs,
+                                        int pageNum,
+                                        int pageSize) {
+    }
+
+    /**
      * 结构化表导出模型。
      *
      * @param columns 列集合
      * @param rows 行集合
      */
     private record StructuredTableData(List<String> columns, List<Map<String, Object>> rows) {
+    }
+
+    /**
+     * 结构化结果查询上下文。
+     */
+    private record StructuredResultContext(LinkedHashMap<String, String> outputPaths,
+                                           List<String> columns) {
     }
 
     /**
@@ -1604,6 +1973,63 @@ public class AnalysisServiceImpl implements AnalysisService {
      * @param rowCount 行数
      */
     private record StructuredRtExportTableSeries(Map<String, List<Object>> columnValues, int rowCount) {
+    }
+
+    /**
+     * 本地降采样桶。
+     */
+    private static final class LocalDownsampleBucket {
+        private final long bucketIndex;
+        private final long timestampNs;
+        private long nonNullCount;
+        private long numericCount;
+        private double sum;
+        private Double min;
+        private Double max;
+        private Double first;
+        private Double last;
+
+        private LocalDownsampleBucket(long bucketIndex, long timestampNs) {
+            this.bucketIndex = bucketIndex;
+            this.timestampNs = timestampNs;
+        }
+
+        private long bucketIndex() {
+            return bucketIndex;
+        }
+
+        private long timestampNs() {
+            return timestampNs;
+        }
+
+        private void add(Object rawValue, Double numericValue) {
+            if (rawValue != null) {
+                nonNullCount++;
+            }
+            if (numericValue == null) {
+                return;
+            }
+            if (first == null) {
+                first = numericValue;
+            }
+            last = numericValue;
+            sum += numericValue;
+            numericCount++;
+            min = min == null ? numericValue : Math.min(min, numericValue);
+            max = max == null ? numericValue : Math.max(max, numericValue);
+        }
+
+        private Double aggregate(String aggregator) {
+            return switch (aggregator) {
+                case "MAX" -> max;
+                case "MIN" -> min;
+                case "SUM" -> numericCount > 0 ? sum : null;
+                case "COUNT" -> (double) nonNullCount;
+                case "FIRST" -> first;
+                case "LAST" -> last;
+                default -> numericCount > 0 ? sum / numericCount : null;
+            };
+        }
     }
 
     /**

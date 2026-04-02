@@ -27,6 +27,9 @@ public class TaskEntity {
     @Column(name = "rule_id")
     private Long ruleId;
 
+    @Column(name = "task_name", length = 120)
+    private String taskName;
+
     @Column(nullable = false, length = 20)
     private String status;
 

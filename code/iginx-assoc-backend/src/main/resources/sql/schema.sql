@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS association_rule (
 CREATE TABLE IF NOT EXISTS task (
     id VARCHAR(32) PRIMARY KEY,
     rule_id BIGINT REFERENCES association_rule(id),
+    task_name VARCHAR(120),
     status VARCHAR(20) NOT NULL,
     range_start TIMESTAMP,
     range_end TIMESTAMP,
@@ -122,3 +123,6 @@ ALTER TABLE IF EXISTS task
 
 ALTER TABLE IF EXISTS task
     ADD COLUMN IF NOT EXISTS scheduled_end_time TIMESTAMP;
+
+ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS task_name VARCHAR(120);

@@ -71,14 +71,23 @@ public class DataQueryServiceImpl implements DataQueryService {
 
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = toInclusiveEndExclusiveNs(request.getTimeRange().getEnd());
-        SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session -> {
-            if (request.isDownsample() && request.getPrecisionMs() != null) {
-                AggregateType aggregateType = mapAggregateType(request.getAggregator());
-                return session.downsampleQuery(resolvedPaths, startNs, endNs, aggregateType,
-                    TimeParser.toNano(request.getPrecisionMs()));
+        SessionQueryDataSet dataSet;
+        try {
+            dataSet = iginxStorageWrapper.executeWithSession(session -> {
+                if (request.isDownsample() && request.getPrecisionMs() != null) {
+                    AggregateType aggregateType = mapAggregateType(request.getAggregator());
+                    return session.downsampleQuery(resolvedPaths, startNs, endNs, aggregateType,
+                        TimeParser.toNano(request.getPrecisionMs()));
+                }
+                return session.queryData(resolvedPaths, startNs, endNs);
+            });
+        } catch (BizException ex) {
+            if (shouldFallbackToRawQuery(request, ex)) {
+                dataSet = iginxStorageWrapper.executeWithSession(session -> session.queryData(resolvedPaths, startNs, endNs));
+            } else {
+                throw ex;
             }
-            return session.queryData(resolvedPaths, startNs, endNs);
-        });
+        }
 
         List<Long> timestamps = new ArrayList<>();
         for (long key : dataSet.getKeys()) {
@@ -109,6 +118,21 @@ public class DataQueryServiceImpl implements DataQueryService {
         result.setTimestamps(timestamps);
         result.setSeries(series);
         return result;
+    }
+
+    /**
+     * 当 IGinX 不支持某些降采样映射函数时，回退为原始查询，避免页面直接报错。
+     */
+    private boolean shouldFallbackToRawQuery(TimeSeriesQueryRequest request, BizException ex) {
+        if (request == null || !request.isDownsample() || request.getPrecisionMs() == null) {
+            return false;
+        }
+        String message = ex == null ? null : ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String lower = message.trim().toLowerCase(Locale.ROOT);
+        return lower.contains("mapping function") || lower.contains("set mapping function");
     }
 
     /**

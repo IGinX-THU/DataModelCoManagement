@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -42,6 +43,7 @@ public class DashboardServiceImpl implements DashboardService {
     private static final int TREND_DAYS = 7;
     private static final int RECENT_TASK_LIMIT = 8;
     private static final DateTimeFormatter TREND_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter TASK_NAME_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final TaskRepository taskRepository;
     private final AssociationRuleRepository associationRuleRepository;
@@ -183,6 +185,7 @@ public class DashboardServiceImpl implements DashboardService {
 
             DashboardRecentTaskVO vo = new DashboardRecentTaskVO();
             vo.setId(task.getId());
+            vo.setTaskName(resolveTaskName(task, rule));
             vo.setRuleName(rule == null ? "-" : rule.getName());
             vo.setModelType(asset == null ? "-" : asset.getFileType());
             vo.setModelName(profile == null ? "-" : profile.getName());
@@ -211,5 +214,23 @@ public class DashboardServiceImpl implements DashboardService {
             return null;
         }
         return Duration.between(start, end).getSeconds();
+    }
+
+    /**
+     * 解析最近任务的展示名称，兼容旧任务未保存名称的情况。
+     */
+    private String resolveTaskName(TaskEntity task, AssociationRuleEntity rule) {
+        if (task != null && StringUtils.hasText(task.getTaskName())) {
+            return task.getTaskName().trim();
+        }
+        String baseName = rule != null && StringUtils.hasText(rule.getName()) ? rule.getName().trim() : "任务";
+        if (task != null && task.getCreateTime() != null) {
+            return baseName + "_" + task.getCreateTime().format(TASK_NAME_TIME_FORMATTER);
+        }
+        if (task != null && StringUtils.hasText(task.getId())) {
+            String shortId = task.getId().length() > 8 ? task.getId().substring(0, 8) : task.getId();
+            return baseName + "_" + shortId;
+        }
+        return baseName;
     }
 }
