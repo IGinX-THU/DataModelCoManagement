@@ -20,38 +20,37 @@ const props = defineProps({
   }
 })
 
-const isGroupNode = (node) => ['group', 'schema', 'ts', 'rt', 'models'].includes(node.type) || (node.children && node.children.length)
-const isLeafNode = (node) => ['point', 'table', 'file'].includes(node.type)
+const isGroupNode = (node) => node.type === 'group' || ['ts', 'rt'].includes(node.type) || (node.children && node.children.length)
+const isSelectableNode = (node) => ['point', 'file'].includes(node.type)
+const isExpandableNode = (node) => node.children && node.children.length
 const resolveRootType = (node) => node.rootType || props.rootType
 const resolveGroupIcon = (node) => {
   if (node.type === 'ts') return 'ri-pulse-line text-blue-500'
   if (node.type === 'rt') return 'ri-table-line text-green-500'
-  if (node.type === 'models') return 'ri-folder-3-line text-orange-500'
-  if (node.type === 'schema') return 'ri-layout-grid-line text-orange-500'
   return 'ri-folder-3-line text-yellow-500'
 }
 const resolveLeafIcon = (node) => {
   const rootType = resolveRootType(node)
-  if (node.type === 'file' || rootType === 'models') return 'ri-file-2-line text-amber-500'
-  if (node.type === 'table' || rootType === 'rt') return 'ri-table-line text-green-500'
+  if (node.type === 'file') return 'ri-file-2-line text-amber-500'
+  if (rootType === 'rt') return 'ri-table-line text-green-500'
   return 'ri-pulse-line text-purple-400'
 }
 
 const toggleNode = (node) => {
-  if (node.children && node.children.length) {
+  if (isExpandableNode(node)) {
     node.selectorExpanded = !node.selectorExpanded
   }
 }
 
 const handleClick = (node) => {
-  if (isGroupNode(node)) {
+  if (isExpandableNode(node)) {
     toggleNode(node)
-    if (props.allowGroupSelect) {
-      props.onSelect(node)
-    }
+  }
+  if (isSelectableNode(node)) {
+    props.onSelect(node)
     return
   }
-  if (isLeafNode(node)) {
+  if (props.allowGroupSelect) {
     props.onSelect(node)
   }
 }

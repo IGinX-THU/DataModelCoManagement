@@ -8,7 +8,7 @@ const showDiffModal = ref(false) // New state for diff view
 const diffData = ref({ v1: null, v2: null }) // Data for comparison
 const selectedVersions = ref([])
 const activeVersion = ref(null)
-const metaForm = ref({ name: '', desc: '', version: '', inputs: [], outputs: [] })
+const metaForm = ref({ name: '', desc: '', version: '', originalAssetId: null, inputs: [], outputs: [], dependencies: [] })
 
 const deleteTargetModels = computed(() => {
     const ids = modelStore.selectedModelIds || []
@@ -77,6 +77,10 @@ const handleUploadFile = async (e) => {
     modelStore.resetUploadParseState()
     if (!uploadForm.file) return
     uploadForm.name = uploadForm.file.name
+    const detectedType = modelStore.getModelTypeByFileName(uploadForm.file.name)
+    if (detectedType) {
+        uploadForm.type = detectedType
+    }
     try {
         const functions = await modelStore.listFunctionsByFile(uploadForm.file)
         uploadForm.functionOptions = functions || []
@@ -87,8 +91,8 @@ const handleUploadFile = async (e) => {
             const schema = await modelStore.parseSchemaByFile(uploadForm.file)
             uploadForm.inputs = schema?.inputs || []
             uploadForm.outputs = schema?.outputs || []
-            uploadForm.parseMode = 'COMMENT_FALLBACK'
-            uploadForm.parseMessage = 'No function detected. Fallback to comment-based parsing.'
+            uploadForm.parseMode = ''
+            uploadForm.parseMessage = ''
         }
     } catch (err) {
         modelStore.resetUploadParseState()
@@ -105,8 +109,14 @@ const handleUploadDirectory = (e) => {
     directoryIgnoredCount.value = files.length - supported.length
     uploadForm.file = supported[0] || null
     uploadForm.name = supported[0]?.webkitRelativePath || supported[0]?.name || ''
+    if (supported[0]) {
+        const detectedType = modelStore.getModelTypeByFileName(supported[0].name)
+        if (detectedType) {
+            uploadForm.type = detectedType
+        }
+    }
     if (!supported.length) {
-        alert('目录中未发现可上传的模型文件（支持 py/mat/ame/dll/fmu/zip/csv/xlsx）')
+        alert('目录中未发现可上传的模型文件（支持 py/m/cpp）')
     }
 }
 
@@ -192,9 +202,10 @@ const editMetadata = () => {
         name: modelStore.selectedModel.name,
         desc: modelStore.selectedModel.description || '',
         version: currentVer.version,
-        originalVersion: currentVer.version,
+        originalAssetId: currentVer.id,
         inputs: JSON.parse(JSON.stringify(currentVer.inputs || [])),
-        outputs: JSON.parse(JSON.stringify(currentVer.outputs || []))
+        outputs: JSON.parse(JSON.stringify(currentVer.outputs || [])),
+        dependencies: JSON.parse(JSON.stringify(currentVer.dependencies || []))
     }
     modelStore.showMetaModal = true
 }
@@ -228,7 +239,7 @@ const saveMetadata = async () => {
     try {
         await modelStore.updateModelMetadata(
             modelStore.selectedModel.id, 
-            metaForm.value.originalVersion, 
+            metaForm.value.originalAssetId, 
             metaForm.value
         )
         modelStore.showMetaModal = false
@@ -310,6 +321,7 @@ const getTypeIcon = (type) => {
         PYTHON: 'ri-code-s-slash-line',
         MATLAB: 'ri-functions-line',
         MAT: 'ri-functions-line',
+        CPP: 'ri-braces-line',
         FMU: 'ri-box-3-line',
         DLL: 'ri-file-code-line',
         AME: 'ri-file-code-line'
@@ -324,6 +336,7 @@ const formatType = (type) => {
         PYTHON: 'Python',
         MAT: 'MATLAB',
         MATLAB: 'MATLAB',
+        CPP: 'C++',
         AME: 'AMESim',
         DLL: 'DLL',
         FMU: 'FMU'
@@ -496,7 +509,9 @@ const isParamChanged = (baseList, target) => {
                             <div>
                                 <label class="block text-xs font-bold text-gray-500 mb-1">模型类型</label>
                                 <select v-model="uploadForm.type" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
-                                    <option>Python</option><option>MATLAB</option><option>AMESim</option><option>FMU</option><option>DLL</option>
+                                    <option>Python</option>
+                                    <option>MATLAB</option>
+                                    <option>CPP</option>
                                 </select>
                             </div>
                             <div>
@@ -505,10 +520,10 @@ const isParamChanged = (baseList, target) => {
                             </div>
                         </div>
                         <div class="border-2 border-dashed border-gray-300 rounded-lg h-32 flex flex-col items-center justify-center bg-gray-50">
-                             <input type="file" @change="handleUploadFile" class="hidden" id="modelUpload">
+                             <input type="file" accept=".py,.m,.cpp" @change="handleUploadFile" class="hidden" id="modelUpload">
                              <label for="modelUpload" class="cursor-pointer flex flex-col items-center">
                                  <i class="ri-upload-cloud-2-line text-3xl text-gray-400"></i>
-                                 <span class="text-xs text-gray-500 mt-2">{{ uploadForm.file ? uploadForm.file.name : '选择模型文件（.py/.mat/.dll/.fmu 等）' }}</span>
+                                 <span class="text-xs text-gray-500 mt-2">{{ uploadForm.file ? uploadForm.file.name : '选择模型文件（.py/.m/.cpp）' }}</span>
                              </label>
                         </div>
                         <div v-if="uploadForm.functionOptions?.length" class="space-y-2">
@@ -526,7 +541,7 @@ const isParamChanged = (baseList, target) => {
 
                     <div v-else class="space-y-3">
                         <div class="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded px-3 py-2">
-                            目录上传会自动递归包含子目录，按文件后缀自动识别模型类型，版本默认使用 AUTO。
+                            目录上传会自动递归包含子目录，仅识别 .py / .m / .cpp 文件，版本默认使用 AUTO。
                         </div>
                         <div class="border-2 border-dashed border-gray-300 rounded-lg h-32 flex flex-col items-center justify-center bg-gray-50">
                             <input type="file" webkitdirectory directory multiple @change="handleUploadDirectory" class="hidden" id="modelUploadDir">

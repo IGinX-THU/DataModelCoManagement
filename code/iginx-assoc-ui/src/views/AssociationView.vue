@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useAssociationStore } from '../stores/association'
 import { useModelStore } from '../stores/model'
 import { useDataStore } from '../stores/data'
@@ -13,9 +13,9 @@ const selectedRule = ref(null)
 const wizardStep = ref(1)
 const isEditing = ref(false) // Track if we are editing an existing rule
 const editingRuleId = ref(null)
-const newRule = reactive({ name: '', modelId: '', bindings: {}, results: {} })
+const newRule = reactive({ name: '', modelId: '', functionName: '', bindings: {}, results: {} })
 const showRunModal = ref(false)
-const runConfig = reactive({ startTime: '', endTime: '' })
+const runConfig = reactive({ taskName: '', startTime: '', endTime: '', scheduledStartTime: '', scheduledEndTime: '' })
 
 const toLocalInput = (date) => {
     const pad = (num) => String(num).padStart(2, '0')
@@ -26,6 +26,20 @@ const normalizeInputTime = (value) => {
     if (!value) return ''
     const text = value.replace('T', ' ')
     return text.length === 16 ? `${text}:00` : text
+}
+
+const formatTaskNameTimestamp = (date = new Date()) => {
+    const pad = (num) => String(num).padStart(2, '0')
+    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+}
+
+const buildDefaultTaskName = (ruleName) => {
+    const base = String(ruleName || '').trim() || '任务'
+    return `${base}_${formatTaskNameTimestamp()}`
+}
+
+const resolveTaskDisplayName = (task) => {
+    return String(task?.taskName || '').trim() || task?.id || '未命名任务'
 }
 
 const parseInputToMillis = (value) => {
@@ -41,6 +55,12 @@ const setDefaultRunRange = () => {
     const start = new Date(end.getTime() - 30 * 60 * 1000)
     runConfig.startTime = toLocalInput(start)
     runConfig.endTime = toLocalInput(end)
+}
+
+const resetRunSchedule = () => {
+    runConfig.taskName = ''
+    runConfig.scheduledStartTime = ''
+    runConfig.scheduledEndTime = ''
 }
 
 // Data Selector State
@@ -75,9 +95,14 @@ const toggleSelectorExpand = (node) => {
 // Get models from store
 const availableModels = computed(() => modelStore.models)
 const selectedModelMeta = ref(null)
+const canSwitchVersionInWizard = computed(() =>
+    !isEditing.value && (selectedModelMeta.value?.history?.length || 0) > 1
+)
 
 // Get tasks for selected rule
 const selectedTask = ref(null)
+let taskPollTimer = null
+const isTaskPolling = ref(false)
 
 const findModelVersion = (assetId) => {
     for (const model of modelStore.models) {
@@ -87,6 +112,15 @@ const findModelVersion = (assetId) => {
         }
     }
     return null
+}
+
+const buildTypeMap = (params = []) => {
+    const map = {}
+    ;(params || []).forEach(item => {
+        if (!item?.name) return
+        map[item.name] = item.type || 'STRING'
+    })
+    return map
 }
 
 const selectTask = (task) => {
@@ -139,7 +173,36 @@ onMounted(async () => {
         associationStore.loadRules()
     ])
     await associationStore.loadTasks()
+    startTaskPolling()
 })
+
+onBeforeUnmount(() => {
+    stopTaskPolling()
+})
+
+const hasActiveTasks = () => {
+    return associationStore.tasks.some(item => item.status === 'RUNNING' || item.status === 'PENDING')
+}
+
+const startTaskPolling = () => {
+    if (taskPollTimer) return
+    taskPollTimer = setInterval(async () => {
+        if (isTaskPolling.value || !hasActiveTasks()) return
+        isTaskPolling.value = true
+        try {
+            await associationStore.loadTasks(selectedRule.value?.id || null)
+        } finally {
+            isTaskPolling.value = false
+        }
+    }, 3000)
+}
+
+const stopTaskPolling = () => {
+    if (taskPollTimer) {
+        clearInterval(taskPollTimer)
+        taskPollTimer = null
+    }
+}
 
 // --- Wizard Logic ---
 const openWizard = () => {
@@ -148,33 +211,39 @@ const openWizard = () => {
     wizardStep.value = 1
     newRule.name = ''
     newRule.modelId = ''
+    newRule.functionName = ''
     newRule.bindings = {}
     newRule.results = {}
     selectedModelMeta.value = null
     associationStore.showWizard = true
 }
 
-const editRule = (rule) => {
+const editRule = async (rule) => {
     isEditing.value = true
     editingRuleId.value = rule.id
     wizardStep.value = 2 // Jump to config directly
     
     newRule.name = rule.name
     newRule.modelId = rule.modelId
+    newRule.functionName = rule.functionName || ''
     newRule.bindings = { ...rule.bindings }
     newRule.results = { ...rule.results }
     
     const match = findModelVersion(rule.modelId)
-    if (match) {
+    if (!match) {
+        alert('关联规则绑定的模型版本不存在，无法编辑')
+        return
+    }
+    try {
         const { model, version } = match
-        selectedModelMeta.value = {
-            ...model,
-            assetId: version.id,
-            inputs: version.inputs.map(i => i.name),
-            inputTypes: version.inputs.reduce((acc, i) => ({ ...acc, [i.name]: i.type }), {}),
-            outputs: version.outputs.map(o => o.name),
-            version: version.version
+        await applyModelVersionMeta(model, version, true, newRule.functionName)
+        if (!newRule.functionName) {
+            alert('该模型版本未解析出可用函数，暂无法编辑该规则')
+            return
         }
+    } catch (err) {
+        alert(err.message || '模型函数加载失败')
+        return
     }
     
     associationStore.showWizard = true
@@ -182,9 +251,16 @@ const editRule = (rule) => {
 
 const handleCopyRule = async (rule) => {
     try {
+        const matched = findModelVersion(rule.modelId)
+        const fallbackFunction = rule.functionName || matched?.version?.functions?.[0]?.name || ''
+        if (!fallbackFunction) {
+            alert('规则缺少函数信息，请先编辑并保存后再复制')
+            return
+        }
         await associationStore.addRule({
             name: `${rule.name}_Copy`,
             modelId: rule.modelId,
+            functionName: fallbackFunction,
             bindings: { ...rule.bindings },
             results: { ...rule.results },
             enabled: false
@@ -206,32 +282,181 @@ const handleDeleteRule = async (rule) => {
     }
 }
 
-const selectModel = (model) => {
-    const latestVer = model.history && model.history.length > 0
-        ? (model.history.find(v => v.latest) || model.history[model.history.length - 1])
-        : { inputs: [], outputs: [] }
+const getLatestModelVersion = (model) => {
+    const history = model?.history || []
+    if (!history.length) {
+        return null
+    }
+    return history.find(v => v.latest) || history[history.length - 1]
+}
 
-    newRule.modelId = latestVer.id
+const rebuildBindingsAndResults = (version, preserve = false) => {
+    const prevBindings = preserve ? { ...newRule.bindings } : {}
+    const prevResults = preserve ? { ...newRule.results } : {}
+    const nextBindings = {}
+    const nextResults = {}
+
+    ;(version?.inputs || []).forEach(i => {
+        nextBindings[i.name] = prevBindings[i.name] || ''
+    })
+    ;(version?.outputs || []).forEach(o => {
+        nextResults[o.name] = prevResults[o.name] || ''
+    })
+
+    newRule.bindings = nextBindings
+    newRule.results = nextResults
+}
+
+const resolveFunctionOptions = async (version) => {
+    const localOptions = Array.isArray(version?.functions) ? [...version.functions] : []
+    if (localOptions.length) {
+        return localOptions
+    }
+    try {
+        const remoteOptions = await modelStore.listFunctionsByAsset(version?.id)
+        return Array.isArray(remoteOptions) ? remoteOptions : []
+    } catch (error) {
+        return []
+    }
+}
+
+const applySelectedFunctionSchema = async (preserveMappings = false) => {
+    const assetId = selectedModelMeta.value?.assetId
+    const functionName = newRule.functionName
+    if (!assetId || !functionName) {
+        selectedModelMeta.value = {
+            ...(selectedModelMeta.value || {}),
+            inputs: [],
+            outputs: [],
+            inputTypes: {},
+            outputTypes: {},
+            parseMode: '',
+            parseMessage: ''
+        }
+        newRule.bindings = {}
+        newRule.results = {}
+        return
+    }
+    const schema = await modelStore.parseSchemaByAssetFunction(assetId, functionName)
+    const inputs = schema?.inputs || []
+    const outputs = schema?.outputs || []
     selectedModelMeta.value = {
-        ...model,
-        assetId: latestVer.id,
-        inputs: latestVer.inputs.map(i => i.name),
-        inputTypes: latestVer.inputs.reduce((acc, i) => ({ ...acc, [i.name]: i.type }), {}),
-        outputs: latestVer.outputs.map(o => o.name),
-        version: latestVer.version
+        ...selectedModelMeta.value,
+        selectedFunctionName: functionName,
+        inputs: inputs.map(i => i.name),
+        inputTypes: buildTypeMap(inputs),
+        outputs: outputs.map(o => o.name),
+        outputTypes: buildTypeMap(outputs),
+        parseMode: schema?.parseMode || '',
+        parseMessage: schema?.message || ''
+    }
+    rebuildBindingsAndResults({ inputs, outputs }, preserveMappings)
+}
+
+const applyModelVersionMeta = async (model, version, preserveMappings = false, preferredFunctionName = '') => {
+    if (!model || !version) return
+    newRule.modelId = version.id
+
+    const functionOptions = await resolveFunctionOptions(version)
+    if (!functionOptions.length) {
+        newRule.functionName = ''
+        selectedModelMeta.value = {
+            ...model,
+            assetId: version.id,
+            selectedVersionId: String(version.id),
+            functionOptions: [],
+            selectedFunctionName: '',
+            inputs: [],
+            inputTypes: {},
+            outputs: [],
+            outputTypes: {},
+            parseMode: '',
+            parseMessage: '该模型版本未解析出可用函数',
+            version: version.version
+        }
+        newRule.bindings = {}
+        newRule.results = {}
+        return
     }
 
-    latestVer.inputs.forEach(i => { newRule.bindings[i.name] = '' })
-    latestVer.outputs.forEach(o => { newRule.results[o.name] = '' })
+    let functionName = String(preferredFunctionName || newRule.functionName || '').trim()
+    if (!functionOptions.some(item => item?.name === functionName)) {
+        functionName = functionOptions[0]?.name || ''
+    }
+    newRule.functionName = functionName
 
+    selectedModelMeta.value = {
+        ...model,
+        assetId: version.id,
+        selectedVersionId: String(version.id),
+        functionOptions,
+        selectedFunctionName: functionName,
+        inputs: [],
+        inputTypes: {},
+        outputs: [],
+        outputTypes: {},
+        parseMode: '',
+        parseMessage: '',
+        version: version.version
+    }
+    await applySelectedFunctionSchema(preserveMappings)
+}
+
+const handleFunctionChange = async () => {
+    if (!newRule.functionName) return
+    try {
+        await applySelectedFunctionSchema(true)
+    } catch (err) {
+        alert(err.message || '函数结构解析失败')
+    }
+}
+
+const selectModel = async (model) => {
+    const latestVer = getLatestModelVersion(model)
+    if (!latestVer) {
+        alert('该模型暂无可用版本')
+        return
+    }
+    try {
+        await applyModelVersionMeta(model, latestVer, false)
+        if (!newRule.functionName) {
+            alert('该模型版本未解析出可用函数，暂无法创建关联规则')
+            return
+        }
+    } catch (err) {
+        alert(err.message || '模型函数加载失败')
+        return
+    }
     wizardStep.value = 2
+}
+
+const handleVersionChange = async () => {
+    if (!selectedModelMeta.value || isEditing.value) return
+    const profile = modelStore.models.find(item => item.id === selectedModelMeta.value.id)
+    const history = profile?.history || selectedModelMeta.value.history || []
+    const versionId = selectedModelMeta.value.selectedVersionId
+    const targetVersion = history.find(item => String(item.id) === String(versionId))
+    if (!targetVersion) return
+    try {
+        await applyModelVersionMeta(profile || selectedModelMeta.value, targetVersion, true, newRule.functionName)
+        if (!newRule.functionName) {
+            alert('该模型版本未解析出可用函数，暂无法创建关联规则')
+        }
+    } catch (err) {
+        alert(err.message || '模型函数加载失败')
+    }
 }
 
 const saveRule = async () => {
     try {
+        if (!newRule.functionName) {
+            alert('请选择模型函数')
+            return
+        }
         if (isEditing.value) {
             await associationStore.updateRule(editingRuleId.value, {
                 name: newRule.name,
+                functionName: newRule.functionName,
                 bindings: { ...newRule.bindings },
                 results: { ...newRule.results }
             })
@@ -239,6 +464,7 @@ const saveRule = async () => {
             await associationStore.addRule({
                 name: newRule.name,
                 modelId: newRule.modelId,
+                functionName: newRule.functionName,
                 bindings: { ...newRule.bindings },
                 results: { ...newRule.results },
                 enabled: true
@@ -253,28 +479,76 @@ const saveRule = async () => {
 // --- Run Logic ---
 const openRunModal = () => {
     if (!selectedRule.value) return
-    setDefaultRunRange()
+    if (requiresTimeRangeForRun.value) {
+        setDefaultRunRange()
+    } else {
+        runConfig.startTime = ''
+        runConfig.endTime = ''
+    }
+    resetRunSchedule()
+    runConfig.taskName = buildDefaultTaskName(selectedRule.value?.name)
     showRunModal.value = true
 }
 
 const executeTask = async () => {
     if (!selectedRule.value) return
-    
-    // Validate Time
-    const start = parseInputToMillis(runConfig.startTime)
-    const end = parseInputToMillis(runConfig.endTime)
-    if (!start || !end || end <= start) {
-        alert('时间范围无效：结束时间必须晚于开始时间。')
-        return
-    }
 
     try {
-        const taskId = await associationStore.createTask(selectedRule.value.id, {
-            startTime: normalizeInputTime(runConfig.startTime),
-            endTime: normalizeInputTime(runConfig.endTime)
-        })
+        const scheduledStart = parseInputToMillis(runConfig.scheduledStartTime)
+        if (runConfig.scheduledStartTime && !scheduledStart) {
+            alert('计划开始时间无效。')
+            return
+        }
+        const scheduledEnd = parseInputToMillis(runConfig.scheduledEndTime)
+        if (runConfig.scheduledEndTime && !scheduledEnd) {
+            alert('计划终止时间无效。')
+            return
+        }
+        const now = Date.now()
+        const effectiveStart = scheduledStart && scheduledStart > now ? scheduledStart : now
+        if (scheduledEnd && scheduledEnd <= effectiveStart) {
+            alert(scheduledStart && scheduledStart > now
+                ? '计划终止时间必须晚于计划开始时间。'
+                : '计划终止时间必须晚于当前时间。')
+            return
+        }
+
+        const taskOptions = {}
+        if (runConfig.taskName && runConfig.taskName.trim()) {
+            taskOptions.taskName = runConfig.taskName.trim()
+        }
+        if (requiresTimeRangeForRun.value) {
+            const start = parseInputToMillis(runConfig.startTime)
+            const end = parseInputToMillis(runConfig.endTime)
+            if (!start || !end || end <= start) {
+                alert('时间范围无效：结束时间必须晚于开始时间。')
+                return
+            }
+            taskOptions.timeRange = {
+                startTime: normalizeInputTime(runConfig.startTime),
+                endTime: normalizeInputTime(runConfig.endTime)
+            }
+        }
+        if (runConfig.scheduledStartTime) {
+            taskOptions.scheduledStartTime = normalizeInputTime(runConfig.scheduledStartTime)
+        }
+        if (runConfig.scheduledEndTime) {
+            taskOptions.scheduledEndTime = normalizeInputTime(runConfig.scheduledEndTime)
+        }
+        const taskId = await associationStore.createTask(selectedRule.value.id, taskOptions)
         await associationStore.loadTasks()
-        alert(`任务已触发！\nID: ${taskId}\n范围: ${normalizeInputTime(runConfig.startTime)} - ${normalizeInputTime(runConfig.endTime)}`)
+        const summary = [`任务已提交！`, `ID: ${taskId}`]
+        if (taskOptions.taskName) {
+            summary.splice(1, 0, `名称: ${taskOptions.taskName}`)
+        }
+        if (requiresTimeRangeForRun.value) {
+            summary.push(`范围: ${normalizeInputTime(runConfig.startTime)} - ${normalizeInputTime(runConfig.endTime)}`)
+        } else {
+            summary.push('模式: rt一次性执行（无需时间区间）')
+        }
+        summary.push(`计划开始: ${taskOptions.scheduledStartTime || '立即执行'}`)
+        summary.push(`计划终止: ${taskOptions.scheduledEndTime || '不限制'}`)
+        alert(summary.join('\n'))
         showRunModal.value = false
     } catch (err) {
         alert(err.message || '任务提交失败')
@@ -291,6 +565,21 @@ const formatTimeShort = (value) => {
     if (!text) return ''
     return text.split(' ')[1] || text
 }
+
+const formatScheduleText = (value, emptyText) => {
+    const text = formatTime(value)
+    return text || emptyText
+}
+
+const requiresTimeRangeForRun = computed(() => {
+    const bindings = selectedRule.value?.bindings || {}
+    const paths = Object.values(bindings)
+    if (!paths.length) return false
+    return paths.some(path => {
+        const text = String(path || '').trim().toLowerCase()
+        return text === 'ts' || text.startsWith('ts.')
+    })
+})
 </script>
 
 <template>
@@ -328,6 +617,55 @@ const formatTimeShort = (value) => {
                 <div v-if="wizardStep === 2">
                     <h4 class="text-sm font-bold text-gray-700 mb-2">Step 2: Data Binding & Config</h4>
                     
+                    <div class="mb-4 p-3 rounded border border-blue-100 bg-blue-50/60">
+                        <div class="text-xs text-gray-500 mb-2">已选模型</div>
+                        <div class="flex items-end justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="text-sm font-bold text-gray-800 truncate">{{ selectedModelMeta.name }}</div>
+                                <div class="text-xs text-gray-500 mt-1">类型: {{ selectedModelMeta.type || '-' }}</div>
+                            </div>
+                            <div class="w-52">
+                                <label class="block text-xs font-bold text-gray-500 mb-1">模型版本</label>
+                                <select
+                                    v-model="selectedModelMeta.selectedVersionId"
+                                    @change="handleVersionChange"
+                                    :disabled="!canSwitchVersionInWizard"
+                                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                >
+                                    <option
+                                        v-for="item in (selectedModelMeta.history || [])"
+                                        :key="item.id"
+                                        :value="String(item.id)"
+                                    >
+                                        {{ item.version }}{{ item.latest ? '（最新）' : '' }}
+                                    </option>
+                                </select>
+                                <div v-if="isEditing" class="text-[10px] text-gray-400 mt-1">编辑规则时不支持切换模型版本</div>
+                                <div v-else-if="!canSwitchVersionInWizard" class="text-[10px] text-gray-400 mt-1">当前模型仅有一个版本</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 mb-1">模型函数</label>
+                        <select
+                            v-model="newRule.functionName"
+                            @change="handleFunctionChange"
+                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs bg-white"
+                        >
+                            <option
+                                v-for="item in (selectedModelMeta.functionOptions || [])"
+                                :key="item.name"
+                                :value="item.name"
+                            >
+                                {{ item.displayName || item.name }}
+                            </option>
+                        </select>
+                        <div v-if="selectedModelMeta.parseMode" class="text-[10px] text-gray-500 mt-1">
+                            {{ selectedModelMeta.parseMode }}: {{ selectedModelMeta.parseMessage || '-' }}
+                        </div>
+                    </div>
+                    
                     <div class="mb-4">
                         <label class="block text-xs font-bold text-gray-500 mb-1">Rule Name</label>
                         <input v-model="newRule.name" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
@@ -348,10 +686,11 @@ const formatTimeShort = (value) => {
 
                     <div class="bg-gray-50 p-3 rounded border border-gray-100">
                         <div class="text-xs font-bold text-gray-500 mb-2 uppercase">Result Mapping (Output Destination)</div>
+                        <div class="text-[10px] text-gray-400 mb-2">支持手动输入新路径（如 ts.user.rule_x.result.power），留空则默认写入 task.result.任务ID.输出参数名</div>
                         <div v-for="output in selectedModelMeta.outputs" :key="output" class="flex items-center mb-2 last:mb-0">
                             <span class="w-24 text-xs font-mono text-gray-600 text-right mr-3">{{ output }}</span>
                             <i class="ri-arrow-right-line text-gray-400 mr-3"></i>
-                            <input v-model="newRule.results[output]" placeholder="Result Destination" class="flex-1 border border-gray-300 rounded px-2 py-1 text-xs cursor-not-allowed bg-gray-100" readonly>
+                            <input v-model="newRule.results[output]" placeholder="Result Destination" class="flex-1 border border-gray-300 rounded px-2 py-1 text-xs bg-white">
                              <button @click="openDataSelector('output', output)" class="ml-2 px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs hover:bg-blue-100">Select</button>
                         </div>
                     </div>
@@ -400,20 +739,41 @@ const formatTimeShort = (value) => {
     <!-- Run Config Modal -->
     <div v-if="showRunModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-white rounded-lg shadow-xl w-[400px] p-6">
-            <h3 class="font-bold text-gray-800 mb-4">Execute Task</h3>
+            <h3 class="font-bold text-gray-800 mb-4">提交任务</h3>
             <div class="space-y-3">
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 mb-1">Start Time</label>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">任务名称</label>
+                    <input v-model="runConfig.taskName" type="text" maxlength="120" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs" placeholder="不填写时自动生成默认名称">
+                </div>
+                <div v-if="requiresTimeRangeForRun">
+                    <label class="block text-xs font-bold text-gray-500 mb-1">时间范围开始</label>
                     <input v-model="runConfig.startTime" type="datetime-local" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 mb-1">End Time</label>
+                <div v-if="requiresTimeRangeForRun">
+                    <label class="block text-xs font-bold text-gray-500 mb-1">时间范围结束</label>
                     <input v-model="runConfig.endTime" type="datetime-local" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
+                </div>
+                <div v-if="!requiresTimeRangeForRun" class="text-xs text-gray-600 leading-5 bg-blue-50 border border-blue-100 rounded p-3">
+                    当前规则输入均为 <span class="font-mono">rt.*</span> 路径，本次执行无需选择时间区间，
+                    将按当前绑定数据直接触发一次任务。
+                </div>
+                <div class="border border-gray-200 rounded p-3 bg-gray-50/70 space-y-3">
+                    <div class="text-[11px] text-gray-500 leading-5">
+                        开始时间留空表示立即执行；终止时间留空表示不限制任务最晚结束时间。
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">计划开始时间（可选）</label>
+                        <input v-model="runConfig.scheduledStartTime" type="datetime-local" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">计划终止时间（可选）</label>
+                        <input v-model="runConfig.scheduledEndTime" type="datetime-local" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs bg-white">
+                    </div>
                 </div>
             </div>
             <div class="flex justify-end space-x-2 mt-6">
                 <button @click="showRunModal = false" class="px-4 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-                <button @click="executeTask" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Run Now</button>
+                <button @click="executeTask" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">提交任务</button>
             </div>
         </div>
     </div>
@@ -437,6 +797,7 @@ const formatTimeShort = (value) => {
                     </div>
                 </div>
                 <div class="text-xs text-gray-500 mb-1 truncate">{{ rule.modelName }}</div>
+                <div class="text-[10px] text-gray-400 mb-1 truncate">函数: {{ rule.functionName || '-' }}</div>
                 <div class="flex items-center space-x-2">
                     <span v-if="isRuleRunning(rule)" class="text-[10px] text-blue-500 flex items-center font-medium"><i class="ri-loader-4-line animate-spin mr-1"></i> Running</span>
                     <span v-else class="text-[10px] text-gray-400">Idle</span>
@@ -478,6 +839,7 @@ const formatTimeShort = (value) => {
                         </button>
                      </div>
                      <p class="text-sm text-gray-600">{{ selectedRule.modelName ? `关联模型: ${selectedRule.modelName}` : '-' }}</p>
+                     <p class="text-sm text-gray-600 mt-1">{{ selectedRule.functionName ? `关联函数: ${selectedRule.functionName}` : '关联函数: -' }}</p>
                 </div>
 
                 <!-- Topology -->
@@ -503,6 +865,7 @@ const formatTimeShort = (value) => {
                             <i class="ri-function-line text-3xl mb-2"></i>
                             <div class="font-bold text-sm text-center">{{ selectedRule.modelName }}</div>
                             <div class="text-[10px] opacity-70 mt-1">v{{ selectedRule.modelVersion }}</div>
+                            <div class="text-[10px] opacity-80 mt-1">{{ selectedRule.functionName || '-' }}</div>
                         </div>
 
                         <!-- Arrow -->
@@ -529,8 +892,9 @@ const formatTimeShort = (value) => {
                         <table class="w-full text-xs text-left">
                             <thead class="bg-gray-50 text-gray-500">
                                 <tr>
-                                    <th class="p-2 border-b">ID</th>
+                                    <th class="p-2 border-b">任务名称</th>
                                     <th class="p-2 border-b">Time Range</th>
+                                    <th class="p-2 border-b">调度信息</th>
                                     <th class="p-2 border-b">Status</th>
                                     <th class="p-2 border-b">Action</th>
                                 </tr>
@@ -540,8 +904,15 @@ const formatTimeShort = (value) => {
                                     @click="selectTask(task)"
                                     :class="selectedTask?.id === task.id ? 'bg-blue-50' : ''"
                                     class="hover:bg-gray-50 cursor-pointer">
-                                    <td class="p-2 font-mono">{{ task.id }}</td>
+                                    <td class="p-2">
+                                        <div class="font-medium text-gray-800">{{ resolveTaskDisplayName(task) }}</div>
+                                        <div class="font-mono text-[10px] text-gray-400">{{ task.id }}</div>
+                                    </td>
                                     <td class="p-2 text-gray-600">{{ formatTimeShort(task.rangeStart) }} - {{ formatTimeShort(task.rangeEnd) }}</td>
+                                    <td class="p-2 text-[10px] text-gray-500 leading-5">
+                                        <div>开始: {{ formatScheduleText(task.scheduledStartTime, '立即执行') }}</div>
+                                        <div>终止: {{ formatScheduleText(task.scheduledEndTime, '不限制') }}</div>
+                                    </td>
                                     <td class="p-2">
                                         <span class="px-2 py-0.5 rounded text-[10px] font-bold"
                                               :class="{

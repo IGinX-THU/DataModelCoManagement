@@ -23,6 +23,10 @@ const kpiCards = computed(() => {
 
 const recentTasks = computed(() => summary.value?.recentTasks || [])
 
+const resolveTaskDisplayName = (task) => {
+  return String(task?.taskName || '').trim() || task?.id || '未命名任务'
+}
+
 const formatTime = (value) => {
   if (!value) return '-'
   return String(value).replace('T', ' ')
@@ -160,7 +164,7 @@ onMounted(() => {
         <table class="w-full text-xs text-left whitespace-nowrap">
           <thead class="bg-gray-50 text-gray-500">
             <tr>
-              <th class="px-4 py-2 font-medium">任务 ID</th>
+              <th class="px-4 py-2 font-medium">任务名称</th>
               <th class="px-4 py-2 font-medium">关联规则名称</th>
               <th class="px-4 py-2 font-medium">模型类型</th>
               <th class="px-4 py-2 font-medium">状态</th>
@@ -170,7 +174,10 @@ onMounted(() => {
           </thead>
           <tbody class="divide-y divide-gray-100 text-gray-600">
             <tr v-for="task in recentTasks" :key="task.id" class="hover:bg-gray-50 transition-colors group">
-              <td class="px-4 py-3 font-mono text-gray-500 group-hover:text-blue-600">{{ task.id }}</td>
+              <td class="px-4 py-3">
+                <div class="font-medium text-gray-800">{{ resolveTaskDisplayName(task) }}</div>
+                <div class="font-mono text-[10px] text-gray-400 group-hover:text-blue-600">{{ task.id }}</div>
+              </td>
               <td class="px-4 py-3 font-medium text-gray-800">{{ task.ruleName }}</td>
               <td class="px-4 py-3">
                 <span class="bg-gray-100 px-2 py-0.5 rounded text-[10px] text-gray-500 border border-gray-200">{{ task.modelType }}</span>

@@ -1,15 +1,30 @@
 <script setup>
 import { useAssociationStore } from '../stores/association'
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 
 const associationStore = useAssociationStore()
+const TASK_PAGE_SIZE_OPTIONS = [10, 20, 50]
 const filterStatus = ref('All')
 const showLogModal = ref(false)
 const logTask = ref(null)
+const taskPageNum = ref(1)
+const taskPageSize = ref(TASK_PAGE_SIZE_OPTIONS[0])
+const taskJumpPage = ref('1')
 
 const filteredTasks = computed(() => {
     if (filterStatus.value === 'All') return associationStore.tasks
     return associationStore.tasks.filter(t => t.status === filterStatus.value.toUpperCase())
+})
+
+const taskTotalPages = computed(() => {
+    const total = filteredTasks.value.length
+    return Math.max(1, Math.ceil(total / taskPageSize.value))
+})
+
+const paginatedTasks = computed(() => {
+    const start = (taskPageNum.value - 1) * taskPageSize.value
+    const end = start + taskPageSize.value
+    return filteredTasks.value.slice(start, end)
 })
 
 const getStatusColor = (status) => {
@@ -28,26 +43,62 @@ const formatTime = (value) => {
     return value.replace('T', ' ')
 }
 
+const formatScheduleTime = (value, emptyText) => {
+    if (!value) return emptyText
+    return formatTime(value)
+}
+
+const resolveTaskDisplayName = (task) => {
+    return String(task?.taskName || '').trim() || task?.id || '未命名任务'
+}
+
+const syncTaskJumpPage = () => {
+    taskJumpPage.value = String(taskPageNum.value)
+}
+
+const resetTaskPagination = () => {
+    taskPageNum.value = 1
+    syncTaskJumpPage()
+}
+
+const goToTaskPage = (targetPage) => {
+    const numericPage = Number(targetPage)
+    const resolvedPage = Number.isFinite(numericPage)
+        ? Math.min(Math.max(1, Math.trunc(numericPage)), taskTotalPages.value)
+        : taskPageNum.value
+    taskPageNum.value = resolvedPage
+    syncTaskJumpPage()
+}
+
+const jumpToTaskPage = () => {
+    goToTaskPage(taskJumpPage.value)
+}
+
 const calcProgress = (task) => {
     if (!task) return 0
     if (task.status === 'SUCCESS') return 100
     if (task.status === 'FAILED' || task.status === 'ABORTED') return 100
     if (task.status === 'RUNNING') return 60
+    if (task.status === 'PENDING') return 15
     return 0
 }
 
 const handleStop = async (task) => {
-    if (confirm(`Stop task ${task.id}?`)) {
+    if (confirm(`确认终止任务“${resolveTaskDisplayName(task)}”吗？`)) {
         await associationStore.stopTask(task.id)
     }
 }
 
 const handleRerun = async (task) => {
-    alert(`Rerunning task ${task.id}...`)
-    await associationStore.createTask(task.ruleId, {
-        startTime: task.rangeStart,
-        endTime: task.rangeEnd
-    })
+    alert(`正在重新提交任务：${resolveTaskDisplayName(task)}`)
+    const taskOptions = {}
+    if (task.rangeStart && task.rangeEnd) {
+        taskOptions.timeRange = {
+            startTime: task.rangeStart,
+            endTime: task.rangeEnd
+        }
+    }
+    await associationStore.createTask(task.ruleId, taskOptions)
     await associationStore.loadTasks()
 }
 
@@ -56,10 +107,30 @@ const openLog = (task) => {
     showLogModal.value = true
 }
 
+const getOutputPathEntries = (task) => {
+    if (!task || !task.outputPaths) return []
+    return Object.entries(task.outputPaths)
+}
+
 const closeLog = () => {
     showLogModal.value = false
     logTask.value = null
 }
+
+watch(filterStatus, () => {
+    resetTaskPagination()
+})
+
+watch(taskPageSize, () => {
+    resetTaskPagination()
+})
+
+watch(filteredTasks, () => {
+    if (taskPageNum.value > taskTotalPages.value) {
+        taskPageNum.value = taskTotalPages.value
+    }
+    syncTaskJumpPage()
+})
 
 onMounted(() => {
     associationStore.loadTasks()
@@ -78,6 +149,10 @@ onMounted(() => {
                 <div class="p-6 space-y-4 overflow-y-auto text-sm text-gray-600">
                     <div class="grid grid-cols-2 gap-4 text-xs">
                         <div>
+                            <div class="text-gray-400">任务名称</div>
+                            <div class="text-gray-800">{{ resolveTaskDisplayName(logTask) }}</div>
+                        </div>
+                        <div>
                             <div class="text-gray-400">任务 ID</div>
                             <div class="font-mono text-gray-800">{{ logTask?.id || '-' }}</div>
                         </div>
@@ -93,13 +168,26 @@ onMounted(() => {
                             <div class="text-gray-400">结束时间</div>
                             <div class="font-mono text-gray-800">{{ formatTime(logTask?.endTime) }}</div>
                         </div>
+                        <div>
+                            <div class="text-gray-400">计划开始</div>
+                            <div class="font-mono text-gray-800">{{ formatScheduleTime(logTask?.scheduledStartTime, '立即执行') }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400">计划终止</div>
+                            <div class="font-mono text-gray-800">{{ formatScheduleTime(logTask?.scheduledEndTime, '不限制') }}</div>
+                        </div>
                         <div class="col-span-2">
                             <div class="text-gray-400">时间范围</div>
                             <div class="font-mono text-gray-800">{{ formatTime(logTask?.rangeStart) }} ~ {{ formatTime(logTask?.rangeEnd) }}</div>
                         </div>
                         <div class="col-span-2">
                             <div class="text-gray-400">结果路径</div>
-                            <div class="font-mono text-gray-800 break-all">{{ logTask?.resultLink || '-' }}</div>
+                            <div v-if="getOutputPathEntries(logTask).length" class="space-y-1">
+                                <div v-for="([name, path]) in getOutputPathEntries(logTask)" :key="name" class="font-mono text-gray-800 break-all">
+                                    <span class="text-gray-500">{{ name }}</span> -> {{ path }}
+                                </div>
+                            </div>
+                            <div v-else class="font-mono text-gray-800 break-all">{{ logTask?.resultLink || '-' }}</div>
                         </div>
                     </div>
                     <div>
@@ -117,7 +205,7 @@ onMounted(() => {
                 <i class="ri-task-line mr-2 text-blue-600"></i> Task Monitor
             </h2>
             <div class="flex space-x-2 bg-white p-1 rounded border border-gray-200 shadow-sm">
-                <button v-for="status in ['All', 'Running', 'Success', 'Failed']" :key="status"
+                <button v-for="status in ['All', 'Pending', 'Running', 'Success', 'Failed', 'Aborted']" :key="status"
                         @click="filterStatus = status"
                         :class="filterStatus === status ? 'bg-blue-50 text-blue-600 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'"
                         class="px-3 py-1.5 rounded text-xs transition-all">
@@ -131,9 +219,10 @@ onMounted(() => {
                 <table class="w-full text-sm text-left">
                     <thead class="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                         <tr>
-                            <th class="px-6 py-3">Task ID</th>
+                            <th class="px-6 py-3">任务名称</th>
                             <th class="px-6 py-3">Rule Name</th>
                             <th class="px-6 py-3">Time Range</th>
+                            <th class="px-6 py-3">Schedule</th>
                             <th class="px-6 py-3">Created At</th>
                             <th class="px-6 py-3">Status</th>
                             <th class="px-6 py-3">Progress</th>
@@ -142,16 +231,23 @@ onMounted(() => {
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         <tr v-if="filteredTasks.length === 0">
-                            <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                            <td colspan="8" class="px-6 py-12 text-center text-gray-400">
                                 <i class="ri-inbox-line text-4xl mb-2"></i>
                                 <p>No tasks found.</p>
                             </td>
                         </tr>
-                        <tr v-for="task in filteredTasks" :key="task.id" class="hover:bg-gray-50 transition-colors group">
-                            <td class="px-6 py-3 font-mono text-gray-600 text-xs">{{ task.id }}</td>
+                        <tr v-for="task in paginatedTasks" :key="task.id" class="hover:bg-gray-50 transition-colors group">
+                            <td class="px-6 py-3">
+                                <div class="font-medium text-gray-800">{{ resolveTaskDisplayName(task) }}</div>
+                                <div class="font-mono text-[10px] text-gray-400">{{ task.id }}</div>
+                            </td>
                             <td class="px-6 py-3 font-medium text-gray-800">{{ associationStore.rules.find(r => r.id === task.ruleId)?.name || 'Unknown Rule' }}</td>
                             <td class="px-6 py-3 text-gray-500 text-xs">
                                 {{ formatTime(task.rangeStart) }} <i class="ri-arrow-right-line mx-1 text-gray-300"></i> {{ formatTime(task.rangeEnd) }}
+                            </td>
+                            <td class="px-6 py-3 text-gray-500 text-xs leading-5">
+                                <div>开始: {{ formatScheduleTime(task.scheduledStartTime, '立即执行') }}</div>
+                                <div>终止: {{ formatScheduleTime(task.scheduledEndTime, '不限制') }}</div>
                             </td>
                             <td class="px-6 py-3 text-gray-500 text-xs">{{ formatTime(task.createTime) }}</td>
                             <td class="px-6 py-3">
@@ -183,6 +279,51 @@ onMounted(() => {
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <div class="border-t border-gray-200 bg-gray-50 px-6 py-3 text-xs text-gray-500">
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <span>共 {{ filteredTasks.length }} 条，当前第 {{ taskPageNum }} / {{ taskTotalPages }} 页</span>
+                        <label class="flex items-center gap-2">
+                            <span>每页</span>
+                            <select v-model.number="taskPageSize" class="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:border-blue-400 focus:outline-none">
+                                <option v-for="size in TASK_PAGE_SIZE_OPTIONS" :key="size" :value="size">{{ size }}</option>
+                            </select>
+                            <span>条</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button
+                            @click="goToTaskPage(taskPageNum - 1)"
+                            :disabled="taskPageNum <= 1"
+                            class="rounded border border-gray-200 px-2.5 py-1 text-gray-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            上一页
+                        </button>
+                        <button
+                            @click="goToTaskPage(taskPageNum + 1)"
+                            :disabled="taskPageNum >= taskTotalPages"
+                            class="rounded border border-gray-200 px-2.5 py-1 text-gray-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            下一页
+                        </button>
+                        <span>跳至</span>
+                        <input
+                            v-model="taskJumpPage"
+                            type="number"
+                            min="1"
+                            :max="taskTotalPages"
+                            class="w-20 rounded border border-gray-200 px-2 py-1 text-gray-700 focus:border-blue-400 focus:outline-none"
+                            @keyup.enter="jumpToTaskPage"
+                        >
+                        <button
+                            @click="jumpToTaskPage"
+                            class="rounded bg-blue-600 px-2.5 py-1 text-white transition hover:bg-blue-700"
+                        >
+                            跳转
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

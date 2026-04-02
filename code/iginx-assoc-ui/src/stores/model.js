@@ -9,6 +9,8 @@ import {
   parseModelSchema,
   listModelFunctions,
   parseModelSchemaByFunction,
+  listAssetFunctions,
+  parseAssetSchemaByFunction as parseAssetSchemaByFunctionApi,
   getModelDownloadUrl
 } from '../api/model'
 
@@ -17,15 +19,10 @@ export const useModelStore = defineStore('model', () => {
   const selectedModel = ref(null)
   const selectedModelIds = ref([])
 
-  const MODEL_TYPE_BY_EXTENSION = {
+  const UPLOAD_MODEL_TYPE_BY_EXTENSION = {
     PY: 'Python',
-    MAT: 'MATLAB',
-    AME: 'AMESim',
-    DLL: 'DLL',
-    FMU: 'FMU',
-    ZIP: 'ZIP',
-    CSV: 'CSV',
-    XLSX: 'XLSX'
+    M: 'MATLAB',
+    CPP: 'CPP'
   }
 
   const showUploadModal = ref(false)
@@ -55,7 +52,9 @@ export const useModelStore = defineStore('model', () => {
     outputs: (version.outputs || []).map(item => ({
       ...item,
       desc: item.desc || item.description || ''
-    }))
+    })),
+    functions: Array.isArray(version.functions) ? [...version.functions] : [],
+    dependencies: Array.isArray(version.dependencies) ? [...version.dependencies] : []
   })
 
   const loadModels = async () => {
@@ -118,6 +117,16 @@ export const useModelStore = defineStore('model', () => {
     return parseModelSchemaByFunction(formData)
   }
 
+  const listFunctionsByAsset = async (assetId) => {
+    if (!assetId) return []
+    return listAssetFunctions(assetId)
+  }
+
+  const parseSchemaByAssetFunction = async (assetId, functionName) => {
+    if (!assetId || !functionName) return { inputs: [], outputs: [], parseMode: '', message: '' }
+    return parseAssetSchemaByFunctionApi(assetId, functionName)
+  }
+
   const resetUploadParseState = () => {
     uploadForm.functionOptions = []
     uploadForm.selectedFunction = ''
@@ -127,23 +136,71 @@ export const useModelStore = defineStore('model', () => {
     uploadForm.outputs = []
   }
 
-  const buildSchema = (inputs, outputs) => ({
-    inputs: (inputs || []).map(item => ({
-      name: item.name,
-      type: item.type,
-      unit: item.unit || '-',
-      description: item.desc || '',
-      required: true
-    })),
-    outputs: (outputs || []).map(item => ({
-      name: item.name,
-      type: item.type,
-      unit: item.unit || '-',
-      description: item.desc || '',
-      required: false
-    })),
-    dependencies: []
-  })
+  const ENTRY_FUNCTION_PREFIX = 'entryFunction:'
+  const ENTRY_FUNCTION_EQUAL_PREFIX = 'entryFunction='
+  const LEGACY_FUNCTION_PREFIX = 'function:'
+  const LEGACY_FUNCTION_EQUAL_PREFIX = 'function='
+
+  const parseEntryFunctionDependency = (dependency) => {
+    const text = String(dependency || '').trim()
+    if (!text) return ''
+    if (text.startsWith(ENTRY_FUNCTION_PREFIX)) {
+      return text.substring(ENTRY_FUNCTION_PREFIX.length).trim()
+    }
+    if (text.startsWith(ENTRY_FUNCTION_EQUAL_PREFIX)) {
+      return text.substring(ENTRY_FUNCTION_EQUAL_PREFIX.length).trim()
+    }
+    if (text.startsWith(LEGACY_FUNCTION_PREFIX)) {
+      return text.substring(LEGACY_FUNCTION_PREFIX.length).trim()
+    }
+    if (text.startsWith(LEGACY_FUNCTION_EQUAL_PREFIX)) {
+      return text.substring(LEGACY_FUNCTION_EQUAL_PREFIX.length).trim()
+    }
+    return ''
+  }
+
+  const normalizeDependencies = (dependencies = [], selectedFunction = '') => {
+    let entryFunction = String(selectedFunction || '').trim()
+    const normalized = []
+    const source = Array.isArray(dependencies) ? dependencies : []
+    source.forEach(item => {
+      const text = String(item || '').trim()
+      if (!text) return
+      const parsedFunction = parseEntryFunctionDependency(text)
+      if (parsedFunction) {
+        if (!entryFunction) entryFunction = parsedFunction
+        return
+      }
+      normalized.push(text)
+    })
+    if (entryFunction) {
+      normalized.unshift(`${ENTRY_FUNCTION_PREFIX}${entryFunction}`)
+    }
+    return normalized
+  }
+
+  const buildSchema = (inputs, outputs, options = {}) => {
+    const config = typeof options === 'string' ? { selectedFunction: options } : (options || {})
+    const selectedFunction = config.selectedFunction || ''
+    const dependencies = config.dependencies || []
+    return {
+      inputs: (inputs || []).map(item => ({
+        name: item.name,
+        type: item.type,
+        unit: item.unit || '-',
+        description: item.desc || '',
+        required: true
+      })),
+      outputs: (outputs || []).map(item => ({
+        name: item.name,
+        type: item.type,
+        unit: item.unit || '-',
+        description: item.desc || '',
+        required: false
+      })),
+      dependencies: normalizeDependencies(dependencies, selectedFunction)
+    }
+  }
 
   const getFileExtension = (fileName = '') => {
     const index = fileName.lastIndexOf('.')
@@ -153,24 +210,27 @@ export const useModelStore = defineStore('model', () => {
 
   const getModelTypeByFileName = (fileName = '') => {
     const ext = getFileExtension(fileName)
-    return MODEL_TYPE_BY_EXTENSION[ext] || ''
+    return UPLOAD_MODEL_TYPE_BY_EXTENSION[ext] || ''
   }
 
   const isTextFunctionModel = (fileName = '') => {
     const ext = getFileExtension(fileName)
-    return ext === 'PY' || ext === 'MAT'
+    return ext === 'PY' || ext === 'M' || ext === 'CPP'
   }
 
   const detectFunctionLikeContent = async (file) => {
     if (!file || typeof file.text !== 'function') return false
     const ext = getFileExtension(file.name)
-    if (ext !== 'PY' && ext !== 'MAT') return false
+    if (ext !== 'PY' && ext !== 'M' && ext !== 'CPP') return false
     try {
       const content = await file.text()
       if (ext === 'PY') {
         return /(^|\n)\s*def\s+\w+\s*\(/m.test(content)
       }
-      return /(^|\n)\s*function\b/m.test(content)
+      if (ext === 'M') {
+        return /(^|\n)\s*function\b/m.test(content)
+      }
+      return /(^|\n)\s*(?:template\s*<[^>]+>\s*)?(?:[\w:<>*&]+\s+)+[A-Za-z_]\w*\s*\([^;{}]*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:->\s*[\w:<>*&]+\s*)?\{/m.test(content)
     } catch (error) {
       return false
     }
@@ -199,17 +259,19 @@ export const useModelStore = defineStore('model', () => {
 
   const resolveIoSchemaByFile = async (file) => {
     let parsed = null
+    let selectedFunction = ''
     try {
       const functions = await listFunctionsByFile(file)
       if (functions?.length) {
-        parsed = await parseSchemaByFunction(file, functions[0].name)
+        selectedFunction = functions[0].name || ''
+        parsed = await parseSchemaByFunction(file, selectedFunction)
       } else {
         parsed = await parseSchemaByFile(file)
       }
     } catch (error) {
       parsed = await parseSchemaByFile(file)
     }
-    const schema = buildSchema(parsed?.inputs || [], parsed?.outputs || [])
+    const schema = buildSchema(parsed?.inputs || [], parsed?.outputs || [], { selectedFunction })
     const emptyIo = (schema.inputs?.length || 0) === 0 && (schema.outputs?.length || 0) === 0
     if (emptyIo && isTextFunctionModel(file?.name) && await detectFunctionLikeContent(file)) {
       throw new Error('检测到函数定义，但未解析到输入输出，请检查函数签名或类型注释')
@@ -223,7 +285,7 @@ export const useModelStore = defineStore('model', () => {
       name: uploadForm.name || uploadForm.file?.name || '',
       version: uploadForm.version,
       type: uploadForm.type,
-      ioSchema: JSON.stringify(buildSchema(uploadForm.inputs, uploadForm.outputs))
+      ioSchema: JSON.stringify(buildSchema(uploadForm.inputs, uploadForm.outputs, { selectedFunction: uploadForm.selectedFunction }))
     })
     await loadModels()
     selectedModel.value = models.value.find(m => m.id === profile.id) || null
@@ -285,11 +347,12 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
-  const updateModelMetadata = async (modelId, oldVersion, newMeta) => {
+  const updateModelMetadata = async (modelId, assetId, newMeta) => {
     await updateModelProfile(modelId, {
+      assetId,
       name: newMeta.name,
       description: newMeta.desc,
-      ioSchema: JSON.stringify(buildSchema(newMeta.inputs, newMeta.outputs))
+      ioSchema: JSON.stringify(buildSchema(newMeta.inputs, newMeta.outputs, { dependencies: newMeta.dependencies }))
     })
     await loadModels()
   }
@@ -361,6 +424,8 @@ export const useModelStore = defineStore('model', () => {
     parseSchemaByFile,
     listFunctionsByFile,
     parseSchemaByFunction,
+    listFunctionsByAsset,
+    parseSchemaByAssetFunction,
     resetUploadParseState,
     getModelTypeByFileName,
     isSupportedModelFile,

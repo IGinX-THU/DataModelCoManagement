@@ -37,4 +37,9 @@ export const parseModelSchemaByFunction = (formData) => request('/api/v1/models/
   body: formData
 })
 
+export const listAssetFunctions = (assetId) => request(`/api/v1/models/assets/${assetId}/functions`)
+
+export const parseAssetSchemaByFunction = (assetId, functionName) =>
+  request(`/api/v1/models/assets/${assetId}/functions/schema?functionName=${encodeURIComponent(functionName)}`)
+
 export const getModelDownloadUrl = (assetId) => `${BASE_URL}/api/v1/models/assets/${assetId}/download`

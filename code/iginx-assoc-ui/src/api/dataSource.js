@@ -16,15 +16,17 @@ export function createDataSource(payload) {
   })
 }
 
+export function removeDataSource(id) {
+  return request(`/api/v1/data/sources/${id}`, {
+    method: 'DELETE'
+  })
+}
+
 export function testDataSourceConnection(payload) {
   return request('/api/v1/data/sources/test-connection', {
     method: 'POST',
     body: JSON.stringify(payload)
   })
-}
-
-export function fetchDataSourceStructure(id) {
-  return request(`/api/v1/data/sources/${id}/structure`)
 }
 
 export function fetchDataSourceDetail(id, limit = 200) {

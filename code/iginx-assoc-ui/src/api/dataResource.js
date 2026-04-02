@@ -7,15 +7,8 @@ const buildFormData = (payload, file) => {
   return formData
 }
 
-export function importTimeSeries(payload, file) {
-  return request('/api/v1/data/import/ts', {
-    method: 'POST',
-    body: buildFormData(payload, file)
-  })
-}
-
-export function importStructured(payload, file) {
-  return request('/api/v1/data/import/struct', {
+export function importData(payload, file) {
+  return request('/api/v1/data/import', {
     method: 'POST',
     body: buildFormData(payload, file)
   })
@@ -48,6 +41,15 @@ export function queryStructured(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   })
+}
+
+/**
+ * 查询结构化表结构（仅列信息，不查数据）。
+ * 后端会按 IGinX 语义执行 SHOW COLUMNS rt.xxx.*。
+ */
+export function queryStructuredSchema(tablePath) {
+  const encodedPath = encodeURIComponent(String(tablePath || '').trim())
+  return request(`/api/v1/data/query/struct/schema?tablePath=${encodedPath}`)
 }
 
 export function deleteTimeSeries(payload) {
@@ -83,52 +85,6 @@ export function deleteColumns(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   })
-}
-
-export function createStorageGroup(payload) {
-  return request('/api/v1/data/structures/storage-groups', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  })
-}
-
-export function dropStorageGroup(payload) {
-  return request('/api/v1/data/structures/storage-groups/drop', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  })
-}
-
-export function createMeasurement(payload) {
-  return request('/api/v1/data/structures/measurements', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  })
-}
-
-export function dropMeasurement(payload) {
-  return request('/api/v1/data/structures/measurements/drop', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  })
-}
-
-export function createTable(payload) {
-  return request('/api/v1/data/structures/tables', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  })
-}
-
-export function dropTable(payload) {
-  return request('/api/v1/data/structures/tables/drop', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  })
-}
-
-export function fetchTableColumns(sourceId, schema, table) {
-  return request(`/api/v1/data/sources/${sourceId}/tables/${schema}/${table}/columns`)
 }
 
 export function buildDownloadUrl(path) {

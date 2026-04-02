@@ -12,9 +12,36 @@ const toggleExpand = (node) => {
     if (node.children) node.expanded = !node.expanded
 }
 
+/**
+ * 结构化数据列节点（rt 下无子节点的 point）点击时不触发任何动作。
+ */
+const isStructuredColumnLeaf = (node) => {
+    const rootType = node?.rootType || ''
+    const hasChildren = Array.isArray(node?.children) && node.children.length > 0
+    return rootType === 'rt' && node?.type === 'point' && !hasChildren
+}
+
+/**
+ * 点击“非 column 的路径节点”时，自动切到拓扑视图。
+ * 这里按节点类型识别路径节点：group / ts / rt。
+ */
+const shouldOpenTopologyOnClick = (node) => {
+    if (!node) return false
+    if (isStructuredColumnLeaf(node)) return false
+    // 结构化表节点应进入数据查询视图，而不是拓扑视图。
+    if (dataStore.currentNode.rootType === 'rt' && dataStore.currentNode.isStructuredTable) return false
+    return ['group', 'ts', 'rt'].includes(node.type)
+}
+
 const handleNodeClick = (node) => {
+    if (isStructuredColumnLeaf(node)) {
+        return
+    }
     toggleExpand(node)
     dataStore.selectNode(node)
+    if (shouldOpenTopologyOnClick(node)) {
+        dataStore.showTopology(node)
+    }
 }
 
 // --- Context Menu Logic ---
@@ -53,65 +80,8 @@ const handleContextAction = async (action) => {
     closeContextMenu()
     if (!node) return
     try {
-        if (action === 'New Storage Group') {
-            if (!node.sourceId) {
-                alert('当前节点未绑定可用数据源，无法新建存储组')
-                return
-            }
-            const name = prompt('请输入存储组路径（相对路径将自动挂载）：')
-            if (name) {
-                const basePath = node.path || node.id || node.name
-                const fullPath = name.includes('.') ? name : `${basePath}.${name}`
-                await dataStore.createStorageGroup(node.sourceId, fullPath)
-            }
-        } else if (action === 'New Measurement') {
-            if (!node.sourceId) {
-                alert('当前节点未绑定可用数据源，无法新建测点')
-                return
-            }
-            const name = prompt('请输入测点名称：')
-            if (!name) return
-            const dataType = prompt('请输入数据类型（如 DOUBLE、LONG）：', 'DOUBLE') || 'DOUBLE'
-            const basePath = node.path || node.id
-            const fullPath = name.includes('.') ? name : `${basePath}.${name}`
-            await dataStore.createMeasurement(node.sourceId, fullPath, dataType)
-        } else if (action === 'New Table') {
-            if (!node.sourceId) {
-                alert('当前节点未绑定可用数据源，无法新建表')
-                return
-            }
-            const name = prompt('请输入表名：')
-            if (!name) return
-            const raw = prompt('请输入字段定义，例如：id:BIGINT:pk,name:TEXT,created_at:TIMESTAMP', '')
-            if (!raw) return
-            const columnDefs = raw.split(',').map(item => item.trim()).filter(Boolean)
-            const columns = []
-            const primaryKeys = []
-            columnDefs.forEach(def => {
-                const parts = def.split(':').map(p => p.trim()).filter(Boolean)
-                if (parts.length >= 2) {
-                    const [colName, colType, ...flags] = parts
-                    const flagSet = new Set(flags.map(f => f.toLowerCase()))
-                    const nullable = !flagSet.has('notnull') && !flagSet.has('nn')
-                    columns.push({ name: colName, type: colType, nullable })
-                    if (flagSet.has('pk')) {
-                        primaryKeys.push(colName)
-                    }
-                }
-            })
-            if (columns.length === 0) {
-                alert('字段定义格式不正确')
-                return
-            }
-            await dataStore.createTable({
-                sourceId: Number(node.sourceId),
-                schema: node.schema || node.name,
-                table: name,
-                columns,
-                primaryKeys
-            })
-        } else if (action === 'Delete') {
-            if (['ts', 'rt', 'models'].includes(node.type)) {
+        if (action === 'Delete') {
+            if (['ts', 'rt'].includes(node.type)) {
                 alert('根节点不支持直接删除')
                 return
             }
@@ -186,21 +156,7 @@ onBeforeUnmount(() => {
          :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
          class="fixed z-[100] bg-white border border-gray-200 shadow-xl rounded w-48 py-1 text-xs text-gray-700">
          
-         <!-- Time Series Menus -->
-         <div v-if="contextMenu.node.type === 'ts' || (contextMenu.node.type === 'group' && contextMenu.node.rootType === 'ts')" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Storage Group')">
-            <i class="ri-folder-add-line mr-2 text-blue-500"></i>新建存储组
-         </div>
-         <div v-if="contextMenu.node.type === 'group' && contextMenu.node.rootType === 'ts'" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Measurement')">
-            <i class="ri-pulse-line mr-2 text-purple-500"></i>新建测点
-         </div>
-
-         <!-- Relational Menus -->
-         <div v-if="contextMenu.node.type === 'schema' && contextMenu.node.rootType === 'rt'" class="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center" @click="handleContextAction('New Table')">
-            <i class="ri-table-line mr-2 text-green-500"></i>新建表
-         </div>
-         
          <!-- Common -->
-         <div class="border-t border-gray-100 my-1"></div>
          <div class="px-4 py-2 hover:bg-red-50 cursor-pointer flex items-center text-red-600" @click="handleContextAction('Delete')">
             <i class="ri-delete-bin-line mr-2"></i>删除
          </div>

@@ -53,19 +53,30 @@ export const useAssociationStore = defineStore('association', () => {
     await loadRules()
   }
 
-  const createTask = async (ruleId, timeRange) => {
+  const createTask = async (ruleId, options = {}) => {
     const normalizeTime = (value) => {
       if (!value) return value
       const text = value.replace('T', ' ')
       return text.split('.')[0]
     }
-    const taskId = await submitTask({
-      ruleId,
-      timeRange: {
+    const payload = { ruleId }
+    if (options?.taskName && String(options.taskName).trim()) {
+      payload.taskName = String(options.taskName).trim()
+    }
+    const timeRange = options?.timeRange || null
+    if (timeRange && timeRange.startTime && timeRange.endTime) {
+      payload.timeRange = {
         start: normalizeTime(timeRange.startTime),
         end: normalizeTime(timeRange.endTime)
       }
-    })
+    }
+    if (options?.scheduledStartTime) {
+      payload.scheduledStartTime = normalizeTime(options.scheduledStartTime)
+    }
+    if (options?.scheduledEndTime) {
+      payload.scheduledEndTime = normalizeTime(options.scheduledEndTime)
+    }
+    const taskId = await submitTask(payload)
     await loadTasks()
     return taskId
   }

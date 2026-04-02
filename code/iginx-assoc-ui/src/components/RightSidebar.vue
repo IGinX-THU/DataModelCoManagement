@@ -70,6 +70,7 @@ const getIcon = (type) => {
         PYTHON: 'ri-code-s-slash-line text-yellow-500',
         MAT: 'ri-functions-line text-orange-500',
         MATLAB: 'ri-functions-line text-orange-500',
+        CPP: 'ri-braces-line text-sky-500',
         FMU: 'ri-box-3-line text-blue-500',
         DLL: 'ri-file-code-line text-gray-500',
         AME: 'ri-file-code-line text-gray-500'
@@ -84,6 +85,7 @@ const formatType = (type) => {
         PYTHON: 'Python',
         MAT: 'MATLAB',
         MATLAB: 'MATLAB',
+        CPP: 'C++',
         AME: 'AMESim',
         DLL: 'DLL',
         FMU: 'FMU'

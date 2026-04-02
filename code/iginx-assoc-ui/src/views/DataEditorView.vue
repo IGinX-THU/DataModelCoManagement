@@ -12,25 +12,33 @@ let treeChartInstance = null
 const tsData = ref([])
 const tableData = ref([])
 const tableColumns = ref([])
-const tableColumnMeta = ref([])
 const loadingData = ref(false)
 const tsQueryError = ref('')
 const tsInvalidValueCount = ref(0)
 const INTERNAL_KEY = '_iginx_key'
+const structuredSchemaLoading = ref(false)
+const structuredSchemaError = ref('')
+const structuredDataError = ref('')
+const structuredDataQueried = ref(false)
+const currentStructuredTablePath = ref('')
+const structuredJumpPage = ref('1')
+const lastTsQueryAggregator = ref('AVG')
+const lastTsPrecisionMs = ref(null)
 
 const CHART_MAX_POINTS = 2000
 const TABLE_MAX_ROWS = 500
+const DEFAULT_TS_QUERY_MAX_POINTS = 1200
 
 const tsQueryForm = reactive({
     startTime: '',
     endTime: '',
-    aggregator: 'RAW',
-    precisionMs: 10000
+    aggregator: 'AVG',
+    precisionMs: ''
 })
 
 const pagination = reactive({
     pageNum: 1,
-    pageSize: 500,
+    pageSize: 50,
     total: 0
 })
 
@@ -38,6 +46,14 @@ const showQueryBuilder = ref(false)
 const queryConditions = ref([
     { logic: 'AND', field: '', op: '=', value: '' }
 ])
+
+/**
+ * 重置结构化筛选条件。
+ * 说明：切换到新表时清空旧条件，避免把上一个表的字段名带到当前表导致查询失败。
+ */
+const resetStructuredConditions = () => {
+    queryConditions.value = [{ logic: 'AND', field: '', op: '=', value: '' }]
+}
 
 const addCondition = () => {
     queryConditions.value.push({ logic: 'AND', field: '', op: '=', value: '' })
@@ -81,6 +97,40 @@ const visibleTableData = computed(() => {
 })
 
 const visibleEditKeys = computed(() => Object.keys(editingRow).filter((key) => key !== INTERNAL_KEY))
+const isTimeSeriesNode = computed(() => dataStore.currentNode.rootType === 'ts' && dataStore.currentNode.isLeaf)
+const isStructuredTableNode = computed(() => dataStore.currentNode.rootType === 'rt' && dataStore.currentNode.isStructuredTable)
+const isStructuredColumnNode = computed(() => dataStore.currentNode.rootType === 'rt' && dataStore.currentNode.isStructuredColumn)
+const structuredFilterFields = computed(() => {
+    const fields = []
+    let hasKeyField = false
+    for (const rawField of visibleTableColumns.value) {
+        const field = String(rawField || '').trim()
+        if (!field) continue
+        if (field.toUpperCase() === 'KEY') {
+            if (!hasKeyField) {
+                fields.push('KEY')
+                hasKeyField = true
+            }
+            continue
+        }
+        fields.push(field)
+    }
+    if (!hasKeyField) {
+        fields.unshift('KEY')
+    }
+    return fields
+})
+const structuredTotalPages = computed(() => {
+    const total = Number(pagination.total) || 0
+    const pageSize = Number(pagination.pageSize) || 50
+    return Math.max(1, Math.ceil(total / pageSize))
+})
+const tsDownsampleSummary = computed(() => {
+    if (lastTsQueryAggregator.value === 'RAW' || !lastTsPrecisionMs.value) {
+        return ''
+    }
+    return `${lastTsQueryAggregator.value} / ${lastTsPrecisionMs.value}ms`
+})
 
 const sampleTimeSeries = (data, maxPoints) => {
     if (!Array.isArray(data) || data.length === 0) return []
@@ -210,22 +260,64 @@ const setDefaultTimeRange = () => {
     tsQueryForm.endTime = toLocalInput(end)
 }
 
-const loadTableColumns = async () => {
-    const node = dataStore.currentNode
-    if (!node.sourceId || !node.schema || !node.table) {
-        tableColumnMeta.value = []
+const resolveTsPrecisionMs = () => {
+    const manualPrecision = Number(tsQueryForm.precisionMs)
+    if (Number.isFinite(manualPrecision) && manualPrecision > 0) {
+        return Math.floor(manualPrecision)
+    }
+    const startMs = parseInputToMillis(tsQueryForm.startTime)
+    const endMs = parseInputToMillis(tsQueryForm.endTime)
+    if (startMs === null || endMs === null || endMs <= startMs) {
+        return 1000
+    }
+    return Math.max(1, Math.ceil((endMs - startMs) / DEFAULT_TS_QUERY_MAX_POINTS))
+}
+
+const resetStructuredPagination = () => {
+    pagination.pageNum = 1
+    pagination.pageSize = 50
+    pagination.total = 0
+    structuredJumpPage.value = '1'
+}
+
+const syncStructuredPagination = (page) => {
+    pagination.pageNum = Number(page?.pageNum) > 0 ? Number(page.pageNum) : 1
+    pagination.pageSize = Number(page?.pageSize) > 0 ? Number(page.pageSize) : pagination.pageSize
+    pagination.total = Math.max(0, Number(page?.total) || 0)
+    structuredJumpPage.value = String(pagination.pageNum)
+}
+
+const changeStructuredPage = async (targetPage) => {
+    if (!structuredDataQueried.value || loadingData.value) {
         return
     }
-    try {
-        tableColumnMeta.value = await dataStore.fetchTableColumns(node.sourceId, node.schema, node.table)
-    } catch (e) {
-        tableColumnMeta.value = []
+    const numericPage = Number(targetPage)
+    const resolvedPage = Number.isFinite(numericPage)
+        ? Math.min(Math.max(1, Math.trunc(numericPage)), structuredTotalPages.value)
+        : pagination.pageNum
+    if (resolvedPage === pagination.pageNum) {
+        structuredJumpPage.value = String(pagination.pageNum)
+        return
     }
+    pagination.pageNum = resolvedPage
+    structuredJumpPage.value = String(resolvedPage)
+    await loadStructuredData()
+}
+
+const jumpToStructuredPage = async () => {
+    await changeStructuredPage(structuredJumpPage.value)
 }
 
 const loadTimeSeriesData = async () => {
     const node = dataStore.currentNode
-    if (!node.sourceId || !node.path) return
+    // 资源树节点可能直接来自 IGinX 当前列集合，此时未必能关联到系统内的数据源记录；
+    // 时序查询接口实际只依赖路径和时间范围，因此这里不能再把 sourceId 作为查询前置条件。
+    if (!node.path) {
+        tsQueryError.value = '未获取到有效的时序路径'
+        tsData.value = []
+        nextTick(initChart)
+        return
+    }
     if (!tsQueryForm.startTime || !tsQueryForm.endTime) {
         setDefaultTimeRange()
     }
@@ -250,9 +342,15 @@ const loadTimeSeriesData = async () => {
             }
         }
         if (tsQueryForm.aggregator && tsQueryForm.aggregator !== 'RAW') {
+            const resolvedPrecisionMs = resolveTsPrecisionMs()
             payload.downsample = true
             payload.aggregator = tsQueryForm.aggregator
-            payload.precisionMs = tsQueryForm.precisionMs
+            payload.precisionMs = resolvedPrecisionMs
+            lastTsQueryAggregator.value = tsQueryForm.aggregator
+            lastTsPrecisionMs.value = resolvedPrecisionMs
+        } else {
+            lastTsQueryAggregator.value = 'RAW'
+            lastTsPrecisionMs.value = null
         }
         const result = await dataStore.queryTimeSeriesData(payload)
         const timestamps = Array.isArray(result.timestamps) ? result.timestamps : []
@@ -293,10 +391,62 @@ const loadTimeSeriesData = async () => {
         loadingData.value = false
     }
 }
-const loadStructuredData = async () => {
+/**
+ * 查询结构化表结构（列名与类型），并可选地自动查询表数据。
+ */
+const loadStructuredSchema = async (autoLoadData = false) => {
     const node = dataStore.currentNode
-    if (!node.sourceId || !node.schema || !node.table) return
+    const tablePath = resolveStructuredDeletePath(node)
+    if (!tablePath) {
+        currentStructuredTablePath.value = ''
+        resetStructuredPagination()
+        return
+    }
+    currentStructuredTablePath.value = tablePath
+    showQueryBuilder.value = false
+    structuredSchemaLoading.value = true
     loadingData.value = true
+    structuredSchemaError.value = ''
+    structuredDataError.value = ''
+    try {
+        const schema = await dataStore.queryStructuredSchemaData(tablePath)
+        const columns = Array.isArray(schema?.columns) ? schema.columns : []
+        // 后端 schema 已经不补 _iginx_key，这里仍保留一次前端兜底过滤。
+        tableColumns.value = columns
+            .map((column) => String(column?.name || '').trim())
+            .filter((name) => name && name !== INTERNAL_KEY)
+        tableData.value = []
+        resetStructuredPagination()
+        selectedRowIndex.value = null
+        structuredDataQueried.value = false
+        resetStructuredConditions()
+        // 选中表节点后自动查询表数据，满足“点击表直接展示内容”的交互要求。
+        if (autoLoadData) {
+            structuredDataQueried.value = true
+            await loadStructuredData()
+        }
+    } catch (e) {
+        console.error('结构化表结构查询失败', e)
+        structuredSchemaError.value = e?.message || '结构化表结构查询失败'
+        tableColumns.value = []
+        tableData.value = []
+        resetStructuredPagination()
+        selectedRowIndex.value = null
+        structuredDataQueried.value = false
+    } finally {
+        structuredSchemaLoading.value = false
+        loadingData.value = false
+    }
+}
+
+/**
+ * 按当前筛选条件查询结构化表数据。
+ */
+const loadStructuredData = async () => {
+    const tablePath = currentStructuredTablePath.value || resolveStructuredDeletePath(dataStore.currentNode)
+    if (!tablePath) return
+    loadingData.value = true
+    structuredDataError.value = ''
     try {
         const conditions = queryConditions.value
             .filter(cond => cond.field && cond.op)
@@ -307,36 +457,49 @@ const loadStructuredData = async () => {
                 value: cond.value
             }))
         const result = await dataStore.queryStructuredData({
-            sourceId: node.sourceId,
-            schema: node.schema,
-            table: node.table,
+            tablePath,
             conditions: conditions.length > 0 ? conditions : undefined,
             pageNum: pagination.pageNum,
             pageSize: pagination.pageSize
         })
-        tableColumns.value = (result.columns || []).filter((key) => key !== INTERNAL_KEY)
-        tableData.value = result.page?.records || []
-        pagination.total = result.page?.total || 0
+        const queriedColumns = Array.isArray(result?.columns) ? result.columns : []
+        if (queriedColumns.length > 0) {
+            tableColumns.value = queriedColumns.filter((key) => key !== INTERNAL_KEY)
+        }
+        syncStructuredPagination(result?.page)
+        tableData.value = result?.page?.records || []
         selectedRowIndex.value = null
-        await loadTableColumns()
     } catch (e) {
-        console.error('结构化查询失败', e)
+        console.error('结构化数据查询失败', e)
+        structuredDataError.value = e?.message || '结构化数据查询失败'
         tableData.value = []
+        pagination.total = 0
+        selectedRowIndex.value = null
     } finally {
         loadingData.value = false
     }
 }
 
-const applyQuery = () => {
+/**
+ * 用户主动触发结构化数据查询（符合“先查结构，再查数据”的交互）。
+ */
+const handleStructuredQuery = async () => {
+    structuredDataQueried.value = true
+    await loadStructuredData()
+}
+
+const applyQuery = async () => {
     showQueryBuilder.value = false
-    loadStructuredData()
+    pagination.pageNum = 1
+    structuredJumpPage.value = '1'
+    await handleStructuredQuery()
 }
 
 const openNewModal = () => {
     isEditMode.value = false
     Object.keys(editingRow).forEach(key => delete editingRow[key])
-    const columns = tableColumnMeta.value.length
-        ? tableColumnMeta.value.map(col => col.name)
+    const columns = tableColumns.value.length
+        ? tableColumns.value
         : (tableData.value[0] ? Object.keys(tableData.value[0]) : [])
     const visibleColumns = columns.filter((key) => key !== INTERNAL_KEY)
     columns.forEach(key => {
@@ -360,31 +523,53 @@ const openEditModal = () => {
 
 const saveRow = async () => {
     const node = dataStore.currentNode
+    const path = resolveStructuredDeletePath(node)
+    if (!path) {
+        alert('未获取到有效的结构化表路径')
+        return
+    }
     try {
         if (isEditMode.value) {
             await dataStore.updateRow({
-                sourceId: node.sourceId,
-                schema: node.schema,
-                table: node.table,
+                path,
                 data: { ...editingRow }
             })
         } else {
             await dataStore.createRow({
-                sourceId: node.sourceId,
-                schema: node.schema,
-                table: node.table,
+                path,
                 data: { ...editingRow }
             })
         }
+        structuredDataQueried.value = true
         await loadStructuredData()
         showEditModal.value = false
     } catch (e) {
-        alert(e.message || '删除失败')
+        alert(e.message || '保存失败')
     }
 }
 
 const selectRow = (index) => {
     selectedRowIndex.value = index
+}
+
+const resolveStructuredDeletePath = (node) => {
+    const normalizedPath = String(node?.path || '').trim().replace(/\.+$/, '')
+    if (normalizedPath) {
+        // 当前节点是列节点时，需要回退到上一级表路径
+        if (!node?.isStructuredColumn) return normalizedPath
+        const segments = normalizedPath.split('.').map(item => item.trim()).filter(Boolean)
+        if (segments.length > 1) {
+            return segments.slice(0, -1).join('.')
+        }
+    }
+    const schema = String(node?.schema || '').trim()
+    const table = String(node?.table || '').trim()
+    if (!table) return ''
+    if (!schema) return `rt.${table}`
+    const lower = schema.toLowerCase()
+    if (lower === 'rt') return `rt.${table}`
+    if (lower.startsWith('rt.')) return `${schema}.${table}`
+    return `rt.${schema}.${table}`
 }
 
 const handleDeleteRow = async () => {
@@ -394,22 +579,18 @@ const handleDeleteRow = async () => {
     }
     if (confirm('确认删除该行数据吗？')) {
         const node = dataStore.currentNode
-        const primaryKeys = tableColumnMeta.value.filter(col => col.primaryKey).map(col => col.name)
-        const keys = {}
-        if (primaryKeys.length > 0) {
-            primaryKeys.forEach(key => {
-                keys[key] = selectedRow.value[key]
-            })
-        } else {
-            Object.assign(keys, selectedRow.value)
+        const path = resolveStructuredDeletePath(node)
+        if (!path) {
+            alert('未获取到有效的结构化表路径')
+            return
         }
+        const keys = { ...selectedRow.value }
         try {
             await dataStore.deleteRow({
-                sourceId: node.sourceId,
-                schema: node.schema,
-                table: node.table,
+                path,
                 keys
             })
+            structuredDataQueried.value = true
             await loadStructuredData()
         } catch (e) {
             alert(e.message || '删除失败')
@@ -511,10 +692,10 @@ const initTreeChart = () => {
             borderColor = '#ea580c'
         }
         
-        if (node.type === 'group' || node.type === 'schema') {
+        if (node.type === 'group') {
             symbolColor = '#f59e0b'
             borderColor = '#d97706'
-        } else if (['point', 'table', 'file'].includes(node.type)) {
+        } else if (['point', 'file'].includes(node.type)) {
             symbolColor = '#22c55e'
             borderColor = '#16a34a'
         }
@@ -563,7 +744,7 @@ const initTreeChart = () => {
             textStyle: { color: '#374151' },
             formatter: (params) => {
                  const n = params.data
-                 const typeMap = { ts: '时序数据', rt: '结构化数据', models: '模型文件', group: '存储组', point: '测点', schema: 'Schema', table: '表', file: '文件' }
+                 const typeMap = { ts: '时序数据', rt: '结构化数据', models: '模型文件', group: '路径', point: '叶子', file: '文件' }
                  return `<div class="font-bold text-gray-800">${n.name}</div>
                          <div class="text-xs text-gray-500">${typeMap[n.value] || n.value}</div>`
             }
@@ -606,7 +787,7 @@ const initTreeChart = () => {
 }
 
 const updateTableDataForSelection = () => {
-    if (['group', 'schema', 'ts', 'rt', 'models', 'file'].includes(dataStore.currentNode.type)) {
+    if (['group', 'ts', 'rt', 'models', 'file'].includes(dataStore.currentNode.type)) {
         const findNode = (nodes, id) => {
             for (const node of nodes) {
                 if (node.id === id) return node
@@ -620,12 +801,11 @@ const updateTableDataForSelection = () => {
         const resolveTypeLabel = (child, rootType) => {
             if (child.type === 'group') {
                 if (rootType === 'models') return '目录'
-                if (rootType === 'rt') return '路径'
-                return '存储组'
+                return '路径'
             }
-            if (child.type === 'schema') return 'Schema'
-            if (child.type === 'table') return '表'
-            if (child.type === 'point') return '测点'
+            if (child.type === 'point') {
+                return rootType === 'rt' ? '列' : '测点'
+            }
             if (child.type === 'file') return '文件'
             return child.type || '-'
         }
@@ -647,17 +827,24 @@ const updateTableDataForSelection = () => {
 
 watch(() => [dataStore.currentNode.id, dataStore.currentNode.viewMode], async ([newId, newMode]) => {
     if (!newId) return
-    if (newMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
+    if (newMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
         nextTick(initTreeChart)
         return
     }
-    if (dataStore.currentNode.type === 'point') {
+    if (isTimeSeriesNode.value) {
         await loadTimeSeriesData()
-    } else if (dataStore.currentNode.type === 'table') {
-        await loadStructuredData()
-    } else {
-        updateTableDataForSelection()
+        return
     }
+    if (isStructuredTableNode.value) {
+        await loadStructuredSchema(true)
+        return
+    }
+    currentStructuredTablePath.value = ''
+    structuredSchemaError.value = ''
+    structuredDataError.value = ''
+    structuredDataQueried.value = false
+    resetStructuredPagination()
+    updateTableDataForSelection()
 })
 
 onMounted(() => {
@@ -669,10 +856,12 @@ onMounted(() => {
     })
 
     if (dataStore.currentNode.id) {
-        if (dataStore.currentNode.viewMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
+        if (dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
             initTreeChart()
-        } else if (dataStore.currentNode.type === 'point') {
+        } else if (isTimeSeriesNode.value) {
             loadTimeSeriesData()
+        } else if (isStructuredTableNode.value) {
+            loadStructuredSchema(true)
         }
     }
     window.addEventListener('resize', () => {
@@ -696,7 +885,7 @@ onMounted(() => {
          <div class="flex space-x-4">
              <button @click="dataStore.showAddSourceModal = true" class="px-6 py-2 bg-blue-600 rounded-full shadow-lg shadow-blue-200 text-white text-sm hover:bg-blue-700 transition-all transform hover:-translate-y-1">
                  <i class="ri-add-line mr-1"></i> 新增数据源</button>
-             <button @click="dataStore.openImportWizard('ts')" class="px-6 py-2 bg-white border border-gray-200 rounded-full shadow-lg shadow-gray-100 text-gray-600 text-sm hover:bg-gray-50 transition-all transform hover:-translate-y-1">
+            <button @click="dataStore.openImportWizard()" class="px-6 py-2 bg-white border border-gray-200 rounded-full shadow-lg shadow-gray-100 text-gray-600 text-sm hover:bg-gray-50 transition-all transform hover:-translate-y-1">
                  <i class="ri-upload-cloud-line mr-1"></i> 导入数据</button>
          </div>
      </div>
@@ -704,7 +893,7 @@ onMounted(() => {
      <!-- Content Viewer -->
      <div v-else class="flex-1 flex flex-col h-full min-h-0">
          <!-- Group/Tree View in Workspace -->
-         <div v-show="dataStore.currentNode.viewMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)" 
+         <div v-show="dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)" 
               class="flex-1 bg-white rounded border border-gray-100 shadow-sm p-4 flex flex-col relative overflow-hidden">
              <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center border-b border-gray-100 pb-2 z-10 relative bg-white justify-between">
                 <div class="flex items-center">
@@ -725,13 +914,13 @@ onMounted(() => {
          </div>
 
          <!-- Leaf Node View / Default Table View -->
-         <div v-show="!(dataStore.currentNode.viewMode === 'topology' && ['group', 'schema', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type))" 
+         <div v-show="!(dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type))" 
               class="flex-1 relative bg-white rounded border border-gray-100 shadow-sm p-4 flex flex-col min-h-0">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-gray-800 flex items-center">
-                    <i :class="dataStore.currentNode.type === 'point'
+                    <i :class="isTimeSeriesNode
                         ? 'ri-pulse-line text-blue-500'
-                        : dataStore.currentNode.type === 'table'
+                        : (isStructuredTableNode || isStructuredColumnNode)
                             ? 'ri-table-line text-green-500'
                             : dataStore.currentNode.type === 'file'
                                 ? 'ri-file-2-line text-amber-500'
@@ -739,7 +928,7 @@ onMounted(() => {
                     {{ dataStore.currentNode.id }}
                 </h3>
                 <!-- Query / Aggregation Controls for TS -->
-                <div v-if="dataStore.currentNode.type === 'point'" class="flex space-x-2 items-center">
+                <div v-if="isTimeSeriesNode" class="flex space-x-2 items-center">
                     <div class="flex items-center space-x-1 bg-gray-50 border border-gray-200 rounded px-2 py-1">
                         <i class="ri-calendar-line text-gray-400 text-xs"></i>
                         <input v-model="tsQueryForm.startTime" type="datetime-local" class="bg-transparent text-xs border-none focus:ring-0 text-gray-600 w-32">
@@ -754,27 +943,27 @@ onMounted(() => {
                         <option value="SUM">求和</option>
                         <option value="COUNT">计数</option>
                     </select>
-                    <input v-if="tsQueryForm.aggregator !== 'RAW'" v-model.number="tsQueryForm.precisionMs" type="number" min="1000" class="border border-gray-300 rounded text-xs px-2 py-1 text-gray-600 h-8 w-24" placeholder="步长(ms)">
+                    <input v-if="tsQueryForm.aggregator !== 'RAW'" v-model="tsQueryForm.precisionMs" type="number" min="1" class="border border-gray-300 rounded text-xs px-2 py-1 text-gray-600 h-8 w-32" placeholder="步长(ms，留空自动)">
                     <button @click="loadTimeSeriesData" class="px-3 py-1 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100 border border-blue-200 h-8">查询</button>
-                    <button @click="dataStore.showMaintenanceModal = true" class="px-3 py-1 bg-red-50 text-red-600 rounded text-xs hover:bg-red-100 border border-red-200 h-8" title="数据维护">
-                        <i class="ri-edit-line"></i>
-                    </button>
-                    <button @click="handleRemoveCurrentNode" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除测点">
-                        <i class="ri-delete-bin-line"></i>
-                    </button>
                 </div>
 
-                <!-- Group / Schema Specific Controls -->
-                <div v-if="['group', 'schema'].includes(dataStore.currentNode.type)" class="flex space-x-2 items-center">
+                <!-- Group Controls -->
+                <div v-if="['group'].includes(dataStore.currentNode.type)" class="flex space-x-2 items-center">
                     <button @click="dataStore.showTopology(dataStore.currentNode.type, dataStore.currentNode.id)" class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded text-xs hover:bg-indigo-100 border border-indigo-200 h-8 flex items-center"><i class="ri-node-tree mr-1"></i> 查看拓扑结构</button>
                      <div class="h-4 border-l border-gray-300 mx-1"></div>
-                     <button @click="handleRemoveCurrentNode" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除节点">
+                     <button v-if="!isStructuredTableNode && dataStore.currentNode.rootType !== 'ts'" @click="handleRemoveCurrentNode" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除节点">
                         <i class="ri-delete-bin-line"></i>
                     </button>
                 </div>
 
                 <!-- Query / Filter Controls for Structured -->
-                <div v-if="dataStore.currentNode.type === 'table'" class="relative flex items-center space-x-2">
+                <div v-if="isStructuredTableNode" class="relative flex items-center space-x-2">
+                    <button
+                        @click="handleStructuredQuery"
+                        :disabled="structuredSchemaLoading || visibleTableColumns.length === 0 || loadingData"
+                        class="px-3 py-1 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100 border border-blue-200 h-8 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="ri-search-line mr-1"></i> 查询数据
+                    </button>
                     <button @click="showQueryBuilder = !showQueryBuilder" 
                             :class="showQueryBuilder ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-white text-gray-600 border-gray-300'"
                             class="flex items-center space-x-2 border rounded px-3 py-1 h-8 text-xs hover:bg-gray-50 transition-colors">
@@ -800,7 +989,10 @@ onMounted(() => {
                                 <div v-else class="w-16 text-xs text-gray-400 text-center font-mono py-1">WHERE</div>
                                 
                                 <!-- Field -->
-                                <input type="text" v-model="cond.field" placeholder="字段名" class="flex-1 text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                                <select v-model="cond.field" class="flex-1 text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                                    <option value="">选择字段</option>
+                                    <option v-for="field in structuredFilterFields" :key="field" :value="field">{{ field }}</option>
+                                </select>
                                 
                                 <!-- Operator -->
                                 <select v-model="cond.op" class="w-20 text-xs border border-gray-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
@@ -811,6 +1003,7 @@ onMounted(() => {
                                     <option value="<="><=</option>
                                     <option value="LIKE">LIKE</option>
                                     <option value="IN">IN</option>
+                                    <option value="NOT IN">NOT IN</option>
                                 </select>
                                 
                                 <!-- Value -->
@@ -823,8 +1016,8 @@ onMounted(() => {
                             <button @click="addCondition" class="text-xs text-blue-600 hover:text-blue-700 flex items-center mt-2 px-2 py-1 rounded hover:bg-blue-50"><i class="ri-add-circle-line mr-1"></i> 添加条件</button>
                         </div>
                         
-                                                <div class="flex justify-end space-x-2 pt-2 border-t border-gray-100">
-                            <button @click="queryConditions = [{ logic: 'AND', field: '', op: '=', value: '' }]" class="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded">清空</button>
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-gray-100">
+                            <button @click="resetStructuredConditions" class="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded">清空</button>
                             <button @click="applyQuery" class="px-3 py-1.5 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded shadow-sm">应用筛选</button>
                         </div>
                     </div>
@@ -839,44 +1032,57 @@ onMounted(() => {
                     <button @click="handleDeleteRow" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除行">
                         <i class="ri-delete-row"></i>
                     </button>
-                    <button v-if="dataStore.currentNode.type === 'table'" @click="handleRemoveCurrentNode" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除表">
-                        <i class="ri-delete-bin-2-line"></i>
-                    </button>
                 </div>
             </div>
 
-            <div v-if="dataStore.currentNode.type === 'point'" class="h-64 w-full mb-2 border border-gray-100 rounded shrink-0">
+            <div v-if="isTimeSeriesNode" class="h-64 w-full mb-2 border border-gray-100 rounded shrink-0">
                 <div ref="chartRef" class="w-full h-full"></div>
             </div>
-            <div v-if="dataStore.currentNode.type === 'point'" class="flex items-center justify-between text-[10px] text-gray-400 mb-2">
+            <div v-if="isTimeSeriesNode" class="flex items-center justify-between text-[10px] text-gray-400 mb-2">
                 <span>有效数据点：{{ validTsData.length }} / 原始 {{ tsData.length }}</span>
                 <span v-if="isChartSampled">图表已采样显示（{{ sampledTsData.length }} / {{ validTsData.length }}）</span>
             </div>
-            <div v-if="dataStore.currentNode.type === 'point' && (tsQueryRangeText || tsDataRangeText || validDataRangeText || sampledRangeText)" class="text-[10px] text-gray-400 mb-2">
+            <div v-if="isTimeSeriesNode && (tsQueryRangeText || tsDataRangeText || validDataRangeText || sampledRangeText)" class="text-[10px] text-gray-400 mb-2">
                 <span v-if="tsQueryRangeText">查询范围：{{ tsQueryRangeText }}</span>
                 <span v-if="tsDataRangeText" class="ml-2">返回范围：{{ tsDataRangeText }}</span>
                 <span v-if="validDataRangeText" class="ml-2">有效范围：{{ validDataRangeText }}</span>
                 <span v-if="sampledRangeText" class="ml-2">采样范围：{{ sampledRangeText }}</span>
+                <span v-if="tsDownsampleSummary" class="ml-2">降采样：{{ tsDownsampleSummary }}</span>
                 <span v-if="tsInvalidValueCount > 0" class="ml-2 text-orange-500">无效值：{{ tsInvalidValueCount }}</span>
             </div>
-            <div v-if="dataStore.currentNode.type === 'point' && tsQueryError" class="text-[10px] text-red-500 mb-2">
+            <div v-if="isTimeSeriesNode && tsQueryError" class="text-[10px] text-red-500 mb-2">
                 {{ tsQueryError }}
             </div>
-            <div v-if="dataStore.currentNode.type === 'point' && isTsTableTruncated" class="text-[10px] text-gray-400 mb-2">
+            <div v-if="isTimeSeriesNode && isTsTableTruncated" class="text-[10px] text-gray-400 mb-2">
                 表格仅展示前 {{ TABLE_MAX_ROWS }} 条记录，完整数据请缩小时间范围或导出查看。
+            </div>
+            <div v-if="isStructuredTableNode" class="text-[10px] text-gray-400 mb-2">
+                表路径：{{ currentStructuredTablePath || dataStore.currentNode.path }}，列数：{{ visibleTableColumns.length }}
+                <span v-if="!structuredDataQueried && !structuredSchemaError && !structuredSchemaLoading" class="ml-2 text-blue-500">
+                    已完成表结构查询，可点击“查询数据”重新加载。
+                </span>
+                <span v-if="structuredDataQueried" class="ml-2">
+                    共 {{ pagination.total }} 条，第 {{ pagination.pageNum }} / {{ structuredTotalPages }} 页
+                </span>
+            </div>
+            <div v-if="isStructuredTableNode && structuredSchemaError" class="text-[10px] text-red-500 mb-2">
+                {{ structuredSchemaError }}
+            </div>
+            <div v-if="isStructuredTableNode && structuredDataError" class="text-[10px] text-red-500 mb-2">
+                {{ structuredDataError }}
             </div>
             <div class="flex-1 overflow-auto border border-gray-200 rounded min-h-0">
                  <table class="w-full text-xs text-left">
                        <thead class="bg-gray-50 text-gray-500 sticky top-0">
-                           <tr v-if="dataStore.currentNode.type === 'point'">
+                           <tr v-if="isTimeSeriesNode">
                                <th class="px-4 py-2 border-b">时间戳</th><th class="px-4 py-2 border-b">数值</th>
                            </tr>
-                           <tr v-else>
+                           <tr v-else-if="isStructuredTableNode">
                                <th v-for="key in visibleTableColumns" :key="key" class="px-4 py-2 border-b capitalize">{{ key }}</th>
                            </tr>
                        </thead>
                        <tbody class="divide-y divide-gray-100">
-                           <template v-if="dataStore.currentNode.type === 'point'">
+                           <template v-if="isTimeSeriesNode">
                                <tr v-if="visibleTsTableData.length === 0" class="text-gray-400 text-center italic p-4">
                                    <td colspan="2" class="py-8">暂无数据</td>
                                </tr>
@@ -885,9 +1091,11 @@ onMounted(() => {
                                    <td class="px-4 py-2">{{ row.value }}</td>
                                </tr>
                            </template>
-                           <template v-else>
+                           <template v-else-if="isStructuredTableNode">
                                <tr v-if="tableData.length === 0" class="text-gray-400 text-center italic p-4">
-                                   <td colspan="100%" class="py-8">暂无数据或节点为空</td>
+                                   <td colspan="100%" class="py-8">
+                                       {{ structuredDataQueried ? '查询完成，但当前条件下无数据。' : '当前仅展示表结构，请点击上方“查询数据”按钮。' }}
+                                   </td>
                                </tr>
                                <tr v-else v-for="(row, index) in visibleTableData" :key="index" 
                                    @click="selectRow(index)"
@@ -897,8 +1105,44 @@ onMounted(() => {
                                    <td v-for="key in visibleTableColumns" :key="key" class="px-4 py-2">{{ row[key] }}</td>
                                </tr>
                            </template>
+                           <template v-else>
+                               <tr class="text-gray-400 text-center italic p-4">
+                                   <td colspan="100%" class="py-8">请先选择上级表节点查看数据</td>
+                               </tr>
+                           </template>
                        </tbody>
                    </table>
+            </div>
+            <div v-if="isStructuredTableNode && structuredDataQueried" class="mt-3 flex items-center justify-between gap-4 text-xs text-gray-500">
+                <span>共 {{ pagination.total }} 条，当前第 {{ pagination.pageNum }} / {{ structuredTotalPages }} 页，每页 {{ pagination.pageSize }} 条</span>
+                <div class="flex items-center gap-2">
+                    <button
+                        @click="changeStructuredPage(pagination.pageNum - 1)"
+                        :disabled="pagination.pageNum <= 1 || loadingData"
+                        class="rounded border border-gray-200 px-2.5 py-1 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                        上一页
+                    </button>
+                    <button
+                        @click="changeStructuredPage(pagination.pageNum + 1)"
+                        :disabled="pagination.pageNum >= structuredTotalPages || loadingData"
+                        class="rounded border border-gray-200 px-2.5 py-1 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                        下一页
+                    </button>
+                    <span>跳至</span>
+                    <input
+                        v-model="structuredJumpPage"
+                        type="number"
+                        min="1"
+                        :max="structuredTotalPages"
+                        class="w-20 rounded border border-gray-200 px-2 py-1 text-gray-700 focus:border-blue-400 focus:outline-none"
+                        @keyup.enter="jumpToStructuredPage">
+                    <button
+                        @click="jumpToStructuredPage"
+                        :disabled="loadingData"
+                        class="rounded bg-blue-600 px-2.5 py-1 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                        跳转
+                    </button>
+                </div>
             </div>
          </div>
      </div>
@@ -921,4 +1165,3 @@ onMounted(() => {
      </div>
   </div>
 </template>
-
