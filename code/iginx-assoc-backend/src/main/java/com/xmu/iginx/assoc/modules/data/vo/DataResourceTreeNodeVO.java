@@ -47,6 +47,32 @@ public class DataResourceTreeNodeVO {
     private String table;
 
     /**
+     * 预览模式。
+     * <p>
+     * 目前主要用于任务结果节点，取值：
+     * TIME_SERIES / STRUCTURED。
+     * </p>
+     */
+    private String previewMode;
+
+    /**
+     * 预览角色。
+     * <p>
+     * 用于区分任务结果树中的“表 / 列 / 时序点”节点，
+     * 取值示例：TABLE / COLUMN / POINT。
+     * </p>
+     */
+    private String previewRole;
+
+    /**
+     * 是否只读。
+     * <p>
+     * 任务结果节点为只读，前端可据此隐藏编辑/删除入口。
+     * </p>
+     */
+    private Boolean readOnly;
+
+    /**
      * 子节点列表。
      */
     private List<DataResourceTreeNodeVO> children = new ArrayList<>();

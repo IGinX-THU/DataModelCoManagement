@@ -26,4 +26,9 @@ public class TaskStructuredResultVO {
      * 分页结果。
      */
     private PageResult<Map<String, Object>> page;
+
+    /**
+     * 结构化图表使用的完整结果行。
+     */
+    private List<Map<String, Object>> chartRows;
 }

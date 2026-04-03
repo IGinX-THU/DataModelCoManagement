@@ -257,7 +257,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         if ("STRUCTURED".equals(analysisMode)) {
             result.setRelative(false);
             result.setSeries(List.of());
-            result.setStructuredResult(loadStructuredResultForTask(task, snapshot, options.pageNum(), options.pageSize()));
+            result.setStructuredResult(loadStructuredResultForTask(task, snapshot, options));
             return result;
         }
         result.setRelative(options.relative());
@@ -280,13 +280,22 @@ public class AnalysisServiceImpl implements AnalysisService {
         Long localDownsamplePrecisionMs = resolveLocalDownsamplePrecisionMs(task, options);
         boolean shouldUseLocalDownsample = false;
         SessionQueryDataSet dataSet;
-        try {
-            dataSet = queryOutputSeries(task, pathList, "TIME_SERIES", options);
-        } catch (BizException ex) {
-            if (!shouldFallbackToLocalDownsample(options, localDownsamplePrecisionMs, ex)) {
-                throw ex;
+        if (options.downsample() && localDownsamplePrecisionMs != null) {
+            try {
+                dataSet = queryTimeSeriesOutputSeries(task, pathList, options);
+                if (isDataSetEmpty(dataSet)
+                    || shouldFallbackToLocalDownsample(options, localDownsamplePrecisionMs, dataSet)) {
+                    dataSet = queryOutputSeries(task, pathList, "TIME_SERIES", null);
+                    shouldUseLocalDownsample = !isDataSetEmpty(dataSet);
+                }
+            } catch (BizException ex) {
+                if (!shouldFallbackToLocalDownsample(options, localDownsamplePrecisionMs, ex)) {
+                    throw ex;
+                }
+                dataSet = queryOutputSeries(task, pathList, "TIME_SERIES", null);
+                shouldUseLocalDownsample = !isDataSetEmpty(dataSet);
             }
-            shouldUseLocalDownsample = true;
+        } else {
             dataSet = queryOutputSeries(task, pathList, "TIME_SERIES", null);
         }
 
@@ -297,6 +306,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             return List.of();
         }
         int size = Math.min(keys.length, rows.size());
+        int valueColumnOffset = resolveValueColumnOffset(keys, rows, dataPaths.size());
         // 相对时间以首个点为基准
         long baseKey = options.relative() ? keys[0] : 0L;
 
@@ -322,8 +332,8 @@ public class AnalysisServiceImpl implements AnalysisService {
             vo.setRelative(options.relative());
 
             List<TaskSeriesPointVO> points = shouldUseLocalDownsample
-                ? buildLocallyDownsampledPoints(keys, rows, size, index, options, localDownsamplePrecisionMs)
-                : buildSeriesPoints(keys, rows, size, index, options.relative(), baseKey);
+                ? buildLocallyDownsampledPoints(keys, rows, size, index, valueColumnOffset, options, localDownsamplePrecisionMs, task)
+                : buildSeriesPoints(keys, rows, size, index, valueColumnOffset, options.relative(), baseKey);
             vo.setPoints(points);
             result.add(vo);
         }
@@ -335,31 +345,41 @@ public class AnalysisServiceImpl implements AnalysisService {
      */
     private TaskStructuredResultVO loadStructuredResultForTask(TaskEntity task,
                                                                TaskExecutionSnapshot snapshot,
-                                                               int pageNum,
-                                                               int pageSize) {
+                                                               AnalysisQueryOptions options) {
         StructuredResultContext context = buildStructuredResultContext(task, snapshot);
         TaskStructuredResultVO result = new TaskStructuredResultVO();
         result.setTaskId(task.getId());
         result.setColumns(context.columns());
+        result.setChartRows(List.of());
 
-        int safePageNum = safePageNum(pageNum);
-        int safePageSize = safePageSize(pageSize);
+        int safePageNum = safePageNum(options == null ? null : options.pageNum());
+        int safePageSize = safePageSize(options == null ? null : options.pageSize());
+        boolean includePageData = options == null || options.includePageData();
+        boolean includeChartData = options != null && options.includeChartData();
         if (context.outputPaths().isEmpty()) {
-            result.setPage(PageResult.of(List.of(), 0L, safePageNum, safePageSize));
+            if (includePageData) {
+                result.setPage(PageResult.of(List.of(), 0L, safePageNum, safePageSize));
+            }
             return result;
         }
 
         List<String> pathList = new ArrayList<>(context.outputPaths().values());
         long total = queryStructuredResultTotal(pathList);
-        long offset = (long) (safePageNum - 1) * safePageSize;
-        if (total <= 0 || offset >= total) {
-            result.setPage(PageResult.of(List.of(), total, safePageNum, safePageSize));
-            return result;
+        if (includePageData) {
+            long offset = (long) (safePageNum - 1) * safePageSize;
+            if (total <= 0 || offset >= total) {
+                result.setPage(PageResult.of(List.of(), total, safePageNum, safePageSize));
+            } else {
+                long endExclusive = Math.min(total, offset + safePageSize);
+                SessionQueryDataSet dataSet = safeQuerySeries(pathList, offset, endExclusive);
+                result.setPage(PageResult.of(mapStructuredResultRows(dataSet, context.outputPaths()), total, safePageNum, safePageSize));
+            }
         }
 
-        long endExclusive = Math.min(total, offset + safePageSize);
-        SessionQueryDataSet dataSet = safeQuerySeries(pathList, offset, endExclusive);
-        result.setPage(PageResult.of(mapStructuredResultRows(dataSet, context.outputPaths()), total, safePageNum, safePageSize));
+        if (includeChartData && total > 0) {
+            SessionQueryDataSet chartDataSet = safeQuerySeries(pathList, 0L, total);
+            result.setChartRows(mapStructuredResultRows(chartDataSet, context.outputPaths()));
+        }
         return result;
     }
 
@@ -648,13 +668,114 @@ public class AnalysisServiceImpl implements AnalysisService {
             LocalDateTime end = task == null ? null : task.getRangeEnd();
             Long precisionMs = resolveDownsamplePrecisionMs(start, end, options.precisionMs());
             if (precisionMs != null) {
-                SessionQueryDataSet sampled = querySeriesWithDownsample(paths, start, end, options.aggregator(), precisionMs);
-                if (!isDataSetEmpty(sampled)) {
-                    return sampled;
-                }
+                return querySeriesWithDownsample(paths, start, end, options.aggregator(), precisionMs);
             }
         }
         return querySeries(paths, task == null ? null : task.getRangeStart(), task == null ? null : task.getRangeEnd());
+    }
+
+    /**
+     * 解析本地降采样步长。
+     */
+    private Long resolveLocalDownsamplePrecisionMs(TaskEntity task, AnalysisQueryOptions options) {
+        if (options == null || !options.downsample()) {
+            return null;
+        }
+        LocalDateTime start = task == null ? null : task.getRangeStart();
+        LocalDateTime end = task == null ? null : task.getRangeEnd();
+        Long resolved = resolveDownsamplePrecisionMs(start, end, options.precisionMs());
+        if (resolved != null && resolved > 0) {
+            return resolved;
+        }
+        if (options.precisionMs() != null && options.precisionMs() > 0) {
+            return options.precisionMs();
+        }
+        return null;
+    }
+
+    /**
+     * 判断服务端降采样失败后是否应回退到本地聚合。
+     */
+    private boolean shouldFallbackToLocalDownsample(AnalysisQueryOptions options,
+                                                    Long precisionMs,
+                                                    BizException ex) {
+        return options != null
+            && options.downsample()
+            && precisionMs != null
+            && precisionMs > 0
+            && isUnsupportedDownsampleError(ex);
+    }
+
+    /**
+     * 判断降采样结果是否存在明显错误语义，命中后回退到本地聚合。
+     */
+    private boolean shouldFallbackToLocalDownsample(AnalysisQueryOptions options,
+                                                    Long precisionMs,
+                                                    SessionQueryDataSet dataSet) {
+        return options != null
+            && options.downsample()
+            && precisionMs != null
+            && precisionMs > 0
+            && isSuspiciousDownsampleResult(dataSet, options.aggregator());
+    }
+
+    /**
+     * 判断异常是否属于 IGinX 原生降采样不兼容场景。
+     */
+    private boolean isUnsupportedDownsampleError(BizException ex) {
+        if (ex == null || !StringUtils.hasText(ex.getMessage())) {
+            return false;
+        }
+        String message = ex.getMessage().trim().toLowerCase(Locale.ROOT);
+        return message.contains("mapping function")
+            || message.contains("aggregate function")
+            || message.contains("aggregate type")
+            || message.contains("set aggregate")
+            || (message.contains("downsample") && (message.contains("not support")
+            || message.contains("unsupported")
+            || message.contains("failed")
+            || message.contains("error")));
+    }
+
+    /**
+     * 判断降采样返回值是否疑似把时间戳错当成聚合值返回。
+     */
+    private boolean isSuspiciousDownsampleResult(SessionQueryDataSet dataSet, String aggregator) {
+        if (isDataSetEmpty(dataSet) || !requiresSuspiciousResultValidation(aggregator)) {
+            return false;
+        }
+        long[] keys = dataSet.getKeys();
+        List<List<Object>> rows = dataSet.getValues();
+        int rowCount = Math.min(keys.length, rows.size());
+        int comparableCount = 0;
+        int matchedCount = 0;
+        for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+            List<Object> row = rows.get(rowIndex);
+            if (row == null || row.isEmpty()) {
+                continue;
+            }
+            for (Object value : row) {
+                Long numericValue = tryConvertToLong(value);
+                if (numericValue == null) {
+                    continue;
+                }
+                comparableCount++;
+                if (numericValue == keys[rowIndex]) {
+                    matchedCount++;
+                }
+            }
+        }
+        return comparableCount > 0 && matchedCount == comparableCount;
+    }
+
+    /**
+     * 仅对已知存在异常表现的聚合器做额外结果校验。
+     */
+    private boolean requiresSuspiciousResultValidation(String aggregator) {
+        return switch (normalizeAggregator(aggregator)) {
+            case "MAX", "MIN", "COUNT", "FIRST", "LAST" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -664,67 +785,165 @@ public class AnalysisServiceImpl implements AnalysisService {
                                                       List<List<Object>> rows,
                                                       int size,
                                                       int index,
+                                                      int valueColumnOffset,
                                                       boolean relative,
                                                       long baseKey) {
         List<TaskSeriesPointVO> points = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             List<Object> row = rows.get(i);
-            Object value = index < row.size() ? row.get(index) : null;
+            Object value = resolveColumnValue(row, index, valueColumnOffset);
             points.add(buildSeriesPoint(keys[i], value, relative, baseKey));
         }
         return points;
     }
 
     /**
-     * 在服务端降采样不可用时，使用本地聚合避免任务结果页直接报错。
+     * 构建本地降采样后的点集合。
      */
     private List<TaskSeriesPointVO> buildLocallyDownsampledPoints(long[] keys,
                                                                   List<List<Object>> rows,
                                                                   int size,
                                                                   int index,
+                                                                  int valueColumnOffset,
                                                                   AnalysisQueryOptions options,
-                                                                  Long precisionMs) {
-        if (precisionMs == null || precisionMs <= 0) {
-            long baseKey = options != null && options.relative() && size > 0 ? keys[0] : 0L;
-            return buildSeriesPoints(keys, rows, size, index, options != null && options.relative(), baseKey);
-        }
-        long bucketSizeNs = TimeParser.toNano(precisionMs);
-        long firstKey = keys[0];
-        String aggregator = normalizeAggregator(options == null ? null : options.aggregator());
-        List<LocalDownsampleBucket> buckets = new ArrayList<>();
-        LocalDownsampleBucket currentBucket = null;
-        for (int i = 0; i < size; i++) {
-            long key = keys[i];
-            long bucketIndex = Math.max(0L, Math.floorDiv(key - firstKey, bucketSizeNs));
-            if (currentBucket == null || currentBucket.bucketIndex() != bucketIndex) {
-                if (currentBucket != null) {
-                    buckets.add(currentBucket);
-                }
-                currentBucket = new LocalDownsampleBucket(bucketIndex, key);
-            }
-            List<Object> row = rows.get(i);
-            Object value = index < row.size() ? row.get(index) : null;
-            currentBucket.add(value, toDouble(value));
-        }
-        if (currentBucket != null) {
-            buckets.add(currentBucket);
-        }
-        if (buckets.isEmpty()) {
-            return List.of();
+                                                                  Long precisionMs,
+                                                                  TaskEntity task) {
+        if (keys == null || rows == null || size <= 0 || precisionMs == null || precisionMs <= 0) {
+            long baseKey = options != null && options.relative() && keys != null && keys.length > 0 ? keys[0] : 0L;
+            return buildSeriesPoints(keys, rows, size, index, valueColumnOffset, options != null && options.relative(), baseKey);
         }
 
-        boolean relative = options != null && options.relative();
-        long baseKey = relative ? buckets.get(0).timestampNs() : 0L;
+        long precisionNs = TimeParser.toNano(precisionMs);
+        long anchorNs = resolveDownsampleAnchorNs(task, keys, size);
+        List<LocalDownsampleBucket> buckets = new ArrayList<>();
+        LocalDownsampleBucket currentBucket = null;
+        long currentBucketStart = Long.MIN_VALUE;
+        for (int i = 0; i < size; i++) {
+            long key = keys[i];
+            long bucketStart = resolveBucketStartNs(key, anchorNs, precisionNs);
+            if (currentBucket == null || bucketStart != currentBucketStart) {
+                currentBucket = new LocalDownsampleBucket(bucketStart);
+                buckets.add(currentBucket);
+                currentBucketStart = bucketStart;
+            }
+            List<Object> row = rows.get(i);
+            Object value = resolveColumnValue(row, index, valueColumnOffset);
+            currentBucket = currentBucket.accept(value, toDouble(value));
+            buckets.set(buckets.size() - 1, currentBucket);
+        }
+
         List<TaskSeriesPointVO> points = new ArrayList<>();
+        String aggregator = normalizeAggregator(options == null ? null : options.aggregator());
+        long baseKey = options != null && options.relative() && !buckets.isEmpty()
+            ? buckets.get(0).bucketStartNs()
+            : 0L;
         for (LocalDownsampleBucket bucket : buckets) {
             TaskSeriesPointVO point = new TaskSeriesPointVO();
-            point.setTimestamp(relative
-                ? (bucket.timestampNs() - baseKey) / 1_000_000_000
-                : TimeParser.toMillis(bucket.timestampNs()));
+            point.setTimestamp(options != null && options.relative()
+                ? (bucket.bucketStartNs() - baseKey) / 1_000_000_000
+                : TimeParser.toMillis(bucket.bucketStartNs()));
             point.setValue(bucket.aggregate(aggregator));
             points.add(point);
         }
         return points;
+    }
+
+    /**
+     * 规范化聚合器名称，便于本地聚合复用。
+     */
+    private String normalizeAggregator(String aggregator) {
+        if (!StringUtils.hasText(aggregator)) {
+            return "AVG";
+        }
+        return aggregator.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * 解析降采样对齐基准时间。
+     */
+    private long resolveDownsampleAnchorNs(TaskEntity task, long[] keys, int size) {
+        if (task != null && task.getRangeStart() != null) {
+            return toNano(task.getRangeStart());
+        }
+        if (keys != null && size > 0) {
+            return keys[0];
+        }
+        return 0L;
+    }
+
+    /**
+     * 根据查询起点和步长计算桶起始时间。
+     */
+    private long resolveBucketStartNs(long keyNs, long anchorNs, long precisionNs) {
+        if (precisionNs <= 0 || keyNs <= anchorNs) {
+            return anchorNs;
+        }
+        long offset = keyNs - anchorNs;
+        return anchorNs + Math.floorDiv(offset, precisionNs) * precisionNs;
+    }
+
+    /**
+     * 推断结果集中前置元数据列数量。
+     */
+    private int resolveValueColumnOffset(long[] keys, List<List<Object>> rows, int pathCount) {
+        if (keys == null || rows == null || rows.isEmpty() || pathCount < 0) {
+            return 0;
+        }
+        int maxRowSize = 0;
+        for (List<Object> row : rows) {
+            if (row != null) {
+                maxRowSize = Math.max(maxRowSize, row.size());
+            }
+        }
+        int extraColumnCount = Math.max(0, maxRowSize - Math.max(pathCount, 0));
+        if (extraColumnCount <= 0) {
+            return 0;
+        }
+        if (isLeadingTimestampColumn(keys, rows, 0)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /**
+     * 判断首列是否为重复的时间戳元数据列。
+     */
+    private boolean isLeadingTimestampColumn(long[] keys, List<List<Object>> rows, int columnIndex) {
+        int comparableCount = 0;
+        int matchedCount = 0;
+        int rowCount = Math.min(keys.length, rows.size());
+        for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+            List<Object> row = rows.get(rowIndex);
+            if (row == null || columnIndex >= row.size()) {
+                continue;
+            }
+            Long numericValue = tryConvertToLong(row.get(columnIndex));
+            if (numericValue == null) {
+                continue;
+            }
+            comparableCount++;
+            if (numericValue == keys[rowIndex]) {
+                matchedCount++;
+            }
+        }
+        return comparableCount > 0 && matchedCount == comparableCount;
+    }
+
+    /**
+     * 根据列偏移读取真实值列。
+     */
+    private Object resolveColumnValue(List<Object> row, int columnIndex, int valueColumnOffset) {
+        if (row == null) {
+            return null;
+        }
+        int shiftedIndex = columnIndex + Math.max(0, valueColumnOffset);
+        if (shiftedIndex >= 0 && shiftedIndex < row.size()) {
+            return row.get(shiftedIndex);
+        }
+        if (columnIndex >= 0 && columnIndex < row.size()) {
+            return row.get(columnIndex);
+        }
+        return null;
     }
 
     /**
@@ -883,7 +1102,9 @@ public class AnalysisServiceImpl implements AnalysisService {
             request == null ? "AVG" : request.getAggregator(),
             request == null ? null : request.getPrecisionMs(),
             safePageNum(request == null ? null : request.getPageNum()),
-            safePageSize(request == null ? null : request.getPageSize())
+            safePageSize(request == null ? null : request.getPageSize()),
+            request != null && request.isIncludeChartData(),
+            request == null || request.isIncludePageData()
         );
     }
 
@@ -897,7 +1118,9 @@ public class AnalysisServiceImpl implements AnalysisService {
             request == null ? "AVG" : request.getAggregator(),
             request == null ? null : request.getPrecisionMs(),
             1,
-            DEFAULT_STRUCTURED_PAGE_SIZE
+            DEFAULT_STRUCTURED_PAGE_SIZE,
+            false,
+            true
         );
     }
 
@@ -933,48 +1156,6 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
         long durationMs = Math.max(1L, Duration.between(start, end).toMillis());
         return Math.max(1L, (long) Math.ceil(durationMs / (double) DEFAULT_ANALYSIS_MAX_POINTS));
-    }
-
-    /**
-     * 解析本地降采样需要使用的步长。
-     */
-    private Long resolveLocalDownsamplePrecisionMs(TaskEntity task, AnalysisQueryOptions options) {
-        if (task == null || options == null || !options.downsample()) {
-            return null;
-        }
-        return resolveDownsamplePrecisionMs(task.getRangeStart(), task.getRangeEnd(), options.precisionMs());
-    }
-
-    /**
-     * 判断是否应从服务端降采样回退到本地聚合。
-     */
-    private boolean shouldFallbackToLocalDownsample(AnalysisQueryOptions options, Long precisionMs, BizException ex) {
-        if (options == null || !options.downsample() || precisionMs == null || precisionMs <= 0) {
-            return false;
-        }
-        return isUnsupportedDownsampleError(ex);
-    }
-
-    /**
-     * 判断是否属于 IGinX 不支持映射函数导致的降采样失败。
-     */
-    private boolean isUnsupportedDownsampleError(BizException ex) {
-        String message = ex == null ? null : ex.getMessage();
-        if (!StringUtils.hasText(message)) {
-            return false;
-        }
-        String lower = message.trim().toLowerCase(Locale.ROOT);
-        return lower.contains("mapping function") || lower.contains("set mapping function");
-    }
-
-    /**
-     * 归一化聚合器名称，统一本地聚合行为。
-     */
-    private String normalizeAggregator(String aggregator) {
-        if (!StringUtils.hasText(aggregator)) {
-            return "AVG";
-        }
-        return aggregator.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
@@ -1919,7 +2100,9 @@ public class AnalysisServiceImpl implements AnalysisService {
                                         String aggregator,
                                         Long precisionMs,
                                         int pageNum,
-                                        int pageSize) {
+                                        int pageSize,
+                                        boolean includeChartData,
+                                        boolean includePageData) {
     }
 
     /**
@@ -1976,63 +2159,6 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     /**
-     * 本地降采样桶。
-     */
-    private static final class LocalDownsampleBucket {
-        private final long bucketIndex;
-        private final long timestampNs;
-        private long nonNullCount;
-        private long numericCount;
-        private double sum;
-        private Double min;
-        private Double max;
-        private Double first;
-        private Double last;
-
-        private LocalDownsampleBucket(long bucketIndex, long timestampNs) {
-            this.bucketIndex = bucketIndex;
-            this.timestampNs = timestampNs;
-        }
-
-        private long bucketIndex() {
-            return bucketIndex;
-        }
-
-        private long timestampNs() {
-            return timestampNs;
-        }
-
-        private void add(Object rawValue, Double numericValue) {
-            if (rawValue != null) {
-                nonNullCount++;
-            }
-            if (numericValue == null) {
-                return;
-            }
-            if (first == null) {
-                first = numericValue;
-            }
-            last = numericValue;
-            sum += numericValue;
-            numericCount++;
-            min = min == null ? numericValue : Math.min(min, numericValue);
-            max = max == null ? numericValue : Math.max(max, numericValue);
-        }
-
-        private Double aggregate(String aggregator) {
-            return switch (aggregator) {
-                case "MAX" -> max;
-                case "MIN" -> min;
-                case "SUM" -> numericCount > 0 ? sum : null;
-                case "COUNT" -> (double) nonNullCount;
-                case "FIRST" -> first;
-                case "LAST" -> last;
-                default -> numericCount > 0 ? sum / numericCount : null;
-            };
-        }
-    }
-
-    /**
      * 判断路径是否需要补 root 前缀。
      *
      * @param paths 路径列表
@@ -2079,10 +2205,43 @@ public class AnalysisServiceImpl implements AnalysisService {
             return "";
         }
         String trimmed = path.trim();
-        if (trimmed.startsWith("root.")) {
-            return trimmed.substring("root.".length());
+        while (StringUtils.hasText(trimmed)) {
+            boolean changed = false;
+            if (trimmed.startsWith("root.")) {
+                trimmed = trimmed.substring("root.".length()).trim();
+                changed = true;
+            }
+            int leftParenthesis = trimmed.indexOf('(');
+            int rightParenthesis = trimmed.lastIndexOf(')');
+            if (leftParenthesis > 0 && rightParenthesis == trimmed.length() - 1) {
+                String functionName = trimmed.substring(0, leftParenthesis).trim();
+                if (isAggregatePathWrapper(functionName)) {
+                    trimmed = trimmed.substring(leftParenthesis + 1, rightParenthesis).trim();
+                    changed = true;
+                    continue;
+                }
+            }
+            if (!changed) {
+                break;
+            }
         }
         return trimmed;
+    }
+
+    /**
+     * 判断路径是否被聚合函数包装。
+     */
+    private boolean isAggregatePathWrapper(String functionName) {
+        if (!StringUtils.hasText(functionName)) {
+            return false;
+        }
+        for (int i = 0; i < functionName.length(); i++) {
+            char current = functionName.charAt(i);
+            if (!Character.isLetterOrDigit(current) && current != '_' && !Character.isWhitespace(current)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -2123,6 +2282,47 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     /**
+     * 尝试把对象精确转换为 Long，失败时返回 null。
+     */
+    private Long tryConvertToLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof Float || value instanceof Double) {
+            double number = ((Number) value).doubleValue();
+            if (!Double.isFinite(number) || number != Math.rint(number)
+                || number < Long.MIN_VALUE || number > Long.MAX_VALUE) {
+                return null;
+            }
+            return (long) number;
+        }
+        if (value instanceof byte[] bytes) {
+            return parseLongSafely(new String(bytes, StandardCharsets.UTF_8));
+        }
+        if (value instanceof String text) {
+            return parseLongSafely(text);
+        }
+        return null;
+    }
+
+    /**
+     * 安全解析 Long。
+     */
+    private Long parseLongSafely(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(text.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    /**
      * 安全解析 Double。
      *
      * @param text 文本
@@ -2136,6 +2336,68 @@ public class AnalysisServiceImpl implements AnalysisService {
             return Double.parseDouble(text.trim());
         } catch (NumberFormatException ex) {
             return null;
+        }
+    }
+
+    /**
+     * 本地降采样桶。
+     *
+     * @param bucketStartNs 桶起始时间（纳秒）
+     * @param nonNullCount 非空值数量
+     * @param numericCount 数值数量
+     * @param sum 数值和
+     * @param min 最小值
+     * @param max 最大值
+     * @param firstValue 首个数值
+     * @param lastValue 最后一个数值
+     */
+    private record LocalDownsampleBucket(long bucketStartNs,
+                                         long nonNullCount,
+                                         long numericCount,
+                                         double sum,
+                                         Double min,
+                                         Double max,
+                                         Double firstValue,
+                                         Double lastValue) {
+
+        private LocalDownsampleBucket(long bucketStartNs) {
+            this(bucketStartNs, 0L, 0L, 0D, null, null, null, null);
+        }
+
+        private LocalDownsampleBucket accept(Object rawValue, Double numericValue) {
+            long nextNonNullCount = rawValue == null ? nonNullCount : nonNullCount + 1;
+            long nextNumericCount = numericValue == null ? numericCount : numericCount + 1;
+            double nextSum = numericValue == null ? sum : sum + numericValue;
+            Double nextMin = numericValue == null
+                ? min
+                : (min == null ? numericValue : Math.min(min, numericValue));
+            Double nextMax = numericValue == null
+                ? max
+                : (max == null ? numericValue : Math.max(max, numericValue));
+            Double nextFirstValue = firstValue != null ? firstValue : numericValue;
+            Double nextLastValue = numericValue != null ? numericValue : lastValue;
+            return new LocalDownsampleBucket(
+                bucketStartNs,
+                nextNonNullCount,
+                nextNumericCount,
+                nextSum,
+                nextMin,
+                nextMax,
+                nextFirstValue,
+                nextLastValue
+            );
+        }
+
+        private Double aggregate(String aggregator) {
+            return switch (aggregator) {
+                case "MAX" -> max;
+                case "MIN" -> min;
+                case "SUM" -> numericCount > 0 ? sum : null;
+                case "COUNT" -> (double) nonNullCount;
+                case "FIRST" -> firstValue;
+                case "LAST" -> lastValue;
+                default -> numericCount > 0 ? sum / numericCount : null;
+            };
         }
     }
 

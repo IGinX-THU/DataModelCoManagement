@@ -37,4 +37,14 @@ public class TaskSeriesRequest {
      * 结构化结果分页大小。
      */
     private Integer pageSize = 50;
+
+    /**
+     * 是否返回结构化结果的完整图表数据。
+     */
+    private boolean includeChartData = false;
+
+    /**
+     * 是否返回结构化结果分页数据。
+     */
+    private boolean includePageData = true;
 }

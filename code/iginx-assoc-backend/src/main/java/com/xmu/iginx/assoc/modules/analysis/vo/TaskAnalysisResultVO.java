@@ -9,7 +9,7 @@ import java.util.List;
  * <p>
  * 根据任务输入类型不同，返回两种展示数据：
  * 1. 时序任务：使用 series 字段，前端按折线图展示；
- * 2. 结构化任务：使用 structuredResult 字段，前端按分页结果表展示。
+ * 2. 结构化任务：使用 structuredResult 字段，前端可按分页结果表或完整结果图表展示。
  * </p>
  */
 @Data
