@@ -20,6 +20,12 @@ const buildQueryString = (options = {}) => {
   if (Number.isFinite(options.pageSize) && Number(options.pageSize) > 0) {
     params.set('pageSize', String(Number(options.pageSize)))
   }
+  if (typeof options.includeChartData === 'boolean') {
+    params.set('includeChartData', String(options.includeChartData))
+  }
+  if (typeof options.includePageData === 'boolean') {
+    params.set('includePageData', String(options.includePageData))
+  }
   const query = params.toString()
   return query ? `?${query}` : ''
 }

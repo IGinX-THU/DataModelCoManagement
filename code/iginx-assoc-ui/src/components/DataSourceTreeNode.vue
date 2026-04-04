@@ -28,23 +28,37 @@ const props = defineProps({
 const isGroupNode = (node) => node.type === 'group' || (node.children && node.children.length)
 const isSelected = (node) => String(props.currentId) === String(node.id)
 const resolveRootType = (node) => node.rootType || props.rootType
+const resolvePreviewMode = (node) => String(node?.previewMode || '').trim().toUpperCase()
+const isTaskStructuredTableNode = (node) => {
+  return resolveRootType(node) === 'task' && resolvePreviewMode(node) === 'STRUCTURED' && String(node?.previewRole || '').trim().toUpperCase() === 'TABLE'
+}
 /**
- * rt 路径下的叶子 point 视为“列节点”，点击时不触发任何动作。
+ * 结构化路径下的列节点不触发点击。
  */
 const isStructuredColumnLeaf = (node) => {
   const rootType = resolveRootType(node)
   const hasChildren = Array.isArray(node?.children) && node.children.length > 0
+  if (rootType === 'task' && resolvePreviewMode(node) === 'STRUCTURED') {
+    return String(node?.previewRole || '').trim().toUpperCase() === 'COLUMN' || (node?.type === 'point' && !hasChildren)
+  }
   return rootType === 'rt' && node?.type === 'point' && !hasChildren
 }
 const resolveGroupIcon = (node) => {
   const rootType = resolveRootType(node)
-  if (rootType === 'rt') return 'ri-folder-3-line text-green-500'
+  const previewMode = resolvePreviewMode(node)
+  if (node.type === 'task') return 'ri-rocket-line text-indigo-500'
+  if (isTaskStructuredTableNode(node)) return 'ri-table-line text-green-500'
+  if (previewMode === 'TIME_SERIES' || rootType === 'ts') return 'ri-folder-3-line text-blue-500'
+  if (previewMode === 'STRUCTURED' || rootType === 'rt') return 'ri-folder-3-line text-green-500'
   return 'ri-folder-3-line text-yellow-500'
 }
 const resolveLeafIcon = (node) => {
   const rootType = resolveRootType(node)
+  const previewMode = resolvePreviewMode(node)
   if (node.type === 'file') return 'ri-file-2-line text-amber-500'
-  if (rootType === 'rt') return 'ri-table-line text-green-500'
+  if (isStructuredColumnLeaf(node)) return 'ri-layout-column-line text-green-500'
+  if (previewMode === 'STRUCTURED' || rootType === 'rt') return 'ri-table-line text-green-500'
+  if (previewMode === 'TIME_SERIES' || rootType === 'ts') return 'ri-pulse-line text-blue-500'
   return 'ri-pulse-line text-purple-400'
 }
 
@@ -54,7 +68,7 @@ const handleNodeClick = (node) => {
 }
 
 const emitContextMenu = (event, node) => {
-  const payload = { ...node, rootType: props.rootType }
+  const payload = { ...node, rootType: resolveRootType(node) }
   props.onContextMenu(event, payload)
 }
 </script>
@@ -84,7 +98,7 @@ const emitContextMenu = (event, node) => {
       <DataSourceTreeNode
         v-if="isGroupNode(node) && node.expanded && node.children && node.children.length"
         :nodes="node.children"
-        :root-type="rootType"
+        :root-type="resolveRootType(node)"
         :current-id="currentId"
         :on-node-click="onNodeClick"
         :on-context-menu="onContextMenu"

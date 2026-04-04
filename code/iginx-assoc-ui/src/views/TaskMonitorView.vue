@@ -1,8 +1,12 @@
 <script setup>
 import { useAssociationStore } from '../stores/association'
+import { useDataStore } from '../stores/data'
+import { useRouter } from 'vue-router'
 import { computed, ref, onMounted, watch } from 'vue'
 
 const associationStore = useAssociationStore()
+const dataStore = useDataStore()
+const router = useRouter()
 const TASK_PAGE_SIZE_OPTIONS = [10, 20, 50]
 const filterStatus = ref('All')
 const showLogModal = ref(false)
@@ -50,6 +54,77 @@ const formatScheduleTime = (value, emptyText) => {
 
 const resolveTaskDisplayName = (task) => {
     return String(task?.taskName || '').trim() || task?.id || '未命名任务'
+}
+
+const normalizePath = (value) => String(value || '').trim().replace(/\.+$/, '')
+
+const appendPreviewCandidate = (candidates, path) => {
+    const normalized = normalizePath(path)
+    if (!normalized || candidates.includes(normalized)) {
+        return
+    }
+    candidates.push(normalized)
+}
+
+const resolveParentPath = (path) => {
+    const normalized = normalizePath(path)
+    if (!normalized) return ''
+    const segments = normalized.split('.').map(item => item.trim()).filter(Boolean)
+    if (segments.length <= 1) return ''
+    return segments.slice(0, -1).join('.')
+}
+
+const resolveCommonPath = (paths) => {
+    const normalizedPaths = (paths || []).map(normalizePath).filter(Boolean)
+    if (!normalizedPaths.length) return ''
+    let prefix = normalizedPaths[0].split('.').map(item => item.trim()).filter(Boolean)
+    for (let index = 1; index < normalizedPaths.length; index += 1) {
+        const current = normalizedPaths[index].split('.').map(item => item.trim()).filter(Boolean)
+        let matched = 0
+        const maxLength = Math.min(prefix.length, current.length)
+        while (matched < maxLength && prefix[matched] === current[matched]) {
+            matched += 1
+        }
+        prefix = prefix.slice(0, matched)
+        if (!prefix.length) {
+            return ''
+        }
+    }
+    return prefix.join('.')
+}
+
+const getResolvedOutputPaths = (task) => Object.values(task?.outputPaths || {})
+    .map(normalizePath)
+    .filter(Boolean)
+
+/**
+ * 根据任务模式推导最适合打开的数据预览路径。
+ * 规则：
+ * 1. 时序任务优先打开具体输出测点；
+ * 2. 结构化任务优先打开结果表路径，而不是某一列；
+ * 3. 若任务配置了多输出，则保留多个候选，按资源树实际存在节点匹配。
+ */
+const buildTaskPreviewCandidates = (task) => {
+    const candidates = []
+    const resultLink = normalizePath(task?.resultLink)
+    const outputPaths = getResolvedOutputPaths(task)
+
+    if (task?.analysisMode === 'STRUCTURED') {
+        appendPreviewCandidate(candidates, resultLink)
+        const parentPaths = outputPaths.map(resolveParentPath).filter(Boolean)
+        appendPreviewCandidate(candidates, resolveCommonPath(parentPaths))
+        parentPaths.forEach(path => appendPreviewCandidate(candidates, path))
+        outputPaths.forEach(path => appendPreviewCandidate(candidates, path))
+        return candidates
+    }
+
+    outputPaths.forEach(path => appendPreviewCandidate(candidates, path))
+    appendPreviewCandidate(candidates, resultLink)
+    return candidates
+}
+
+const canOpenTaskResult = (task) => {
+    return task?.status === 'SUCCESS' && buildTaskPreviewCandidates(task).length > 0
 }
 
 const syncTaskJumpPage = () => {
@@ -110,6 +185,24 @@ const openLog = (task) => {
 const getOutputPathEntries = (task) => {
     if (!task || !task.outputPaths) return []
     return Object.entries(task.outputPaths)
+}
+
+const openTaskResultPreview = async (task) => {
+    if (!canOpenTaskResult(task)) {
+        alert('当前任务尚未生成可预览的结果')
+        return
+    }
+    await dataStore.loadResourceTree()
+    const candidates = buildTaskPreviewCandidates(task)
+    const targetNode = candidates
+        .map(path => dataStore.findNodeByPath(path))
+        .find(Boolean)
+    if (!targetNode) {
+        alert('未在数据资源库中定位到该任务结果，请稍后刷新后再试')
+        return
+    }
+    dataStore.selectNode(targetNode)
+    await router.push('/data')
 }
 
 const closeLog = () => {
@@ -238,7 +331,17 @@ onMounted(() => {
                         </tr>
                         <tr v-for="task in paginatedTasks" :key="task.id" class="hover:bg-gray-50 transition-colors group">
                             <td class="px-6 py-3">
-                                <div class="font-medium text-gray-800">{{ resolveTaskDisplayName(task) }}</div>
+                                <button
+                                    type="button"
+                                    @click="openTaskResultPreview(task)"
+                                    :disabled="!canOpenTaskResult(task)"
+                                    class="font-medium text-left transition-colors"
+                                    :class="canOpenTaskResult(task)
+                                        ? 'text-blue-600 hover:text-blue-700 hover:underline cursor-pointer'
+                                        : 'text-gray-800 cursor-not-allowed'"
+                                >
+                                    {{ resolveTaskDisplayName(task) }}
+                                </button>
                                 <div class="font-mono text-[10px] text-gray-400">{{ task.id }}</div>
                             </td>
                             <td class="px-6 py-3 font-medium text-gray-800">{{ associationStore.rules.find(r => r.id === task.ruleId)?.name || 'Unknown Rule' }}</td>

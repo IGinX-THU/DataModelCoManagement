@@ -92,6 +92,10 @@ const toggleSelectorExpand = (node) => {
     if (node.children) node.selectorExpanded = !node.selectorExpanded
 }
 
+const selectableResourceRoots = computed(() =>
+    (dataStore.resourceTree || []).filter(root => ['ts', 'rt'].includes(root?.type))
+)
+
 // Get models from store
 const availableModels = computed(() => modelStore.models)
 const selectedModelMeta = ref(null)
@@ -712,7 +716,7 @@ const requiresTimeRangeForRun = computed(() => {
                 <i class="ri-close-line cursor-pointer text-gray-500 hover:text-black" @click="showDataSelector = false"></i>
             </div>
             <div class="flex-1 overflow-y-auto p-4">
-                 <div v-for="root in dataStore.resourceTree" :key="root.id" class="mb-2">
+                 <div v-for="root in selectableResourceRoots" :key="root.id" class="mb-2">
                      <!-- Root Node -->
                      <div class="flex items-center px-2 py-1.5 hover:bg-blue-50 cursor-pointer rounded select-none group"
                           @click="toggleSelectorExpand(root)">

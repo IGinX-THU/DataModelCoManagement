@@ -13,11 +13,16 @@ const toggleExpand = (node) => {
 }
 
 /**
- * 结构化数据列节点（rt 下无子节点的 point）点击时不触发任何动作。
+ * 结构化数据列节点点击时不触发任何动作。
  */
 const isStructuredColumnLeaf = (node) => {
-    const rootType = node?.rootType || ''
+    const rootType = node?.rootType || node?.type || ''
     const hasChildren = Array.isArray(node?.children) && node.children.length > 0
+    const previewMode = String(node?.previewMode || '').trim().toUpperCase()
+    if (rootType === 'task' && previewMode === 'STRUCTURED') {
+        return String(node?.previewRole || '').trim().toUpperCase() === 'COLUMN'
+            || (node?.type === 'point' && !hasChildren)
+    }
     return rootType === 'rt' && node?.type === 'point' && !hasChildren
 }
 
@@ -29,8 +34,8 @@ const shouldOpenTopologyOnClick = (node) => {
     if (!node) return false
     if (isStructuredColumnLeaf(node)) return false
     // 结构化表节点应进入数据查询视图，而不是拓扑视图。
-    if (dataStore.currentNode.rootType === 'rt' && dataStore.currentNode.isStructuredTable) return false
-    return ['group', 'ts', 'rt'].includes(node.type)
+    if (dataStore.currentNode.isStructuredTable) return false
+    return ['group', 'ts', 'rt', 'task'].includes(node.type)
 }
 
 const handleNodeClick = (node) => {
@@ -81,8 +86,12 @@ const handleContextAction = async (action) => {
     if (!node) return
     try {
         if (action === 'Delete') {
-            if (['ts', 'rt'].includes(node.type)) {
+            if (['ts', 'rt', 'task'].includes(node.type)) {
                 alert('根节点不支持直接删除')
+                return
+            }
+            if (node.rootType === 'task') {
+                alert('任务结果节点暂不支持删除')
                 return
             }
             dataStore.selectNode(node)
@@ -128,7 +137,13 @@ onBeforeUnmount(() => {
                   :class="dataStore.currentNode.id === source.id ? 'bg-blue-100' : ''">
                  <div @click="handleNodeClick(source)" @contextmenu.stop="showContextMenu($event, { ...source, rootType: source.type })" class="flex items-center flex-1">
                      <i :class="source.expanded ? 'ri-arrow-down-s-fill' : 'ri-arrow-right-s-fill'" class="text-gray-400 mr-1 text-xs"></i>
-                     <i :class="source.type === 'ts' ? 'ri-pulse-line text-blue-500' : (source.type === 'rt' ? 'ri-table-line text-green-500' : 'ri-folder-3-line text-orange-500')" class="mr-2 text-lg"></i>
+                     <i :class="source.type === 'ts'
+                        ? 'ri-pulse-line text-blue-500'
+                        : (source.type === 'rt'
+                            ? 'ri-table-line text-green-500'
+                            : (source.type === 'task'
+                                ? 'ri-rocket-line text-indigo-500'
+                                : 'ri-folder-3-line text-orange-500'))" class="mr-2 text-lg"></i>
                      <span class="text-xs font-medium text-gray-700 group-hover:text-blue-600" :class="dataStore.currentNode.id === source.id ? 'text-blue-700 font-bold' : ''">{{ source.name }}</span>
                  </div>
                 <button @click.stop="dataStore.showTopology(source.type, source.id)" 

@@ -550,7 +550,9 @@ const handleMaintenance = async () => {
 const deleteTargetPath = ref('')
 const deleteTargetNode = ref(null)
 const deleteIncludeChildren = ref(false)
-const deleteTreeRoots = computed(() => dataStore.resourceTree || [])
+const deleteTreeRoots = computed(() =>
+    (dataStore.resourceTree || []).filter(node => ['ts', 'rt'].includes(node?.type))
+)
 
 const handleDeletePathSelect = (node) => {
     deleteTargetNode.value = node

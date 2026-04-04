@@ -25,11 +25,27 @@ const selectedTasks = ref([])
 const analysisMode = ref('TIME_SERIES')
 const seriesData = ref([])
 const structuredResult = ref(createEmptyStructuredResult())
+const structuredChartRows = ref([])
+const structuredDisplayMode = ref('chart')
+const structuredChartType = ref('line')
+const structuredXAxis = ref('')
+const structuredYAxis = ref('')
 const loadingSeries = ref(false)
+const structuredChartLoading = ref(false)
+const structuredChartLoaded = ref(false)
+const structuredChartError = ref('')
+const structuredChartTaskId = ref('')
 const chartRef = ref(null)
+const structuredChartRef = ref(null)
 const useRelativeTime = ref(false)
 const packageConfig = reactive({ includeModel: true, includeData: true, includeResult: true })
-const reportConfig = reactive({ includeStats: true, includeCharts: true })
+const reportPreviewPresets = [10, 20, 50, 100]
+const reportConfig = reactive({
+  includeStats: true,
+  includeCharts: true,
+  previewStrategy: 'HEAD',
+  previewRows: 20
+})
 const analysisQuery = reactive({
   downsample: true,
   aggregator: 'AVG',
@@ -43,7 +59,9 @@ const structuredPagination = reactive({
 const structuredJumpPage = ref('1')
 
 let chartInstance = null
+let structuredChartInstance = null
 let resizeHandler = null
+let structuredChartRequestToken = 0
 
 const resolveTaskDisplayName = (task) => {
   return String(task?.taskName || task?.name || '').trim() || task?.id || '未命名任务'
@@ -73,11 +91,50 @@ const isStructuredTaskSelected = computed(() =>
 )
 
 const isStructuredResultView = computed(() => selectedTasks.value.length > 0 && analysisMode.value === 'STRUCTURED')
+const structuredColumns = computed(() => structuredResult.value?.columns || [])
 const structuredResultRows = computed(() => structuredResult.value?.page?.records || [])
+const structuredChartDataRows = computed(() => structuredChartRows.value || [])
+const isStructuredChartView = computed(() =>
+  isStructuredResultView.value && structuredDisplayMode.value === 'chart'
+)
 const structuredTotalPages = computed(() => {
   const total = Number(structuredPagination.total) || 0
   const pageSize = Number(structuredPagination.pageSize) || DEFAULT_STRUCTURED_PAGE_SIZE
   return Math.max(1, Math.ceil(total / pageSize))
+})
+const structuredNumericColumns = computed(() =>
+  structuredColumns.value.filter(column =>
+    structuredChartDataRows.value.some(row => toFiniteNumber(row?.[column]) !== null)
+  )
+)
+const structuredXAxisOptions = computed(() => {
+  if (structuredChartType.value === 'scatter' || structuredChartType.value === 'histogram') {
+    return structuredNumericColumns.value
+  }
+  return structuredColumns.value
+})
+const structuredYAxisOptions = computed(() => {
+  if (structuredChartType.value === 'histogram') {
+    return []
+  }
+  return structuredNumericColumns.value
+})
+const structuredChartDescription = computed(() => {
+  const baseText = structuredChartLoading.value
+    ? '正在加载完整结果表用于图表分析。'
+    : structuredChartDataRows.value.length
+      ? `图表基于完整结果表 ${structuredChartDataRows.value.length} 条数据绘制。`
+      : '图表将基于完整结果表绘制。'
+  if (structuredChartType.value === 'histogram') {
+    if (!structuredXAxis.value) {
+      return `${baseText} 请选择一个数值列生成分布直方图。`
+    }
+    return `${baseText} X 轴使用 ${structuredXAxis.value} 自动分箱，Y 轴为频次。`
+  }
+  if (!structuredXAxis.value || !structuredYAxis.value) {
+    return `${baseText} 请选择 X 轴列和 Y 轴列。`
+  }
+  return `${baseText} 当前使用 ${structuredXAxis.value} 作为 X 轴，${structuredYAxis.value} 作为 Y 轴。`
 })
 const resolvedAnalysisPrecisionMs = computed(() => {
   if (!analysisQuery.downsample) {
@@ -112,12 +169,21 @@ const resetAnalysisState = () => {
   seriesData.value = []
   structuredResult.value = createEmptyStructuredResult()
   resetStructuredPagination()
+  resetStructuredChartState()
+  clearStructuredChartData()
 }
 
 const disposeChart = () => {
   if (chartInstance) {
     chartInstance.dispose()
     chartInstance = null
+  }
+}
+
+const disposeStructuredChart = () => {
+  if (structuredChartInstance) {
+    structuredChartInstance.dispose()
+    structuredChartInstance = null
   }
 }
 
@@ -159,6 +225,55 @@ const parseDateTime = (value) => {
   return Number.isNaN(timestamp) ? null : timestamp
 }
 
+const toFiniteNumber = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+const formatStructuredCell = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+  return String(value)
+}
+
+const formatChartNumber = (value) => {
+  if (!Number.isFinite(value)) {
+    return '-'
+  }
+  return new Intl.NumberFormat('zh-CN', {
+    maximumFractionDigits: 6
+  }).format(value)
+}
+
+const createChartBaseOption = () => ({
+  backgroundColor: 'transparent',
+  animationDuration: 300,
+  grid: { top: 48, right: 24, bottom: 48, left: 56 },
+  tooltip: { trigger: 'axis' }
+})
+
+const resetStructuredChartState = () => {
+  structuredDisplayMode.value = 'chart'
+  structuredChartType.value = 'line'
+  structuredXAxis.value = ''
+  structuredYAxis.value = ''
+  disposeStructuredChart()
+}
+
+const clearStructuredChartData = () => {
+  structuredChartRequestToken += 1
+  structuredChartRows.value = []
+  structuredChartLoading.value = false
+  structuredChartLoaded.value = false
+  structuredChartError.value = ''
+  structuredChartTaskId.value = ''
+  disposeStructuredChart()
+}
+
 const resetStructuredPagination = () => {
   structuredPagination.pageNum = 1
   structuredPagination.pageSize = DEFAULT_STRUCTURED_PAGE_SIZE
@@ -182,6 +297,55 @@ const buildAnalysisOptions = () => ({
   pageSize: structuredPagination.pageSize
 })
 
+const loadStructuredChartData = async (taskId, force = false) => {
+  if (!taskId) {
+    clearStructuredChartData()
+    return
+  }
+  if (!force && structuredChartLoaded.value && structuredChartTaskId.value === taskId) {
+    return
+  }
+  if (!force && structuredChartLoading.value && structuredChartTaskId.value === taskId) {
+    return
+  }
+
+  const requestToken = ++structuredChartRequestToken
+  structuredChartTaskId.value = taskId
+  structuredChartLoading.value = true
+  structuredChartLoaded.value = false
+  structuredChartError.value = ''
+  structuredChartRows.value = []
+
+  try {
+    const payload = await fetchTaskSeries(taskId, {
+      includeChartData: true,
+      includePageData: false
+    })
+    if (requestToken !== structuredChartRequestToken) {
+      return
+    }
+    const chartResult = payload?.structuredResult || {}
+    if (Array.isArray(chartResult.columns) && chartResult.columns.length) {
+      structuredResult.value = {
+        ...structuredResult.value,
+        columns: chartResult.columns
+      }
+    }
+    structuredChartRows.value = Array.isArray(chartResult.chartRows) ? chartResult.chartRows : []
+    structuredChartLoaded.value = true
+  } catch (err) {
+    if (requestToken !== structuredChartRequestToken) {
+      return
+    }
+    console.error('加载结构化完整图表数据失败', err)
+    structuredChartError.value = err.message || '加载完整图表数据失败'
+  } finally {
+    if (requestToken === structuredChartRequestToken) {
+      structuredChartLoading.value = false
+    }
+  }
+}
+
 const loadAnalysis = async () => {
   if (!selectedTasks.value.length) {
     resetAnalysisState()
@@ -201,6 +365,9 @@ const loadAnalysis = async () => {
     syncStructuredPagination(structuredResult.value?.page)
     if (analysisMode.value === 'STRUCTURED') {
       useRelativeTime.value = false
+      void loadStructuredChartData(ids[0], structuredChartTaskId.value !== ids[0] || !structuredChartLoaded.value)
+    } else {
+      clearStructuredChartData()
     }
   } catch (err) {
     console.error('加载任务分析结果失败', err)
@@ -294,6 +461,297 @@ const initChart = () => {
   chartInstance.setOption(option)
 }
 
+const buildStructuredLineOption = () => {
+  if (!structuredXAxis.value) {
+    return { option: null, issue: '请选择 X 轴列' }
+  }
+  if (!structuredYAxis.value) {
+    return { option: null, issue: '请选择 Y 轴列' }
+  }
+  const points = structuredChartDataRows.value
+    .map((row, index) => {
+      const yValue = toFiniteNumber(row?.[structuredYAxis.value])
+      if (yValue === null) {
+        return null
+      }
+      return {
+        xLabel: formatStructuredCell(row?.[structuredXAxis.value] ?? `第 ${index + 1} 行`),
+        yValue
+      }
+    })
+    .filter(Boolean)
+
+  if (!points.length) {
+    return { option: null, issue: '所选列在完整结果表中没有可绘制的数值结果' }
+  }
+
+  const option = {
+    ...createChartBaseOption(),
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params) => {
+        const point = points[params?.[0]?.dataIndex ?? 0]
+        if (!point) {
+          return ''
+        }
+        return [
+          `${structuredXAxis.value}: ${point.xLabel}`,
+          `${structuredYAxis.value}: ${formatChartNumber(point.yValue)}`
+        ].join('<br/>')
+      }
+    },
+    xAxis: {
+      type: 'category',
+      data: points.map(point => point.xLabel),
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: '#cbd5e1' } },
+      axisLabel: { color: '#64748b' }
+    },
+    yAxis: {
+      type: 'value',
+      name: structuredYAxis.value,
+      splitLine: { lineStyle: { color: '#e2e8f0' } },
+      axisLabel: {
+        color: '#64748b',
+        formatter: value => formatChartNumber(value)
+      }
+    },
+    series: [
+      {
+        name: structuredYAxis.value,
+        type: 'line',
+        smooth: true,
+        showSymbol: points.length <= 80,
+        symbolSize: 7,
+        data: points.map(point => point.yValue),
+        lineStyle: { width: 3, color: '#2563eb' },
+        itemStyle: { color: '#2563eb' },
+        areaStyle: { color: 'rgba(37, 99, 235, 0.12)' }
+      }
+    ]
+  }
+
+  return { option, issue: '' }
+}
+
+const buildStructuredScatterOption = () => {
+  if (!structuredXAxis.value) {
+    return { option: null, issue: '请选择数值型 X 轴列' }
+  }
+  if (!structuredYAxis.value) {
+    return { option: null, issue: '请选择数值型 Y 轴列' }
+  }
+  const points = structuredChartDataRows.value
+    .map((row, index) => {
+      const xValue = toFiniteNumber(row?.[structuredXAxis.value])
+      const yValue = toFiniteNumber(row?.[structuredYAxis.value])
+      if (xValue === null || yValue === null) {
+        return null
+      }
+      return {
+        value: [xValue, yValue],
+        rowLabel: `第 ${index + 1} 行`
+      }
+    })
+    .filter(Boolean)
+
+  if (!points.length) {
+    return { option: null, issue: '所选列在完整结果表中没有可绘制的散点数据' }
+  }
+
+  const option = {
+    ...createChartBaseOption(),
+    tooltip: {
+      trigger: 'item',
+      formatter: (params) => {
+        const [xValue, yValue] = params?.value || []
+        return [
+          params?.data?.rowLabel || '数据点',
+          `${structuredXAxis.value}: ${formatChartNumber(Number(xValue))}`,
+          `${structuredYAxis.value}: ${formatChartNumber(Number(yValue))}`
+        ].join('<br/>')
+      }
+    },
+    xAxis: {
+      type: 'value',
+      name: structuredXAxis.value,
+      splitLine: { lineStyle: { color: '#e2e8f0' } },
+      axisLabel: {
+        color: '#64748b',
+        formatter: value => formatChartNumber(value)
+      }
+    },
+    yAxis: {
+      type: 'value',
+      name: structuredYAxis.value,
+      splitLine: { lineStyle: { color: '#e2e8f0' } },
+      axisLabel: {
+        color: '#64748b',
+        formatter: value => formatChartNumber(value)
+      }
+    },
+    series: [
+      {
+        name: `${structuredXAxis.value} / ${structuredYAxis.value}`,
+        type: 'scatter',
+        data: points,
+        symbolSize: 11,
+        itemStyle: {
+          color: '#0f766e',
+          opacity: 0.8
+        }
+      }
+    ]
+  }
+
+  return { option, issue: '' }
+}
+
+const buildStructuredHistogramOption = () => {
+  if (!structuredXAxis.value) {
+    return { option: null, issue: '请选择一个数值列生成直方图' }
+  }
+
+  const values = structuredChartDataRows.value
+    .map(row => toFiniteNumber(row?.[structuredXAxis.value]))
+    .filter(value => value !== null)
+
+  if (!values.length) {
+    return { option: null, issue: '所选列在完整结果表中没有可统计的数值数据' }
+  }
+
+  const minValue = Math.min(...values)
+  const maxValue = Math.max(...values)
+  let categories = []
+  let counts = []
+
+  if (minValue === maxValue) {
+    categories = [formatChartNumber(minValue)]
+    counts = [values.length]
+  } else {
+    const binCount = Math.min(20, Math.max(5, Math.round(Math.sqrt(values.length))))
+    const binWidth = (maxValue - minValue) / binCount
+    counts = Array.from({ length: binCount }, () => 0)
+    categories = Array.from({ length: binCount }, (_, index) => {
+      const start = minValue + index * binWidth
+      const end = index === binCount - 1 ? maxValue : start + binWidth
+      return `${formatChartNumber(start)} ~ ${formatChartNumber(end)}`
+    })
+    values.forEach(value => {
+      const index = value === maxValue
+        ? binCount - 1
+        : Math.min(binCount - 1, Math.max(0, Math.floor((value - minValue) / binWidth)))
+      counts[index] += 1
+    })
+  }
+
+  const option = {
+    ...createChartBaseOption(),
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params) => {
+        const item = params?.[0]
+        if (!item) {
+          return ''
+        }
+        return [
+          `${structuredXAxis.value}: ${item.axisValue}`,
+          `频次: ${item.value}`
+        ].join('<br/>')
+      }
+    },
+    xAxis: {
+      type: 'category',
+      name: structuredXAxis.value,
+      data: categories,
+      axisLine: { lineStyle: { color: '#cbd5e1' } },
+      axisLabel: { color: '#64748b', interval: 0, rotate: categories.length > 8 ? 20 : 0 }
+    },
+    yAxis: {
+      type: 'value',
+      name: '频次',
+      splitLine: { lineStyle: { color: '#e2e8f0' } },
+      axisLabel: { color: '#64748b' }
+    },
+    series: [
+      {
+        name: '频次',
+        type: 'bar',
+        data: counts,
+        barMaxWidth: 42,
+        itemStyle: { color: '#ea580c', borderRadius: [4, 4, 0, 0] }
+      }
+    ]
+  }
+
+  return { option, issue: '' }
+}
+
+const structuredChartState = computed(() => {
+  if (structuredChartError.value) {
+    return {
+      option: null,
+      issue: structuredChartError.value
+    }
+  }
+  if (structuredChartLoading.value && !structuredChartDataRows.value.length) {
+    return {
+      option: null,
+      issue: ''
+    }
+  }
+  if (!structuredChartDataRows.value.length) {
+    return {
+      option: null,
+      issue: '完整结果表暂无可用于绘图的数据'
+    }
+  }
+  if (!structuredColumns.value.length) {
+    return {
+      option: null,
+      issue: '当前结果表没有可用列'
+    }
+  }
+  if (structuredChartType.value === 'scatter') {
+    return buildStructuredScatterOption()
+  }
+  if (structuredChartType.value === 'histogram') {
+    return buildStructuredHistogramOption()
+  }
+  return buildStructuredLineOption()
+})
+
+const syncStructuredChartSelections = () => {
+  const xOptions = structuredXAxisOptions.value
+  if (!xOptions.includes(structuredXAxis.value)) {
+    structuredXAxis.value = xOptions[0] || ''
+  }
+  if (structuredChartType.value === 'histogram') {
+    structuredYAxis.value = ''
+    return
+  }
+  const yOptions = structuredYAxisOptions.value
+  if (!yOptions.includes(structuredYAxis.value)) {
+    structuredYAxis.value = yOptions.find(column => column !== structuredXAxis.value) || yOptions[0] || ''
+  }
+}
+
+const initStructuredChart = () => {
+  if (!isStructuredChartView.value || !structuredChartRef.value) {
+    disposeStructuredChart()
+    return
+  }
+  const option = structuredChartState.value?.option
+  if (!option) {
+    disposeStructuredChart()
+    return
+  }
+  if (!structuredChartInstance) {
+    structuredChartInstance = echarts.init(structuredChartRef.value)
+  }
+  structuredChartInstance.setOption(option, true)
+}
+
 const exportPackage = async () => {
   if (selectedTasks.value.length !== 1) {
     alert('请先选择一个任务进行导出')
@@ -320,11 +778,14 @@ const exportReport = async () => {
     alert('请先选择一个任务生成报告')
     return
   }
+  normalizeReportPreviewRows()
   const task = selectedTasks.value[0]
   try {
     const downloadPath = await exportTaskReport(task.id, {
       includeStats: reportConfig.includeStats,
-      includeCharts: isStructuredTaskSelected.value ? false : reportConfig.includeCharts
+      includeCharts: reportConfig.includeCharts,
+      previewStrategy: reportConfig.previewStrategy,
+      previewRows: Number(reportConfig.previewRows)
     })
     const url = downloadPath.startsWith('http') ? downloadPath : `${BASE_URL}${downloadPath}`
     window.open(url, '_blank')
@@ -351,16 +812,58 @@ watch([
   loadAnalysis()
 })
 
-watch(isStructuredTaskSelected, (value) => {
-  if (value) {
-    reportConfig.includeCharts = false
+const normalizeReportPreviewRows = () => {
+  const value = Number(reportConfig.previewRows)
+  if (!Number.isFinite(value) || value < 1) {
+    reportConfig.previewRows = 20
+    return
   }
-})
+  reportConfig.previewRows = Math.min(200, Math.floor(value))
+}
+
+watch(
+  [
+    () => structuredChartType.value,
+    structuredColumns,
+    structuredChartDataRows
+  ],
+  () => {
+    syncStructuredChartSelections()
+  },
+  { deep: true, immediate: true }
+)
+
+watch(
+  [
+    () => analysisMode.value,
+    () => structuredDisplayMode.value,
+    () => structuredChartType.value,
+    () => structuredXAxis.value,
+    () => structuredYAxis.value,
+    structuredChartDataRows,
+    structuredColumns,
+    () => structuredChartLoading.value,
+    () => structuredChartError.value
+  ],
+  () => {
+    nextTick(() => {
+      if (analysisMode.value === 'STRUCTURED' && structuredDisplayMode.value === 'chart') {
+        initStructuredChart()
+      } else {
+        disposeStructuredChart()
+      }
+    })
+  },
+  { deep: true }
+)
 
 onMounted(() => {
   resizeHandler = () => {
     if (chartInstance) {
       chartInstance.resize()
+    }
+    if (structuredChartInstance) {
+      structuredChartInstance.resize()
     }
   }
   window.addEventListener('resize', resizeHandler)
@@ -373,6 +876,7 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', resizeHandler)
   }
   disposeChart()
+  disposeStructuredChart()
 })
 </script>
 
@@ -425,18 +929,59 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="associationStore.showExportReportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div class="bg-white rounded-lg shadow-xl w-[400px] p-6">
+        <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[92vw] p-6">
           <h3 class="font-bold text-gray-800 mb-4">生成实验报告</h3>
           <div class="space-y-3">
             <div v-if="isStructuredTaskSelected" class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-700">
-              结构化输入任务的报告会导出任务概览、统计表和结果表预览，不生成时序折线图。
+              结构化输入任务的报告会导出任务概览、输入输出预览，并在启用图表时自动附带数值列的直方图、曲线图和散点图。
+            </div>
+            <div v-else class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-700">
+              时序任务的报告会附带输出结果折线图，并按照所选预览策略展示输入/输出数据样例。
             </div>
             <label class="flex items-center text-sm text-gray-700">
               <input type="checkbox" v-model="reportConfig.includeStats" class="mr-2"> 包含统计表
             </label>
-            <label class="flex items-center text-sm text-gray-700" :class="isStructuredTaskSelected ? 'opacity-60' : ''">
-              <input type="checkbox" v-model="reportConfig.includeCharts" class="mr-2" :disabled="isStructuredTaskSelected"> 包含图表快照
+            <label class="flex items-center text-sm text-gray-700">
+              <input type="checkbox" v-model="reportConfig.includeCharts" class="mr-2"> 包含图表快照
             </label>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div class="text-sm font-semibold text-slate-700 mb-3">数据预览打印设置</div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label class="text-sm text-gray-700">
+                  <span class="block mb-1">预览方式</span>
+                  <select v-model="reportConfig.previewStrategy" class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    <option value="HEAD">前 K 条</option>
+                    <option value="UNIFORM">均匀采样</option>
+                  </select>
+                </label>
+                <label class="text-sm text-gray-700">
+                  <span class="block mb-1">预览条数</span>
+                  <input
+                    v-model.number="reportConfig.previewRows"
+                    type="number"
+                    min="1"
+                    max="200"
+                    class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    @blur="normalizeReportPreviewRows"
+                  >
+                </label>
+              </div>
+              <div class="flex flex-wrap gap-2 mt-3">
+                <button
+                  v-for="preset in reportPreviewPresets"
+                  :key="preset"
+                  type="button"
+                  @click="reportConfig.previewRows = preset"
+                  :class="Number(reportConfig.previewRows) === preset ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'"
+                  class="rounded-full border px-3 py-1 text-xs font-medium transition"
+                >
+                  {{ preset }} 条
+                </button>
+              </div>
+              <p class="mt-3 text-xs leading-5 text-slate-500">
+                预览表会按所选策略展示数据；图表部分会自动做均匀采样或下采样，避免 PDF 过大。
+              </p>
+            </div>
           </div>
           <div class="flex justify-end space-x-2 mt-6">
             <button @click="associationStore.showExportReportModal = false" class="px-4 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">取消</button>
@@ -483,9 +1028,28 @@ onBeforeUnmount(() => {
         <div class="h-10 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-50/50">
           <div class="flex items-center gap-3">
             <span class="text-xs font-bold text-gray-600 flex items-center">
-              <i :class="analysisMode === 'STRUCTURED' ? 'ri-table-line mr-2' : 'ri-line-chart-line mr-2'"></i>
-              {{ analysisMode === 'STRUCTURED' ? '结构化结果表' : '结果曲线' }}
+              <i :class="analysisMode === 'STRUCTURED' && structuredDisplayMode === 'chart' ? 'ri-bar-chart-box-line mr-2' : analysisMode === 'STRUCTURED' ? 'ri-table-line mr-2' : 'ri-line-chart-line mr-2'"></i>
+              {{ analysisMode === 'STRUCTURED' ? (structuredDisplayMode === 'chart' ? '结构化结果图表' : '结构化结果表') : '结果曲线' }}
             </span>
+            <div
+              v-if="analysisMode === 'STRUCTURED' && selectedTasks.length > 0"
+              class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm"
+            >
+              <button
+                @click="structuredDisplayMode = 'chart'"
+                :class="structuredDisplayMode === 'chart' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'"
+                class="rounded-md px-3 py-1 text-xs font-medium transition"
+              >
+                图表分析
+              </button>
+              <button
+                @click="structuredDisplayMode = 'table'"
+                :class="structuredDisplayMode === 'table' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'"
+                class="rounded-md px-3 py-1 text-xs font-medium transition"
+              >
+                结果表
+              </button>
+            </div>
             <span
               v-if="analysisMode === 'TIME_SERIES' && selectedTasks.length > 0 && analysisQuery.downsample"
               class="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-600 border border-blue-100"
@@ -506,19 +1070,39 @@ onBeforeUnmount(() => {
 
         <div v-if="isStructuredResultView" class="flex-1 relative flex flex-col overflow-hidden bg-slate-50/60">
           <div class="flex-1 overflow-auto p-4">
-            <div v-if="structuredResultRows.length" class="overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div v-if="structuredDisplayMode === 'chart'" class="h-full min-h-[420px] flex flex-col gap-4">
+              <div class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-700">
+                {{ structuredChartDescription }}
+              </div>
+              <div class="relative min-h-[360px] flex-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div ref="structuredChartRef" class="h-full w-full"></div>
+                <div
+                  v-if="structuredChartLoading"
+                  class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-slate-500 bg-white/80"
+                >
+                  正在加载完整结果表并生成图表...
+                </div>
+                <div
+                  v-else-if="structuredChartState.issue"
+                  class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-slate-500 bg-white/80"
+                >
+                  {{ structuredChartState.issue }}
+                </div>
+              </div>
+            </div>
+            <div v-else-if="structuredResultRows.length" class="overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
               <table class="min-w-full text-sm text-left">
                 <thead class="bg-slate-100 text-slate-600">
                   <tr>
-                    <th v-for="column in structuredResult.columns" :key="column" class="px-4 py-3 font-semibold whitespace-nowrap border-b border-slate-200">
+                    <th v-for="column in structuredColumns" :key="column" class="px-4 py-3 font-semibold whitespace-nowrap border-b border-slate-200">
                       {{ column }}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(row, index) in structuredResultRows" :key="index" class="odd:bg-white even:bg-slate-50">
-                    <td v-for="column in structuredResult.columns" :key="`${index}-${column}`" class="px-4 py-3 text-slate-700 whitespace-nowrap border-b border-slate-100">
-                      {{ row[column] ?? '-' }}
+                    <td v-for="column in structuredColumns" :key="`${index}-${column}`" class="px-4 py-3 text-slate-700 whitespace-nowrap border-b border-slate-100">
+                      {{ formatStructuredCell(row[column]) }}
                     </td>
                   </tr>
                 </tbody>
@@ -581,7 +1165,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="w-48 border-l border-gray-200 bg-gray-50 flex flex-col">
+      <div class="w-56 border-l border-gray-200 bg-gray-50 flex flex-col">
         <div class="p-3 border-b border-gray-200 font-bold text-xs text-gray-600 uppercase">
           Settings
         </div>
@@ -599,7 +1183,7 @@ onBeforeUnmount(() => {
               <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">降采样</label>
               <div class="space-y-2">
                 <label class="flex items-center text-xs text-gray-600">
-                  <input type="checkbox" v-model="analysisQuery.downsample" class="mr-2"> 启用服务端降采样
+                  <input type="checkbox" v-model="analysisQuery.downsample" class="mr-2"> 启用降采样
                 </label>
                 <select
                   v-model="analysisQuery.aggregator"
@@ -626,9 +1210,61 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </template>
-          <div v-else class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-700">
-            结构化输入任务仅支持单独查看，结果按 KEY 从 0 开始显示为结果表，不参与多任务折线图对比。
-          </div>
+          <template v-else>
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-700">
+              结构化输入任务仅支持单独查看。图表分析会读取完整结果表，表格分页仅影响下方预览，不再影响图表。
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">图表类型</label>
+              <select
+                v-model="structuredChartType"
+                class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700"
+              >
+                <option value="line">曲线图</option>
+                <option value="histogram">直方图</option>
+                <option value="scatter">散点图</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">X 轴列</label>
+              <select
+                v-model="structuredXAxis"
+                :disabled="!structuredXAxisOptions.length"
+                class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="" disabled>请选择列</option>
+                <option
+                  v-for="column in structuredXAxisOptions"
+                  :key="`x-${column}`"
+                  :value="column"
+                >
+                  {{ column }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Y 轴列</label>
+              <select
+                v-model="structuredYAxis"
+                :disabled="structuredChartType === 'histogram' || !structuredYAxisOptions.length"
+                class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                <option value="" disabled>
+                  {{ structuredChartType === 'histogram' ? '直方图自动统计频次' : '请选择列' }}
+                </option>
+                <option
+                  v-for="column in structuredYAxisOptions"
+                  :key="`y-${column}`"
+                  :value="column"
+                >
+                  {{ column }}
+                </option>
+              </select>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3 text-[11px] leading-5 text-slate-500">
+              {{ structuredChartDescription }}
+            </div>
+          </template>
         </div>
       </div>
     </div>

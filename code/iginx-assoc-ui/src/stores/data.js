@@ -43,7 +43,10 @@ export const useDataStore = defineStore('data', () => {
     hasChildren: false,
     isLeaf: false,
     isStructuredTable: false,
-    isStructuredColumn: false
+    isStructuredColumn: false,
+    previewMode: '',
+    previewRole: '',
+    readOnly: false
   })
   const showTopologyDrawer = ref(false)
   const topologyRootNode = ref(null)
@@ -71,7 +74,7 @@ export const useDataStore = defineStore('data', () => {
 
   const showTopology = (nodeOrType, id) => {
     selectNode(nodeOrType, id)
-    if (['group', 'ts', 'rt'].includes(currentNode.type)) {
+    if (['group', 'ts', 'rt', 'task'].includes(currentNode.type)) {
       currentNode.viewMode = 'topology'
     }
   }
@@ -87,14 +90,18 @@ export const useDataStore = defineStore('data', () => {
     const hasChildren = children.length > 0
     const isLeaf = !hasChildren
     const resolvedPath = node.path || (node.id ? String(node.id) : '')
+    const previewMode = resolveNodePreviewMode(node, rootType)
     const structuredInfo = rootType === 'rt'
       ? resolveStructuredInfo(resolvedPath, isLeaf)
       : { schema: '', table: '' }
-    const hasStructuredTable = rootType === 'rt'
+    const hasStructuredTable = isTaskStructuredTableNode(node, rootType, previewMode) || (
+      rootType === 'rt'
       && !!structuredInfo.schema
       && !!structuredInfo.table
+    )
     // 在资源树中，rt 下无子节点的 point 语义是“列”；其余结构化节点视作“表/路径”。
-    const isStructuredColumn = hasStructuredTable && node.type === 'point' && isLeaf
+    const isStructuredColumn = isTaskStructuredColumnNode(node, rootType, previewMode, isLeaf)
+      || (rootType === 'rt' && hasStructuredTable && node.type === 'point' && isLeaf)
     currentNode.id = node.id
     currentNode.type = node.type
     currentNode.name = node.name || node.id
@@ -109,6 +116,9 @@ export const useDataStore = defineStore('data', () => {
     currentNode.isLeaf = isLeaf
     currentNode.isStructuredTable = hasStructuredTable && !isStructuredColumn
     currentNode.isStructuredColumn = isStructuredColumn
+    currentNode.previewMode = previewMode
+    currentNode.previewRole = String(node?.previewRole || '').trim().toUpperCase()
+    currentNode.readOnly = Boolean(node?.readOnly ?? root?.readOnly ?? rootType === 'task')
     currentNode.viewMode = 'default'
   }
 
@@ -166,6 +176,30 @@ export const useDataStore = defineStore('data', () => {
     return { schema: 'rt', table: tableSegments[0] }
   }
 
+  const resolveNodePreviewMode = (node, rootType) => {
+    const explicitMode = String(node?.previewMode || '').trim().toUpperCase()
+    if (explicitMode === 'TIME_SERIES' || explicitMode === 'STRUCTURED') {
+      return explicitMode
+    }
+    if (rootType === 'ts') return 'TIME_SERIES'
+    if (rootType === 'rt') return 'STRUCTURED'
+    return ''
+  }
+
+  const isTaskStructuredTableNode = (node, rootType, previewMode) => {
+    return rootType === 'task'
+      && previewMode === 'STRUCTURED'
+      && String(node?.previewRole || '').trim().toUpperCase() === 'TABLE'
+  }
+
+  const isTaskStructuredColumnNode = (node, rootType, previewMode, isLeaf) => {
+    if (rootType !== 'task' || previewMode !== 'STRUCTURED') {
+      return false
+    }
+    const previewRole = String(node?.previewRole || '').trim().toUpperCase()
+    return previewRole === 'COLUMN' || (node?.type === 'point' && isLeaf)
+  }
+
 
   const toTreeNode = (source) => ({
     id: String(source.id),
@@ -196,7 +230,7 @@ export const useDataStore = defineStore('data', () => {
     return nodes
       .filter(node => !(rootType === 'ts' && isInternalTsNode(node)))
       .map(node => {
-        const nextRoot = rootType || (['ts', 'rt'].includes(node.type) ? node.type : rootType)
+        const nextRoot = rootType || (['ts', 'rt', 'task'].includes(node.type) ? node.type : rootType)
         const children = decorateResourceTree(node.children || [], nextRoot)
         return {
           ...node,
@@ -210,7 +244,7 @@ export const useDataStore = defineStore('data', () => {
 
   const loadResourceTree = async () => {
     const tree = await fetchResourceTree()
-    const roots = (tree || []).filter(node => ['ts', 'rt'].includes(node?.type))
+    const roots = (tree || []).filter(node => ['ts', 'rt', 'task'].includes(node?.type))
     resourceTree.value = decorateResourceTree(roots)
   }
 
@@ -431,6 +465,30 @@ export const useDataStore = defineStore('data', () => {
     return findNodeContext(resourceTree.value, id)?.node
   }
 
+  /**
+   * 按资源路径查找节点。
+   * 说明：优先匹配后端返回的 path，其次回退到 id，方便从任务结果路径直接定位资源树节点。
+   */
+  const findNodeByPath = (path, nodes = resourceTree.value) => {
+    const normalized = String(path || '').trim().replace(/\.+$/, '')
+    if (!normalized) {
+      return null
+    }
+    for (const node of nodes || []) {
+      const nodePath = String(node?.path || node?.id || '').trim().replace(/\.+$/, '')
+      if (nodePath === normalized) {
+        return node
+      }
+      if (node?.children?.length) {
+        const found = findNodeByPath(normalized, node.children)
+        if (found) {
+          return found
+        }
+      }
+    }
+    return null
+  }
+
   const findNodeContext = (nodes, id, parent = null, root = null) => {
     for (const node of nodes) {
       const currentRoot = root || node
@@ -483,6 +541,7 @@ export const useDataStore = defineStore('data', () => {
     deleteRow,
     removeChild,
     deletePath,
+    findNodeByPath,
     buildDownloadUrl
   }
 })

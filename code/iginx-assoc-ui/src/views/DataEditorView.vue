@@ -97,9 +97,16 @@ const visibleTableData = computed(() => {
 })
 
 const visibleEditKeys = computed(() => Object.keys(editingRow).filter((key) => key !== INTERNAL_KEY))
-const isTimeSeriesNode = computed(() => dataStore.currentNode.rootType === 'ts' && dataStore.currentNode.isLeaf)
-const isStructuredTableNode = computed(() => dataStore.currentNode.rootType === 'rt' && dataStore.currentNode.isStructuredTable)
-const isStructuredColumnNode = computed(() => dataStore.currentNode.rootType === 'rt' && dataStore.currentNode.isStructuredColumn)
+const isTimeSeriesNode = computed(() =>
+    dataStore.currentNode.previewMode === 'TIME_SERIES' && dataStore.currentNode.isLeaf
+)
+const isStructuredTableNode = computed(() =>
+    dataStore.currentNode.previewMode === 'STRUCTURED' && dataStore.currentNode.isStructuredTable
+)
+const isStructuredColumnNode = computed(() =>
+    dataStore.currentNode.previewMode === 'STRUCTURED' && dataStore.currentNode.isStructuredColumn
+)
+const isReadOnlyStructuredTable = computed(() => isStructuredTableNode.value && dataStore.currentNode.readOnly)
 const structuredFilterFields = computed(() => {
     const fields = []
     let hasKeyField = false
@@ -496,6 +503,9 @@ const applyQuery = async () => {
 }
 
 const openNewModal = () => {
+    if (isReadOnlyStructuredTable.value) {
+        return
+    }
     isEditMode.value = false
     Object.keys(editingRow).forEach(key => delete editingRow[key])
     const columns = tableColumns.value.length
@@ -511,6 +521,9 @@ const openNewModal = () => {
 }
 
 const openEditModal = () => {
+    if (isReadOnlyStructuredTable.value) {
+        return
+    }
     if (!selectedRow.value) {
         alert('请先选择一条记录')
         return
@@ -522,6 +535,9 @@ const openEditModal = () => {
 }
 
 const saveRow = async () => {
+    if (isReadOnlyStructuredTable.value) {
+        return
+    }
     const node = dataStore.currentNode
     const path = resolveStructuredDeletePath(node)
     if (!path) {
@@ -573,6 +589,9 @@ const resolveStructuredDeletePath = (node) => {
 }
 
 const handleDeleteRow = async () => {
+    if (isReadOnlyStructuredTable.value) {
+        return
+    }
     if (!selectedRow.value) {
         alert('请先选择一条记录')
         return
@@ -600,8 +619,12 @@ const handleDeleteRow = async () => {
 
 const handleRemoveCurrentNode = () => {
     if (!dataStore.currentNode.id) return
-    if (['ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
+    if (['ts', 'rt', 'task', 'models'].includes(dataStore.currentNode.type)) {
         alert('根节点不支持直接删除')
+        return
+    }
+    if (dataStore.currentNode.readOnly) {
+        alert('任务结果节点暂不支持删除')
         return
     }
     dataStore.showDeletePathModal = true
@@ -687,17 +710,36 @@ const initTreeChart = () => {
         if (node.type === 'rt') {
             symbolColor = '#6366f1'
             borderColor = '#4f46e5'
+        } else if (node.type === 'task') {
+            symbolColor = '#6366f1'
+            borderColor = '#4f46e5'
         } else if (node.type === 'models') {
             symbolColor = '#f97316'
             borderColor = '#ea580c'
         }
         
         if (node.type === 'group') {
-            symbolColor = '#f59e0b'
-            borderColor = '#d97706'
+            if (String(node?.previewRole || '').trim().toUpperCase() === 'TABLE') {
+                symbolColor = '#22c55e'
+                borderColor = '#16a34a'
+            } else if (String(node?.previewMode || '').trim().toUpperCase() === 'TIME_SERIES') {
+                symbolColor = '#3b82f6'
+                borderColor = '#2563eb'
+            } else if (String(node?.previewMode || '').trim().toUpperCase() === 'STRUCTURED') {
+                symbolColor = '#22c55e'
+                borderColor = '#16a34a'
+            } else {
+                symbolColor = '#f59e0b'
+                borderColor = '#d97706'
+            }
         } else if (['point', 'file'].includes(node.type)) {
-            symbolColor = '#22c55e'
-            borderColor = '#16a34a'
+            if (String(node?.previewMode || '').trim().toUpperCase() === 'TIME_SERIES') {
+                symbolColor = '#3b82f6'
+                borderColor = '#2563eb'
+            } else {
+                symbolColor = '#22c55e'
+                borderColor = '#16a34a'
+            }
         }
 
         return {
@@ -744,7 +786,7 @@ const initTreeChart = () => {
             textStyle: { color: '#374151' },
             formatter: (params) => {
                  const n = params.data
-                 const typeMap = { ts: '时序数据', rt: '结构化数据', models: '模型文件', group: '路径', point: '叶子', file: '文件' }
+                 const typeMap = { ts: '时序数据', rt: '结构化数据', task: '任务结果', models: '模型文件', group: '路径', point: '叶子', file: '文件' }
                  return `<div class="font-bold text-gray-800">${n.name}</div>
                          <div class="text-xs text-gray-500">${typeMap[n.value] || n.value}</div>`
             }
@@ -787,7 +829,7 @@ const initTreeChart = () => {
 }
 
 const updateTableDataForSelection = () => {
-    if (['group', 'ts', 'rt', 'models', 'file'].includes(dataStore.currentNode.type)) {
+    if (['group', 'ts', 'rt', 'task', 'models', 'file'].includes(dataStore.currentNode.type)) {
         const findNode = (nodes, id) => {
             for (const node of nodes) {
                 if (node.id === id) return node
@@ -799,11 +841,18 @@ const updateTableDataForSelection = () => {
             return null
         }
         const resolveTypeLabel = (child, rootType) => {
+            const previewMode = String(child?.previewMode || '').trim().toUpperCase()
+            const previewRole = String(child?.previewRole || '').trim().toUpperCase()
+            if (rootType === 'task' && previewRole === 'TABLE') {
+                return '结果表'
+            }
             if (child.type === 'group') {
                 if (rootType === 'models') return '目录'
                 return '路径'
             }
             if (child.type === 'point') {
+                if (rootType === 'task' && previewMode === 'STRUCTURED') return '结果列'
+                if (rootType === 'task' && previewMode === 'TIME_SERIES') return '结果测点'
                 return rootType === 'rt' ? '列' : '测点'
             }
             if (child.type === 'file') return '文件'
@@ -827,7 +876,7 @@ const updateTableDataForSelection = () => {
 
 watch(() => [dataStore.currentNode.id, dataStore.currentNode.viewMode], async ([newId, newMode]) => {
     if (!newId) return
-    if (newMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
+    if (newMode === 'topology' && ['group', 'ts', 'rt', 'task', 'models'].includes(dataStore.currentNode.type)) {
         nextTick(initTreeChart)
         return
     }
@@ -856,7 +905,7 @@ onMounted(() => {
     })
 
     if (dataStore.currentNode.id) {
-        if (dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)) {
+        if (dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'task', 'models'].includes(dataStore.currentNode.type)) {
             initTreeChart()
         } else if (isTimeSeriesNode.value) {
             loadTimeSeriesData()
@@ -893,7 +942,7 @@ onMounted(() => {
      <!-- Content Viewer -->
      <div v-else class="flex-1 flex flex-col h-full min-h-0">
          <!-- Group/Tree View in Workspace -->
-         <div v-show="dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type)" 
+         <div v-show="dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'task', 'models'].includes(dataStore.currentNode.type)" 
               class="flex-1 bg-white rounded border border-gray-100 shadow-sm p-4 flex flex-col relative overflow-hidden">
              <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center border-b border-gray-100 pb-2 z-10 relative bg-white justify-between">
                 <div class="flex items-center">
@@ -914,7 +963,7 @@ onMounted(() => {
          </div>
 
          <!-- Leaf Node View / Default Table View -->
-         <div v-show="!(dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'models'].includes(dataStore.currentNode.type))" 
+         <div v-show="!(dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'task', 'models'].includes(dataStore.currentNode.type))" 
               class="flex-1 relative bg-white rounded border border-gray-100 shadow-sm p-4 flex flex-col min-h-0">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-gray-800 flex items-center">
@@ -922,6 +971,8 @@ onMounted(() => {
                         ? 'ri-pulse-line text-blue-500'
                         : (isStructuredTableNode || isStructuredColumnNode)
                             ? 'ri-table-line text-green-500'
+                            : dataStore.currentNode.type === 'task'
+                                ? 'ri-rocket-line text-indigo-500'
                             : dataStore.currentNode.type === 'file'
                                 ? 'ri-file-2-line text-amber-500'
                                 : 'ri-folder-3-line text-yellow-500'" class="mr-2"></i>
@@ -948,10 +999,10 @@ onMounted(() => {
                 </div>
 
                 <!-- Group Controls -->
-                <div v-if="['group'].includes(dataStore.currentNode.type)" class="flex space-x-2 items-center">
+                <div v-if="['group'].includes(dataStore.currentNode.type) && !isStructuredTableNode" class="flex space-x-2 items-center">
                     <button @click="dataStore.showTopology(dataStore.currentNode.type, dataStore.currentNode.id)" class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded text-xs hover:bg-indigo-100 border border-indigo-200 h-8 flex items-center"><i class="ri-node-tree mr-1"></i> 查看拓扑结构</button>
                      <div class="h-4 border-l border-gray-300 mx-1"></div>
-                     <button v-if="!isStructuredTableNode && dataStore.currentNode.rootType !== 'ts'" @click="handleRemoveCurrentNode" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除节点">
+                     <button v-if="!isStructuredTableNode && dataStore.currentNode.rootType !== 'ts' && !dataStore.currentNode.readOnly" @click="handleRemoveCurrentNode" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除节点">
                         <i class="ri-delete-bin-line"></i>
                     </button>
                 </div>
@@ -1022,16 +1073,18 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <div class="h-4 border-l border-gray-300 mx-1"></div>
-                    <button @click="openNewModal" class="px-3 py-1 bg-green-50 text-green-600 rounded text-xs hover:bg-green-100 border border-green-200 h-8">
-                        <i class="ri-add-line mr-1"></i> 新增
-                    </button>
-                    <button @click="openEditModal" class="px-3 py-1 bg-gray-50 text-gray-600 rounded text-xs hover:bg-gray-100 border border-gray-200 h-8">
-                        <i class="ri-edit-box-line mr-1"></i> 编辑
-                    </button>
-                    <button @click="handleDeleteRow" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除行">
-                        <i class="ri-delete-row"></i>
-                    </button>
+                    <template v-if="!isReadOnlyStructuredTable">
+                        <div class="h-4 border-l border-gray-300 mx-1"></div>
+                        <button @click="openNewModal" class="px-3 py-1 bg-green-50 text-green-600 rounded text-xs hover:bg-green-100 border border-green-200 h-8">
+                            <i class="ri-add-line mr-1"></i> 新增
+                        </button>
+                        <button @click="openEditModal" class="px-3 py-1 bg-gray-50 text-gray-600 rounded text-xs hover:bg-gray-100 border border-gray-200 h-8">
+                            <i class="ri-edit-box-line mr-1"></i> 编辑
+                        </button>
+                        <button @click="handleDeleteRow" class="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs hover:bg-red-50 h-8" title="删除行">
+                            <i class="ri-delete-row"></i>
+                        </button>
+                    </template>
                 </div>
             </div>
 
@@ -1063,6 +1116,9 @@ onMounted(() => {
                 </span>
                 <span v-if="structuredDataQueried" class="ml-2">
                     共 {{ pagination.total }} 条，第 {{ pagination.pageNum }} / {{ structuredTotalPages }} 页
+                </span>
+                <span v-if="isReadOnlyStructuredTable" class="ml-2 text-amber-600">
+                    任务结果为只读预览，不支持新增、编辑和删除。
                 </span>
             </div>
             <div v-if="isStructuredTableNode && structuredSchemaError" class="text-[10px] text-red-500 mb-2">
@@ -1101,6 +1157,7 @@ onMounted(() => {
                                    @click="selectRow(index)"
                                    @dblclick="openEditModal"
                                    :class="selectedRowIndex === index ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50 border-l-4 border-transparent'"
+                                   :style="isReadOnlyStructuredTable ? 'cursor: default;' : ''"
                                    class="cursor-pointer transition-colors">
                                    <td v-for="key in visibleTableColumns" :key="key" class="px-4 py-2">{{ row[key] }}</td>
                                </tr>
