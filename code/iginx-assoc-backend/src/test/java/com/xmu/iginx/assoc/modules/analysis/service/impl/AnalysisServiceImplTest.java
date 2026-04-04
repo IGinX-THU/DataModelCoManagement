@@ -20,6 +20,8 @@ import com.xmu.iginx.assoc.modules.task.entity.TaskEntity;
 import com.xmu.iginx.assoc.modules.task.model.TaskExecutionBinding;
 import com.xmu.iginx.assoc.modules.task.model.TaskExecutionSnapshot;
 import com.xmu.iginx.assoc.modules.task.repository.TaskRepository;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -37,6 +39,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -695,16 +698,21 @@ class AnalysisServiceImplTest {
             .thenReturn(new DataFileStorageService.StoredFile("task_report_test.pdf", pdfPath));
 
         TaskReportRequest request = new TaskReportRequest();
-        request.setIncludeStats(true);
-        request.setIncludeCharts(true);
+        request.setIncludeStats(false);
+        request.setIncludeCharts(false);
+        request.setPreviewRows(1);
+        request.setPreviewStrategy("HEAD");
 
         String downloadPath = service.generateReport("demo-task", request);
 
         assertTrue(downloadPath.endsWith("task_report_test.pdf"));
         byte[] pdfBytes = Files.readAllBytes(pdfPath);
-        String pdfText = new String(pdfBytes, StandardCharsets.ISO_8859_1);
         assertTrue(pdfBytes.length > 0);
-        assertTrue(pdfText.contains("Structured Result Preview"));
+        String pdfText = extractPdfText(pdfPath);
+        assertTrue(pdfText.contains("结构化结果预览"));
+        assertTrue(pdfText.contains("结构化功率预测"));
+        assertTrue(pdfText.contains("18.85"));
+        assertFalse(pdfText.contains("18.95"));
     }
 
     private TaskExecutionSnapshot buildStructuredSnapshot() {
@@ -771,5 +779,12 @@ class AnalysisServiceImplTest {
     private long toNano(LocalDateTime time) {
         long millis = time.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
         return millis * 1_000_000L;
+    }
+
+    private String extractPdfText(Path pdfPath) throws Exception {
+        try (PDDocument document = PDDocument.load(Files.readAllBytes(pdfPath))) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            return stripper.getText(document);
+        }
     }
 }

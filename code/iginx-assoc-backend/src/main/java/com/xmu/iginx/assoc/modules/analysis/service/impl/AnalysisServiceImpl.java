@@ -47,6 +47,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -66,6 +67,13 @@ public class AnalysisServiceImpl implements AnalysisService {
     private static final int DEFAULT_ANALYSIS_MAX_POINTS = 1200;
     private static final int DEFAULT_STRUCTURED_PAGE_SIZE = 50;
     private static final int MAX_STRUCTURED_PAGE_SIZE = 500;
+    private static final int DEFAULT_REPORT_PREVIEW_ROWS = 20;
+    private static final int MAX_REPORT_PREVIEW_ROWS = 200;
+    private static final int REPORT_PREVIEW_MAX_COLUMNS = 6;
+    private static final int REPORT_STRUCTURED_CHART_SAMPLE_ROWS = 160;
+    private static final int REPORT_STRUCTURED_MAX_NUMERIC_COLUMNS = 4;
+    private static final int REPORT_STRUCTURED_MAX_HISTOGRAMS = 3;
+    private static final int REPORT_STRUCTURED_MAX_PAIR_GROUPS = 3;
     private static final long STRUCTURED_RESULT_QUERY_END = Long.MAX_VALUE - 2;
 
     private final TaskRepository taskRepository;
@@ -210,7 +218,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         ModelAssetEntity asset = modelAssetRepository.findById(rule.getModelId()).orElse(null);
         TaskExecutionSnapshot snapshot = parseExecutionSnapshot(task.getExecutionSnapshot());
         String analysisMode = resolveAnalysisMode(task, snapshot);
+        List<ReportPdfBuilder.BindingItem> inputBindings = buildInputBindingItems(task, rule, snapshot);
+        List<ReportPdfBuilder.BindingItem> outputBindings = buildOutputBindingItems(task, rule, snapshot);
 
+        Map<String, String> inputPathMap = resolveInputBindings(task, rule, snapshot);
+        List<String> inputPathList = inputPathMap.values().stream()
+            .filter(StringUtils::hasText)
+            .toList();
         Map<String, String> outputPaths = resolveOutputBindings(task, rule, snapshot);
         List<String> outputPathList = outputPaths.values().stream()
             .filter(StringUtils::hasText)
@@ -220,16 +234,45 @@ public class AnalysisServiceImpl implements AnalysisService {
         if ("STRUCTURED".equals(analysisMode)) {
             StructuredTableData inputTable = loadStructuredInputTable(task, rule, snapshot);
             StructuredTableData outputTable = loadStructuredResultTableForTask(task, snapshot);
-            Map<String, Stats> stats = request != null && request.isIncludeStats()
-                ? calculateStructuredStats(outputTable)
-                : Map.of();
-            reportContent = buildStructuredReportContent(task, rule, asset, outputPaths, stats, inputTable, outputTable, request);
+            List<ReportPdfBuilder.MetricRow> metrics = request != null && request.isIncludeStats()
+                ? buildStructuredReportMetrics(inputTable, outputTable)
+                : List.of();
+            reportContent = buildStructuredReportContent(
+                task,
+                rule,
+                asset,
+                snapshot,
+                inputBindings,
+                outputBindings,
+                metrics,
+                inputTable,
+                outputTable,
+                request
+            );
         } else {
-            SessionQueryDataSet dataSet = outputPathList.isEmpty()
+            SessionQueryDataSet inputDataSet = inputPathList.isEmpty()
+                ? null
+                : querySeries(inputPathList, task.getRangeStart(), task.getRangeEnd());
+            SessionQueryDataSet outputDataSet = outputPathList.isEmpty()
                 ? null
                 : queryOutputSeries(task, outputPathList, analysisMode);
-            Map<String, Stats> stats = request != null && request.isIncludeStats() ? calculateStats(dataSet) : Map.of();
-            reportContent = buildTimeSeriesReportContent(task, rule, asset, outputPaths, stats, dataSet, request);
+            List<ReportPdfBuilder.MetricRow> metrics = request != null && request.isIncludeStats()
+                ? buildReportMetrics(calculateStats(outputDataSet))
+                : List.of();
+            reportContent = buildTimeSeriesReportContent(
+                task,
+                rule,
+                asset,
+                snapshot,
+                inputBindings,
+                outputBindings,
+                metrics,
+                inputDataSet,
+                outputDataSet,
+                inputPathList,
+                outputPathList,
+                request
+            );
         }
         byte[] pdfBytes = new ReportPdfBuilder().build(reportContent);
 
@@ -1568,23 +1611,92 @@ public class AnalysisServiceImpl implements AnalysisService {
      * @return 表格块列表
      */
     private List<ReportPdfBuilder.TableBlock> buildStructuredReportTables(StructuredTableData inputTable,
-                                                                          StructuredTableData outputTable) {
+                                                                          StructuredTableData outputTable,
+                                                                          TaskReportRequest request) {
         List<ReportPdfBuilder.TableBlock> blocks = new ArrayList<>();
+        int previewRows = resolvePreviewRows(request);
+        String previewStrategy = resolvePreviewStrategy(request);
         if (inputTable != null && inputTable.rows() != null && !inputTable.rows().isEmpty()) {
+            List<String> columns = limitColumns(inputTable.columns(), REPORT_PREVIEW_MAX_COLUMNS);
             blocks.add(new ReportPdfBuilder.TableBlock(
-                "Structured Input Preview",
-                limitColumns(inputTable.columns(), 6),
-                limitTableRows(inputTable, 20)
+                "结构化输入预览",
+                buildPreviewNote(inputTable.rows().size(), previewRows, previewStrategy, columns.size(), inputTable.columns().size()),
+                columns,
+                limitTableRows(inputTable, columns, previewRows, previewStrategy)
             ));
         }
         if (outputTable != null && outputTable.rows() != null && !outputTable.rows().isEmpty()) {
+            List<String> columns = limitColumns(outputTable.columns(), REPORT_PREVIEW_MAX_COLUMNS);
             blocks.add(new ReportPdfBuilder.TableBlock(
-                "Structured Result Preview",
-                limitColumns(outputTable.columns(), 6),
-                limitTableRows(outputTable, 20)
+                "结构化结果预览",
+                buildPreviewNote(outputTable.rows().size(), previewRows, previewStrategy, columns.size(), outputTable.columns().size()),
+                columns,
+                limitTableRows(outputTable, columns, previewRows, previewStrategy)
             ));
         }
         return blocks;
+    }
+
+    /**
+     * 构建时序任务报告中的表格预览块。
+     *
+     * @param inputPaths 输入路径
+     * @param inputDataSet 输入数据集
+     * @param outputPaths 输出路径
+     * @param outputDataSet 输出数据集
+     * @param request 报告请求
+     * @return 表格块列表
+     */
+    private List<ReportPdfBuilder.TableBlock> buildTimeSeriesReportTables(List<String> inputPaths,
+                                                                          SessionQueryDataSet inputDataSet,
+                                                                          List<String> outputPaths,
+                                                                          SessionQueryDataSet outputDataSet,
+                                                                          TaskReportRequest request) {
+        List<ReportPdfBuilder.TableBlock> blocks = new ArrayList<>();
+        ReportPdfBuilder.TableBlock inputBlock = buildTimeSeriesPreviewBlock("输入数据预览", inputPaths, inputDataSet, request);
+        if (inputBlock != null) {
+            blocks.add(inputBlock);
+        }
+        ReportPdfBuilder.TableBlock outputBlock = buildTimeSeriesPreviewBlock("输出结果预览", outputPaths, outputDataSet, request);
+        if (outputBlock != null) {
+            blocks.add(outputBlock);
+        }
+        return blocks;
+    }
+
+    /**
+     * 构建单个时序预览块。
+     *
+     * @param title 标题
+     * @param fallbackPaths 兜底路径
+     * @param dataSet 数据集
+     * @param request 报告请求
+     * @return 表格块
+     */
+    private ReportPdfBuilder.TableBlock buildTimeSeriesPreviewBlock(String title,
+                                                                    List<String> fallbackPaths,
+                                                                    SessionQueryDataSet dataSet,
+                                                                    TaskReportRequest request) {
+        if (isDataSetEmpty(dataSet)) {
+            return null;
+        }
+        List<String> dataPaths = resolvePaths(fallbackPaths, dataSet);
+        List<String> selectedPaths = limitColumns(dataPaths, Math.max(1, REPORT_PREVIEW_MAX_COLUMNS - 1));
+        List<Map<String, Object>> rows = mapTimeSeriesRowsForReport(selectedPaths, dataSet);
+        if (rows.isEmpty()) {
+            return null;
+        }
+        int previewRows = resolvePreviewRows(request);
+        String previewStrategy = resolvePreviewStrategy(request);
+        List<String> columns = new ArrayList<>();
+        columns.add("timestamp");
+        columns.addAll(selectedPaths);
+        return new ReportPdfBuilder.TableBlock(
+            title,
+            buildPreviewNote(rows.size(), previewRows, previewStrategy, columns.size(), dataPaths.size() + 1),
+            columns,
+            sampleRows(rows, previewRows, previewStrategy)
+        );
     }
 
     /**
@@ -1608,18 +1720,20 @@ public class AnalysisServiceImpl implements AnalysisService {
      * 裁剪表格行数并限制列集合。
      *
      * @param tableData 表格数据
+     * @param columns 预览列
      * @param maxRows 最大行数
+     * @param previewStrategy 预览策略
      * @return 预览行
      */
-    private List<Map<String, Object>> limitTableRows(StructuredTableData tableData, int maxRows) {
+    private List<Map<String, Object>> limitTableRows(StructuredTableData tableData,
+                                                     List<String> columns,
+                                                     int maxRows,
+                                                     String previewStrategy) {
         if (tableData == null || tableData.rows() == null || tableData.rows().isEmpty()) {
             return List.of();
         }
-        List<String> columns = limitColumns(tableData.columns(), 6);
-        int size = Math.min(tableData.rows().size(), maxRows);
         List<Map<String, Object>> previewRows = new ArrayList<>();
-        for (int index = 0; index < size; index++) {
-            Map<String, Object> source = tableData.rows().get(index);
+        for (Map<String, Object> source : sampleRows(tableData.rows(), maxRows, previewStrategy)) {
             Map<String, Object> row = new LinkedHashMap<>();
             for (String column : columns) {
                 row.put(column, source == null ? null : source.get(column));
@@ -1627,6 +1741,167 @@ public class AnalysisServiceImpl implements AnalysisService {
             previewRows.add(row);
         }
         return previewRows;
+    }
+
+    /**
+     * 将时序查询结果映射为报告表格行。
+     *
+     * @param selectedPaths 选中的路径
+     * @param dataSet 数据集
+     * @return 表格行
+     */
+    private List<Map<String, Object>> mapTimeSeriesRowsForReport(List<String> selectedPaths,
+                                                                 SessionQueryDataSet dataSet) {
+        if (selectedPaths == null || selectedPaths.isEmpty() || isDataSetEmpty(dataSet)) {
+            return List.of();
+        }
+        List<String> actualPaths = resolvePaths(selectedPaths, dataSet);
+        Map<String, Integer> indexMap = new LinkedHashMap<>();
+        for (int index = 0; index < actualPaths.size(); index++) {
+            indexMap.putIfAbsent(normalizeMatchKey(actualPaths.get(index)), index);
+        }
+        long[] keys = dataSet.getKeys();
+        List<List<Object>> values = dataSet.getValues() == null ? List.of() : dataSet.getValues();
+        int size = Math.min(keys == null ? 0 : keys.length, values.size());
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < size; rowIndex++) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("timestamp", TimeParser.formatMillis(TimeParser.toMillis(keys[rowIndex])));
+            List<Object> valueRow = values.get(rowIndex);
+            for (String path : selectedPaths) {
+                Integer columnIndex = indexMap.get(normalizeMatchKey(path));
+                Object value = columnIndex == null || columnIndex >= valueRow.size() ? null : valueRow.get(columnIndex);
+                row.put(path, normalizeStructuredDisplayValue(value));
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /**
+     * 解析报告预览条数。
+     *
+     * @param request 报告请求
+     * @return 预览条数
+     */
+    private int resolvePreviewRows(TaskReportRequest request) {
+        if (request == null || request.getPreviewRows() == null || request.getPreviewRows() < 1) {
+            return DEFAULT_REPORT_PREVIEW_ROWS;
+        }
+        return Math.min(request.getPreviewRows(), MAX_REPORT_PREVIEW_ROWS);
+    }
+
+    /**
+     * 解析报告预览策略。
+     *
+     * @param request 报告请求
+     * @return 预览策略
+     */
+    private String resolvePreviewStrategy(TaskReportRequest request) {
+        String previewStrategy = request == null ? null : request.getPreviewStrategy();
+        if (!StringUtils.hasText(previewStrategy)) {
+            return "HEAD";
+        }
+        return "UNIFORM".equalsIgnoreCase(previewStrategy.trim()) ? "UNIFORM" : "HEAD";
+    }
+
+    /**
+     * 对列表执行预览采样。
+     *
+     * @param rows 原始列表
+     * @param limit 目标条数
+     * @param previewStrategy 预览策略
+     * @param <T> 元素类型
+     * @return 采样后的列表
+     */
+    private <T> List<T> sampleRows(List<T> rows, int limit, String previewStrategy) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, limit);
+        if (rows.size() <= safeLimit) {
+            return new ArrayList<>(rows);
+        }
+        if (!"UNIFORM".equalsIgnoreCase(previewStrategy)) {
+            return new ArrayList<>(rows.subList(0, safeLimit));
+        }
+        List<Integer> indexes = buildUniformSampleIndexes(rows.size(), safeLimit);
+        List<T> result = new ArrayList<>();
+        for (Integer index : indexes) {
+            if (index != null && index >= 0 && index < rows.size()) {
+                result.add(rows.get(index));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 构建均匀采样索引，保留首尾并尽量平均分布。
+     *
+     * @param total 总条数
+     * @param limit 目标条数
+     * @return 索引列表
+     */
+    private List<Integer> buildUniformSampleIndexes(int total, int limit) {
+        if (total <= 0 || limit <= 0) {
+            return List.of();
+        }
+        if (limit >= total) {
+            List<Integer> indexes = new ArrayList<>();
+            for (int index = 0; index < total; index++) {
+                indexes.add(index);
+            }
+            return indexes;
+        }
+        Map<Integer, Boolean> selected = new LinkedHashMap<>();
+        if (limit == 1) {
+            selected.put(0, Boolean.TRUE);
+        } else {
+            double step = (total - 1d) / (limit - 1d);
+            for (int index = 0; index < limit; index++) {
+                int rowIndex = (int) Math.round(index * step);
+                rowIndex = Math.max(0, Math.min(total - 1, rowIndex));
+                selected.put(rowIndex, Boolean.TRUE);
+            }
+        }
+        List<Integer> indexes = new ArrayList<>(selected.keySet());
+        Collections.sort(indexes);
+        while (indexes.size() < limit) {
+            int candidate = indexes.get(indexes.size() - 1) + 1;
+            if (candidate >= total) {
+                break;
+            }
+            indexes.add(candidate);
+        }
+        return indexes;
+    }
+
+    /**
+     * 构建预览说明。
+     *
+     * @param totalRows 总条数
+     * @param previewRows 预览条数
+     * @param previewStrategy 预览策略
+     * @param shownColumns 展示列数
+     * @param totalColumns 总列数
+     * @return 说明文本
+     */
+    private String buildPreviewNote(int totalRows,
+                                    int previewRows,
+                                    String previewStrategy,
+                                    int shownColumns,
+                                    int totalColumns) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("共 ").append(totalRows).append(" 条记录");
+        builder.append("，当前采用")
+            .append("UNIFORM".equalsIgnoreCase(previewStrategy) ? "均匀采样" : "前K条")
+            .append("方式展示 ")
+            .append(Math.min(totalRows, previewRows))
+            .append(" 条");
+        if (totalColumns > shownColumns) {
+            builder.append("，列展示 ").append(shownColumns).append("/").append(totalColumns);
+        }
+        return builder.toString();
     }
 
     /**
@@ -1780,33 +2055,30 @@ public class AnalysisServiceImpl implements AnalysisService {
     private ReportPdfBuilder.ReportContent buildTimeSeriesReportContent(TaskEntity task,
                                                                        AssociationRuleEntity rule,
                                                                        ModelAssetEntity asset,
-                                                                       Map<String, String> outputPaths,
-                                                                       Map<String, Stats> stats,
-                                                                       SessionQueryDataSet dataSet,
+                                                                       TaskExecutionSnapshot snapshot,
+                                                                       List<ReportPdfBuilder.BindingItem> inputBindings,
+                                                                       List<ReportPdfBuilder.BindingItem> outputBindings,
+                                                                       List<ReportPdfBuilder.MetricRow> metrics,
+                                                                       SessionQueryDataSet inputDataSet,
+                                                                       SessionQueryDataSet outputDataSet,
+                                                                       List<String> inputPaths,
+                                                                       List<String> outputPaths,
                                                                        TaskReportRequest request) {
-        ReportPdfBuilder.ReportContent content = new ReportPdfBuilder.ReportContent();
-        content.setTitle("Experiment Report");
-        content.setAnalysisMode("TIME_SERIES");
-        content.setGeneratedAt(TimeParser.formatMillis(System.currentTimeMillis()));
-        content.setTaskId(task.getId());
-        content.setRuleName(rule.getName());
-        if (asset != null) {
-            content.setModelName(asset.getFileName());
-            content.setModelVersion(asset.getVersion());
-        }
-        content.setExecutor("-");
-        content.setCreateTime(formatDateTime(task.getCreateTime()));
-        content.setStartTime(formatDateTime(task.getStartTime()));
-        content.setEndTime(formatDateTime(task.getEndTime()));
-        content.setRangeStart(formatDateTime(task.getRangeStart()));
-        content.setRangeEnd(formatDateTime(task.getRangeEnd()));
-        content.setOutputPaths(outputPaths == null ? List.of() : new ArrayList<>(outputPaths.values()));
-        content.setMetrics(buildReportMetrics(stats));
+        ReportPdfBuilder.ReportContent content = buildBaseReportContent(
+            task,
+            rule,
+            asset,
+            snapshot,
+            "TIME_SERIES",
+            inputBindings,
+            outputBindings,
+            request
+        );
+        content.setMetrics(metrics == null ? List.of() : metrics);
+        content.setTableBlocks(buildTimeSeriesReportTables(inputPaths, inputDataSet, outputPaths, outputDataSet, request));
         if (request != null && request.isIncludeCharts()) {
-            content.setChartData(buildChartData(dataSet));
+            content.setChartData(buildChartData(outputDataSet));
         }
-        content.setIncludeStats(request == null || request.isIncludeStats());
-        content.setIncludeCharts(request == null || request.isIncludeCharts());
         return content;
     }
 
@@ -1826,35 +2098,288 @@ public class AnalysisServiceImpl implements AnalysisService {
     private ReportPdfBuilder.ReportContent buildStructuredReportContent(TaskEntity task,
                                                                        AssociationRuleEntity rule,
                                                                        ModelAssetEntity asset,
-                                                                       Map<String, String> outputPaths,
-                                                                       Map<String, Stats> stats,
+                                                                       TaskExecutionSnapshot snapshot,
+                                                                       List<ReportPdfBuilder.BindingItem> inputBindings,
+                                                                       List<ReportPdfBuilder.BindingItem> outputBindings,
+                                                                       List<ReportPdfBuilder.MetricRow> metrics,
                                                                        StructuredTableData inputTable,
                                                                        StructuredTableData outputTable,
                                                                        TaskReportRequest request) {
+        ReportPdfBuilder.ReportContent content = buildBaseReportContent(
+            task,
+            rule,
+            asset,
+            snapshot,
+            "STRUCTURED",
+            inputBindings,
+            outputBindings,
+            request
+        );
+        content.setMetrics(metrics == null ? List.of() : metrics);
+        content.setTableBlocks(buildStructuredReportTables(inputTable, outputTable, request));
+        if (request == null || request.isIncludeCharts()) {
+            content.setStructuredChartBlocks(buildStructuredChartBlocks(inputTable, outputTable));
+        }
+        content.setChartData(null);
+        return content;
+    }
+
+    /**
+     * 构建公共报告内容。
+     */
+    private ReportPdfBuilder.ReportContent buildBaseReportContent(TaskEntity task,
+                                                                 AssociationRuleEntity rule,
+                                                                 ModelAssetEntity asset,
+                                                                 TaskExecutionSnapshot snapshot,
+                                                                 String analysisMode,
+                                                                 List<ReportPdfBuilder.BindingItem> inputBindings,
+                                                                 List<ReportPdfBuilder.BindingItem> outputBindings,
+                                                                 TaskReportRequest request) {
         ReportPdfBuilder.ReportContent content = new ReportPdfBuilder.ReportContent();
-        content.setTitle("Experiment Report");
-        content.setAnalysisMode("STRUCTURED");
+        content.setTitle("IGinX 智能关联分析报告");
+        content.setSubtitle(buildReportSubtitle(task, analysisMode));
+        content.setAnalysisMode(analysisMode);
         content.setGeneratedAt(TimeParser.formatMillis(System.currentTimeMillis()));
-        content.setTaskId(task.getId());
-        content.setRuleName(rule.getName());
+        content.setTaskId(task == null ? "-" : task.getId());
+        content.setTaskName(task == null || !StringUtils.hasText(task.getTaskName()) ? "-" : task.getTaskName());
+        content.setRuleId(rule == null || rule.getId() == null ? "-" : String.valueOf(rule.getId()));
+        content.setRuleName(rule == null || !StringUtils.hasText(rule.getName()) ? "-" : rule.getName());
         if (asset != null) {
             content.setModelName(asset.getFileName());
             content.setModelVersion(asset.getVersion());
+            content.setModelType(StringUtils.hasText(snapshot == null ? null : snapshot.getModelType())
+                ? snapshot.getModelType()
+                : asset.getFileType());
+        } else {
+            content.setModelName("-");
+            content.setModelVersion("-");
+            content.setModelType(snapshot == null || !StringUtils.hasText(snapshot.getModelType()) ? "-" : snapshot.getModelType());
         }
-        content.setExecutor("-");
-        content.setCreateTime(formatDateTime(task.getCreateTime()));
-        content.setStartTime(formatDateTime(task.getStartTime()));
-        content.setEndTime(formatDateTime(task.getEndTime()));
-        content.setRangeStart("-");
-        content.setRangeEnd("-");
-        content.setOutputPaths(outputPaths == null ? List.of() : new ArrayList<>(outputPaths.values()));
-        content.setMetrics(buildReportMetrics(stats));
-        content.setTableBlocks(buildStructuredReportTables(inputTable, outputTable));
+        content.setFunctionName(resolveReportFunctionName(rule, snapshot));
+        content.setExecutor(content.getModelType());
+        content.setCreateTime(formatDateTime(task == null ? null : task.getCreateTime()));
+        content.setStartTime(formatDateTime(task == null ? null : task.getStartTime()));
+        content.setEndTime(formatDateTime(task == null ? null : task.getEndTime()));
+        content.setRangeStart(formatDateTime(resolveReportRangeStart(task, snapshot)));
+        content.setRangeEnd(formatDateTime(resolveReportRangeEnd(task, snapshot)));
+        content.setDefaultResultPrefix(resolveDefaultResultPrefix(task, snapshot));
+        content.setInputBindings(inputBindings == null ? List.of() : inputBindings);
+        content.setOutputBindings(outputBindings == null ? List.of() : outputBindings);
+        content.setGuideLines(buildGuideLines(task, rule, asset, snapshot, analysisMode, inputBindings, outputBindings));
         content.setIncludeStats(request == null || request.isIncludeStats());
-        // 结构化输入任务不生成时序折线图，前端若勾选图表选项也在这里统一忽略。
-        content.setIncludeCharts(false);
-        content.setChartData(null);
+        content.setIncludeCharts(request == null || request.isIncludeCharts());
         return content;
+    }
+
+    /**
+     * 构建报告副标题。
+     */
+    private String buildReportSubtitle(TaskEntity task, String analysisMode) {
+        String taskName = task == null || !StringUtils.hasText(task.getTaskName()) ? "未命名任务" : task.getTaskName();
+        return taskName + " · " + formatAnalysisModeLabel(analysisMode);
+    }
+
+    /**
+     * 解析报告函数名。
+     */
+    private String resolveReportFunctionName(AssociationRuleEntity rule, TaskExecutionSnapshot snapshot) {
+        if (snapshot != null && StringUtils.hasText(snapshot.getFunctionName())) {
+            return snapshot.getFunctionName();
+        }
+        if (rule != null && StringUtils.hasText(rule.getFunctionName())) {
+            return rule.getFunctionName();
+        }
+        return "-";
+    }
+
+    /**
+     * 解析报告展示的开始时间。
+     */
+    private LocalDateTime resolveReportRangeStart(TaskEntity task, TaskExecutionSnapshot snapshot) {
+        if (task != null && task.getRangeStart() != null) {
+            return task.getRangeStart();
+        }
+        return snapshot == null ? null : snapshot.getRangeStart();
+    }
+
+    /**
+     * 解析报告展示的结束时间。
+     */
+    private LocalDateTime resolveReportRangeEnd(TaskEntity task, TaskExecutionSnapshot snapshot) {
+        if (task != null && task.getRangeEnd() != null) {
+            return task.getRangeEnd();
+        }
+        return snapshot == null ? null : snapshot.getRangeEnd();
+    }
+
+    /**
+     * 解析默认结果前缀。
+     */
+    private String resolveDefaultResultPrefix(TaskEntity task, TaskExecutionSnapshot snapshot) {
+        if (snapshot != null && StringUtils.hasText(snapshot.getDefaultResultPrefix())) {
+            return snapshot.getDefaultResultPrefix();
+        }
+        if (task != null && StringUtils.hasText(task.getResultLink())) {
+            return task.getResultLink();
+        }
+        return "-";
+    }
+
+    /**
+     * 构建输入绑定列表。
+     */
+    private List<ReportPdfBuilder.BindingItem> buildInputBindingItems(TaskEntity task,
+                                                                      AssociationRuleEntity rule,
+                                                                      TaskExecutionSnapshot snapshot) {
+        if (snapshot != null && snapshot.getInputs() != null && !snapshot.getInputs().isEmpty()) {
+            return buildBindingItems(snapshot.getInputs());
+        }
+        return buildBindingItems(resolveInputBindings(task, rule, snapshot));
+    }
+
+    /**
+     * 构建输出绑定列表。
+     */
+    private List<ReportPdfBuilder.BindingItem> buildOutputBindingItems(TaskEntity task,
+                                                                       AssociationRuleEntity rule,
+                                                                       TaskExecutionSnapshot snapshot) {
+        if (snapshot != null && snapshot.getOutputs() != null && !snapshot.getOutputs().isEmpty()) {
+            return buildBindingItems(snapshot.getOutputs());
+        }
+        return buildBindingItems(resolveOutputBindings(task, rule, snapshot));
+    }
+
+    /**
+     * 将执行绑定转换为报告绑定项。
+     */
+    private List<ReportPdfBuilder.BindingItem> buildBindingItems(List<TaskExecutionBinding> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            return List.of();
+        }
+        List<ReportPdfBuilder.BindingItem> items = new ArrayList<>();
+        for (TaskExecutionBinding binding : bindings) {
+            if (binding == null || !StringUtils.hasText(binding.getName())) {
+                continue;
+            }
+            items.add(new ReportPdfBuilder.BindingItem(
+                binding.getName(),
+                StringUtils.hasText(binding.getResolvedPath()) ? binding.getResolvedPath() : "-",
+                StringUtils.hasText(binding.getPathKind()) ? binding.getPathKind() : resolvePathKindByPath(binding.getResolvedPath())
+            ));
+        }
+        return items;
+    }
+
+    /**
+     * 将路径映射转换为报告绑定项。
+     */
+    private List<ReportPdfBuilder.BindingItem> buildBindingItems(Map<String, String> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            return List.of();
+        }
+        List<ReportPdfBuilder.BindingItem> items = new ArrayList<>();
+        for (Map.Entry<String, String> entry : bindings.entrySet()) {
+            if (!StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            items.add(new ReportPdfBuilder.BindingItem(
+                entry.getKey(),
+                StringUtils.hasText(entry.getValue()) ? entry.getValue() : "-",
+                resolvePathKindByPath(entry.getValue())
+            ));
+        }
+        return items;
+    }
+
+    /**
+     * 根据路径推断路径类型。
+     */
+    private String resolvePathKindByPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return "-";
+        }
+        String normalized = path.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("root.ts.") || normalized.startsWith("ts.")) {
+            return "TS";
+        }
+        if (normalized.startsWith("root.rt.") || normalized.startsWith("rt.")) {
+            return "RT";
+        }
+        if (normalized.startsWith("task.result.")) {
+            return "TASK_RESULT";
+        }
+        return "CUSTOM";
+    }
+
+    /**
+     * 构建报告末尾的定位指引。
+     */
+    private List<String> buildGuideLines(TaskEntity task,
+                                         AssociationRuleEntity rule,
+                                         ModelAssetEntity asset,
+                                         TaskExecutionSnapshot snapshot,
+                                         String analysisMode,
+                                         List<ReportPdfBuilder.BindingItem> inputBindings,
+                                         List<ReportPdfBuilder.BindingItem> outputBindings) {
+        List<String> lines = new ArrayList<>();
+        lines.add("任务编号：" + (task == null ? "-" : task.getId())
+            + "，分析模式：" + formatAnalysisModeLabel(analysisMode));
+        if (task != null && StringUtils.hasText(task.getTaskName())) {
+            lines.add("任务名称：" + task.getTaskName());
+        }
+        if (rule != null) {
+            lines.add("关联规则：" + rule.getName()
+                + (rule.getId() == null ? "" : "（ID: " + rule.getId() + "）"));
+        }
+        if (asset != null) {
+            lines.add("模型文件：" + asset.getFileName()
+                + "，版本：" + asset.getVersion()
+                + "，类型：" + (StringUtils.hasText(snapshot == null ? null : snapshot.getModelType())
+                ? snapshot.getModelType() : asset.getFileType())
+                + "，存储位置：" + asset.getStoragePath());
+        }
+        String functionName = resolveReportFunctionName(rule, snapshot);
+        if (StringUtils.hasText(functionName) && !"-".equals(functionName)) {
+            lines.add("模型调用函数：" + functionName);
+        }
+        lines.add("输入数据集 IGinX 路径：" + joinBindingPaths(inputBindings));
+        lines.add("输出结果 IGinX 路径：" + joinBindingPaths(outputBindings));
+        String defaultResultPrefix = resolveDefaultResultPrefix(task, snapshot);
+        if (StringUtils.hasText(defaultResultPrefix) && !"-".equals(defaultResultPrefix)) {
+            lines.add("默认输出前缀：" + defaultResultPrefix);
+        }
+        if ("TIME_SERIES".equalsIgnoreCase(analysisMode)) {
+            lines.add("本次报告中的时序图会根据报告容量自动降采样，预览表按所选策略展示关键记录。");
+        } else {
+            lines.add("结构化任务的输入表与结果表按 KEY 行序对齐，图表会基于数值列自动生成直方图、曲线图与散点图。");
+            lines.add("为控制 PDF 篇幅，结构化图表默认对数据做均匀采样，并优先展示前几组数值变量组合。");
+        }
+        lines.add("如需复核数据，可在数据资源树中按上述 IGinX 路径直接查询本次任务的输入与输出。");
+        return lines;
+    }
+
+    /**
+     * 拼接绑定路径说明。
+     */
+    private String joinBindingPaths(List<ReportPdfBuilder.BindingItem> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            return "-";
+        }
+        List<String> segments = new ArrayList<>();
+        for (ReportPdfBuilder.BindingItem item : bindings) {
+            if (item == null) {
+                continue;
+            }
+            segments.add(item.name() + " -> " + item.path());
+        }
+        return segments.isEmpty() ? "-" : String.join("；", segments);
+    }
+
+    /**
+     * 将分析模式转换为中文标签。
+     */
+    private String formatAnalysisModeLabel(String analysisMode) {
+        return "STRUCTURED".equalsIgnoreCase(analysisMode) ? "结构化分析" : "时序分析";
     }
 
     /**
@@ -1873,6 +2398,39 @@ public class AnalysisServiceImpl implements AnalysisService {
             rows.add(new ReportPdfBuilder.MetricRow(entry.getKey(), stat.count(), stat.min(), stat.max(), stat.avg()));
         }
         return rows;
+    }
+
+    /**
+     * 构建结构化任务的统计摘要。
+     */
+    private List<ReportPdfBuilder.MetricRow> buildStructuredReportMetrics(StructuredTableData inputTable,
+                                                                          StructuredTableData outputTable) {
+        List<ReportPdfBuilder.MetricRow> rows = new ArrayList<>();
+        appendStructuredMetricRows(rows, "输入", inputTable);
+        appendStructuredMetricRows(rows, "输出", outputTable);
+        return rows;
+    }
+
+    /**
+     * 追加结构化统计摘要。
+     */
+    private void appendStructuredMetricRows(List<ReportPdfBuilder.MetricRow> target,
+                                            String prefix,
+                                            StructuredTableData tableData) {
+        Map<String, Stats> stats = calculateStructuredStats(tableData);
+        if (stats.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Stats> entry : stats.entrySet()) {
+            Stats stat = entry.getValue();
+            target.add(new ReportPdfBuilder.MetricRow(
+                prefix + "." + entry.getKey(),
+                stat.count(),
+                stat.min(),
+                stat.max(),
+                stat.avg()
+            ));
+        }
     }
 
     /**
@@ -1922,6 +2480,357 @@ public class AnalysisServiceImpl implements AnalysisService {
             series.add(new ReportPdfBuilder.ChartSeries(paths.get(i), seriesValues.get(i)));
         }
         return new ReportPdfBuilder.ChartData(timestamps, series, min, max);
+    }
+
+    /**
+     * 构建结构化报告图表块。
+     */
+    private List<ReportPdfBuilder.StructuredChartBlock> buildStructuredChartBlocks(StructuredTableData inputTable,
+                                                                                   StructuredTableData outputTable) {
+        StructuredTableData sourceTable = buildStructuredChartSourceTable(inputTable, outputTable);
+        if (sourceTable.rows() == null || sourceTable.rows().isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> sampledRows = sampleRows(
+            sourceTable.rows(),
+            Math.min(REPORT_STRUCTURED_CHART_SAMPLE_ROWS, sourceTable.rows().size()),
+            "UNIFORM"
+        );
+        StructuredTableData sampledTable = new StructuredTableData(sourceTable.columns(), sampledRows);
+        List<String> numericColumns = resolveNumericColumns(sampledTable);
+        if (numericColumns.isEmpty()) {
+            return List.of();
+        }
+
+        List<ReportPdfBuilder.StructuredChartBlock> blocks = new ArrayList<>();
+        int histogramCount = 0;
+        for (String column : numericColumns) {
+            if (histogramCount >= REPORT_STRUCTURED_MAX_HISTOGRAMS) {
+                break;
+            }
+            ReportPdfBuilder.StructuredChartBlock histogramBlock = buildStructuredHistogramChartBlock(
+                sampledTable,
+                column,
+                sourceTable.rows().size()
+            );
+            if (histogramBlock != null) {
+                blocks.add(histogramBlock);
+                histogramCount++;
+            }
+        }
+
+        if (numericColumns.size() == 1) {
+            ReportPdfBuilder.StructuredChartBlock lineByKeyBlock = buildStructuredLineByKeyChartBlock(
+                sampledTable,
+                numericColumns.get(0),
+                sourceTable.rows().size()
+            );
+            if (lineByKeyBlock != null) {
+                blocks.add(lineByKeyBlock);
+            }
+            return blocks;
+        }
+
+        int pairGroups = 0;
+        int maxNumericColumns = Math.min(numericColumns.size(), REPORT_STRUCTURED_MAX_NUMERIC_COLUMNS);
+        for (int i = 0; i < maxNumericColumns; i++) {
+            for (int j = i + 1; j < maxNumericColumns; j++) {
+                if (pairGroups >= REPORT_STRUCTURED_MAX_PAIR_GROUPS) {
+                    return blocks;
+                }
+                ReportPdfBuilder.StructuredChartBlock lineBlock = buildStructuredLineChartBlock(
+                    sampledTable,
+                    numericColumns.get(i),
+                    numericColumns.get(j),
+                    sourceTable.rows().size()
+                );
+                if (lineBlock != null) {
+                    blocks.add(lineBlock);
+                }
+                ReportPdfBuilder.StructuredChartBlock scatterBlock = buildStructuredScatterChartBlock(
+                    sampledTable,
+                    numericColumns.get(i),
+                    numericColumns.get(j),
+                    sourceTable.rows().size()
+                );
+                if (scatterBlock != null) {
+                    blocks.add(scatterBlock);
+                }
+                pairGroups++;
+            }
+        }
+        return blocks;
+    }
+
+    /**
+     * 构建结构化图表使用的联合数据表。
+     */
+    private StructuredTableData buildStructuredChartSourceTable(StructuredTableData inputTable,
+                                                                StructuredTableData outputTable) {
+        int inputSize = inputTable == null || inputTable.rows() == null ? 0 : inputTable.rows().size();
+        int outputSize = outputTable == null || outputTable.rows() == null ? 0 : outputTable.rows().size();
+        int total = Math.max(inputSize, outputSize);
+        if (total == 0) {
+            return new StructuredTableData(List.of("KEY"), List.of());
+        }
+        List<String> columns = new ArrayList<>();
+        columns.add("KEY");
+        columns.addAll(prefixedColumns(inputTable == null ? List.of() : inputTable.columns(), "input."));
+        columns.addAll(prefixedColumns(outputTable == null ? List.of() : outputTable.columns(), "output."));
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < total; rowIndex++) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            Map<String, Object> inputRow = rowIndex < inputSize ? inputTable.rows().get(rowIndex) : null;
+            Map<String, Object> outputRow = rowIndex < outputSize ? outputTable.rows().get(rowIndex) : null;
+            row.put("KEY", resolveStructuredRowKey(inputRow, outputRow, rowIndex));
+            appendPrefixedValues(row, inputRow, inputTable == null ? List.of() : inputTable.columns(), "input.");
+            appendPrefixedValues(row, outputRow, outputTable == null ? List.of() : outputTable.columns(), "output.");
+            rows.add(row);
+        }
+        return new StructuredTableData(columns, rows);
+    }
+
+    /**
+     * 为列添加统一前缀。
+     */
+    private List<String> prefixedColumns(List<String> columns, String prefix) {
+        if (columns == null || columns.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (String column : columns) {
+            if (!StringUtils.hasText(column) || "KEY".equalsIgnoreCase(column)) {
+                continue;
+            }
+            result.add(prefix + column);
+        }
+        return result;
+    }
+
+    /**
+     * 追加带前缀的列值。
+     */
+    private void appendPrefixedValues(Map<String, Object> target,
+                                      Map<String, Object> source,
+                                      List<String> columns,
+                                      String prefix) {
+        if (target == null || columns == null || columns.isEmpty()) {
+            return;
+        }
+        for (String column : columns) {
+            if (!StringUtils.hasText(column) || "KEY".equalsIgnoreCase(column)) {
+                continue;
+            }
+            target.put(prefix + column, source == null ? null : source.get(column));
+        }
+    }
+
+    /**
+     * 解析结构化联合数据表的 KEY。
+     */
+    private Object resolveStructuredRowKey(Map<String, Object> inputRow,
+                                           Map<String, Object> outputRow,
+                                           int rowIndex) {
+        if (inputRow != null && inputRow.get("KEY") != null) {
+            return inputRow.get("KEY");
+        }
+        if (outputRow != null && outputRow.get("KEY") != null) {
+            return outputRow.get("KEY");
+        }
+        return rowIndex;
+    }
+
+    /**
+     * 解析可用于结构化图表的数值列。
+     */
+    private List<String> resolveNumericColumns(StructuredTableData tableData) {
+        if (tableData == null || tableData.columns() == null || tableData.columns().isEmpty()
+            || tableData.rows() == null || tableData.rows().isEmpty()) {
+            return List.of();
+        }
+        List<String> numericColumns = new ArrayList<>();
+        for (String column : tableData.columns()) {
+            if (!StringUtils.hasText(column) || "KEY".equalsIgnoreCase(column)) {
+                continue;
+            }
+            boolean hasNumeric = false;
+            for (Map<String, Object> row : tableData.rows()) {
+                if (toDouble(row == null ? null : row.get(column)) != null) {
+                    hasNumeric = true;
+                    break;
+                }
+            }
+            if (hasNumeric) {
+                numericColumns.add(column);
+            }
+        }
+        return numericColumns;
+    }
+
+    /**
+     * 构建结构化直方图块。
+     */
+    private ReportPdfBuilder.StructuredChartBlock buildStructuredHistogramChartBlock(StructuredTableData tableData,
+                                                                                     String column,
+                                                                                     int totalRows) {
+        List<Double> values = new ArrayList<>();
+        for (Map<String, Object> row : tableData.rows()) {
+            Double numericValue = toDouble(row == null ? null : row.get(column));
+            if (numericValue != null) {
+                values.add(numericValue);
+            }
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        double minValue = values.stream().mapToDouble(Double::doubleValue).min().orElse(0d);
+        double maxValue = values.stream().mapToDouble(Double::doubleValue).max().orElse(0d);
+        List<String> categories = new ArrayList<>();
+        List<Double> counts = new ArrayList<>();
+        if (Double.compare(minValue, maxValue) == 0) {
+            categories.add(formatDoubleLabel(minValue));
+            counts.add((double) values.size());
+        } else {
+            int binCount = Math.min(20, Math.max(5, (int) Math.round(Math.sqrt(values.size()))));
+            double binWidth = (maxValue - minValue) / binCount;
+            long[] bucketCounts = new long[binCount];
+            for (Double value : values) {
+                int index = Double.compare(value, maxValue) == 0
+                    ? binCount - 1
+                    : Math.min(binCount - 1, Math.max(0, (int) Math.floor((value - minValue) / binWidth)));
+                bucketCounts[index]++;
+            }
+            for (int index = 0; index < binCount; index++) {
+                double start = minValue + index * binWidth;
+                double end = index == binCount - 1 ? maxValue : start + binWidth;
+                categories.add(formatDoubleLabel(start) + " ~ " + formatDoubleLabel(end));
+                counts.add((double) bucketCounts[index]);
+            }
+        }
+        return new ReportPdfBuilder.StructuredChartBlock(
+            "直方图：" + column,
+            "基于 " + values.size() + "/" + totalRows + " 条数值记录统计分布。",
+            "HISTOGRAM",
+            column,
+            "频次",
+            categories,
+            counts,
+            List.of()
+        );
+    }
+
+    /**
+     * 构建结构化曲线图块。
+     */
+    private ReportPdfBuilder.StructuredChartBlock buildStructuredLineChartBlock(StructuredTableData tableData,
+                                                                                String xColumn,
+                                                                                String yColumn,
+                                                                                int totalRows) {
+        List<String> categories = new ArrayList<>();
+        List<Double> values = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < tableData.rows().size(); rowIndex++) {
+            Map<String, Object> row = tableData.rows().get(rowIndex);
+            Double yValue = toDouble(row == null ? null : row.get(yColumn));
+            if (yValue == null) {
+                continue;
+            }
+            Object rawX = row == null ? null : row.get(xColumn);
+            categories.add(StringUtils.hasText(normalizeValue(rawX))
+                ? normalizeValue(rawX)
+                : "第 " + (rowIndex + 1) + " 行");
+            values.add(yValue);
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        return new ReportPdfBuilder.StructuredChartBlock(
+            "曲线图：" + xColumn + " / " + yColumn,
+            "横轴使用 " + xColumn + "，纵轴使用 " + yColumn + "，共展示 " + values.size() + "/" + totalRows + " 条记录。",
+            "LINE",
+            xColumn,
+            yColumn,
+            categories,
+            values,
+            List.of()
+        );
+    }
+
+    /**
+     * 构建按 KEY 展示的结构化曲线图块。
+     */
+    private ReportPdfBuilder.StructuredChartBlock buildStructuredLineByKeyChartBlock(StructuredTableData tableData,
+                                                                                     String yColumn,
+                                                                                     int totalRows) {
+        List<String> categories = new ArrayList<>();
+        List<Double> values = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < tableData.rows().size(); rowIndex++) {
+            Map<String, Object> row = tableData.rows().get(rowIndex);
+            Double yValue = toDouble(row == null ? null : row.get(yColumn));
+            if (yValue == null) {
+                continue;
+            }
+            Object key = row == null ? null : row.get("KEY");
+            categories.add(StringUtils.hasText(normalizeValue(key)) ? normalizeValue(key) : String.valueOf(rowIndex));
+            values.add(yValue);
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        return new ReportPdfBuilder.StructuredChartBlock(
+            "曲线图：KEY / " + yColumn,
+            "当前仅检测到单个数值变量，使用 KEY 作为横轴展示 " + yColumn + " 的变化趋势。",
+            "LINE",
+            "KEY",
+            yColumn,
+            categories,
+            values,
+            List.of()
+        );
+    }
+
+    /**
+     * 构建结构化散点图块。
+     */
+    private ReportPdfBuilder.StructuredChartBlock buildStructuredScatterChartBlock(StructuredTableData tableData,
+                                                                                   String xColumn,
+                                                                                   String yColumn,
+                                                                                   int totalRows) {
+        List<ReportPdfBuilder.StructuredChartPoint> points = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < tableData.rows().size(); rowIndex++) {
+            Map<String, Object> row = tableData.rows().get(rowIndex);
+            Double xValue = toDouble(row == null ? null : row.get(xColumn));
+            Double yValue = toDouble(row == null ? null : row.get(yColumn));
+            if (xValue == null || yValue == null) {
+                continue;
+            }
+            Object key = row == null ? null : row.get("KEY");
+            points.add(new ReportPdfBuilder.StructuredChartPoint(
+                xValue,
+                yValue,
+                "KEY=" + (key == null ? rowIndex : key)
+            ));
+        }
+        if (points.isEmpty()) {
+            return null;
+        }
+        return new ReportPdfBuilder.StructuredChartBlock(
+            "散点图：" + xColumn + " / " + yColumn,
+            "横轴使用 " + xColumn + "，纵轴使用 " + yColumn + "，共展示 " + points.size() + "/" + totalRows + " 个数据点。",
+            "SCATTER",
+            xColumn,
+            yColumn,
+            List.of(),
+            List.of(),
+            points
+        );
+    }
+
+    /**
+     * 格式化数值标签。
+     */
+    private String formatDoubleLabel(double value) {
+        return String.format(Locale.ROOT, "%.4f", value);
     }
 
     /**
