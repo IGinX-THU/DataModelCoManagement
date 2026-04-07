@@ -9,6 +9,7 @@ const navItems = [
   { icon: 'ri-database-2-line', route: '/data', label: '数据资源' },
   { icon: 'ri-node-tree', route: '/models', label: '模型资产' },
   { icon: 'ri-links-line', route: '/relations', label: '关联管理' },
+  { icon: 'ri-git-merge-line', route: '/task-chains', label: '任务链编排' },
   { icon: 'ri-line-chart-line', route: '/analysis', label: '可视化分析' },
   { icon: 'ri-settings-3-line', route: '/settings', label: '系统设置' },
 ]

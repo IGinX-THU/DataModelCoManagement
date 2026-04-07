@@ -75,6 +75,34 @@ CREATE TABLE IF NOT EXISTS task (
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Task Chains
+CREATE TABLE IF NOT EXISTS task_chain (
+    id BIGSERIAL PRIMARY KEY,
+    chain_name VARCHAR(120) NOT NULL,
+    chain_mode VARCHAR(20) NOT NULL,
+    definition_json JSONB NOT NULL,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Task Chain Runs
+CREATE TABLE IF NOT EXISTS task_chain_run (
+    id VARCHAR(32) PRIMARY KEY,
+    chain_id BIGINT REFERENCES task_chain(id),
+    run_name VARCHAR(120),
+    status VARCHAR(20) NOT NULL,
+    chain_mode VARCHAR(20) NOT NULL,
+    range_start TIMESTAMP,
+    range_end TIMESTAMP,
+    scheduled_start_time TIMESTAMP,
+    scheduled_end_time TIMESTAMP,
+    start_time TIMESTAMP,
+    end_time TIMESTAMP,
+    result_prefix VARCHAR(255),
+    run_snapshot JSONB,
+    exec_log TEXT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Data Export Tasks
 CREATE TABLE IF NOT EXISTS data_export_task (
     id BIGSERIAL PRIMARY KEY,
@@ -126,3 +154,27 @@ ALTER TABLE IF EXISTS task
 
 ALTER TABLE IF EXISTS task
     ADD COLUMN IF NOT EXISTS task_name VARCHAR(120);
+
+ALTER TABLE IF EXISTS task_chain
+    ADD COLUMN IF NOT EXISTS chain_mode VARCHAR(20);
+
+ALTER TABLE IF EXISTS task_chain
+    ADD COLUMN IF NOT EXISTS definition_json JSONB;
+
+ALTER TABLE IF EXISTS task_chain
+    ADD COLUMN IF NOT EXISTS update_time TIMESTAMP;
+
+ALTER TABLE IF EXISTS task_chain_run
+    ADD COLUMN IF NOT EXISTS chain_mode VARCHAR(20);
+
+ALTER TABLE IF EXISTS task_chain_run
+    ADD COLUMN IF NOT EXISTS result_prefix VARCHAR(255);
+
+ALTER TABLE IF EXISTS task_chain_run
+    ADD COLUMN IF NOT EXISTS run_snapshot JSONB;
+
+ALTER TABLE IF EXISTS task_chain_run
+    ADD COLUMN IF NOT EXISTS scheduled_start_time TIMESTAMP;
+
+ALTER TABLE IF EXISTS task_chain_run
+    ADD COLUMN IF NOT EXISTS scheduled_end_time TIMESTAMP;

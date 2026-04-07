@@ -3,17 +3,18 @@ import { useDataStore } from '../stores/data'
 import { useModelStore } from '../stores/model'
 import { useAssociationStore } from '../stores/association'
 import { useUIStore } from '../stores/ui'
-import { useRouter } from 'vue-router'
-import { ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ref, watch } from 'vue'
 
 const dataStore = useDataStore()
 const modelStore = useModelStore()
 const associationStore = useAssociationStore()
 const uiStore = useUIStore()
 const router = useRouter()
+const route = useRoute()
 const isRibbonCollapsed = ref(false)
 
-const tabs = ['Main', 'Data', 'Model', 'Relation', 'Analysis', 'Tools', 'View', 'Help']
+const tabs = ['Main', 'Data', 'Model', 'Relation', 'TaskChain', 'Analysis', 'Tools', 'View', 'Help']
 
 // 登录态（当前为本地演示态）
 const isLoggedIn = ref(true)
@@ -46,6 +47,33 @@ const checkUpdate = () => {
     alert('正在检查更新...\n\n当前已是最新版本（v1.2.0）')
 }
 
+/**
+ * 根据当前路由同步顶部功能页签，避免直接输入地址或页面内跳转后高亮不一致。
+ */
+const syncActiveTabByRoute = (path) => {
+    if (path.startsWith('/data')) {
+        uiStore.setActiveTab('Data')
+        return
+    }
+    if (path.startsWith('/models')) {
+        uiStore.setActiveTab('Model')
+        return
+    }
+    if (path.startsWith('/relations')) {
+        uiStore.setActiveTab('Relation')
+        return
+    }
+    if (path.startsWith('/task-chains')) {
+        uiStore.setActiveTab('TaskChain')
+        return
+    }
+    if (path.startsWith('/analysis')) {
+        uiStore.setActiveTab('Analysis')
+        return
+    }
+    uiStore.setActiveTab('Main')
+}
+
 const navigate = async (tab) => {
     uiStore.setActiveTab(tab)
     try {
@@ -58,6 +86,9 @@ const navigate = async (tab) => {
                 break
             case 'Relation':
                 await router.push('/relations')
+                break
+            case 'TaskChain':
+                await router.push('/task-chains')
                 break
             case 'Analysis':
                 await router.push('/analysis')
@@ -72,6 +103,10 @@ const navigate = async (tab) => {
         console.error('Navigation failed:', e)
     }
 }
+
+watch(() => route.path, (path) => {
+    syncActiveTabByRoute(path)
+}, { immediate: true })
 </script>
 
 <template>
@@ -82,7 +117,7 @@ const navigate = async (tab) => {
                   @click="navigate(tab)"
                   :class="uiStore.activeRibbonTab === tab ? 'text-blue-600 bg-white border-t border-l border-r border-gray-200 rounded-t shadow-[0_-1px_2px_rgba(0,0,0,0.02)] relative -bottom-px z-10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-t'"
                   class="cursor-pointer select-none px-4 py-1.5 transition-all duration-100">
-                  {{ tab === 'Main' ? '首页' : tab === 'Data' ? '数据' : tab === 'Model' ? '模型' : tab === 'Relation' ? '关联' : tab === 'Analysis' ? '分析' : tab === 'Tools' ? '工具' : tab === 'View' ? '视图' : '帮助' }}
+                  {{ tab === 'Main' ? '首页' : tab === 'Data' ? '数据' : tab === 'Model' ? '模型' : tab === 'Relation' ? '关联' : tab === 'TaskChain' ? '任务链' : tab === 'Analysis' ? '分析' : tab === 'Tools' ? '工具' : tab === 'View' ? '视图' : '帮助' }}
             </span>
         </div>
         <div class="flex-1 border-b border-gray-200 h-full"></div>
@@ -190,9 +225,20 @@ const navigate = async (tab) => {
                 <div class="icon-box bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100"><i class="ri-add-box-line text-2xl"></i></div>
                 <span>创建关联规则</span>
             </div>
-             <div class="ribbon-btn group">
+            <div @click="navigate('TaskChain')" class="ribbon-btn group">
+                <div class="icon-box bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"><i class="ri-git-merge-line text-2xl"></i></div>
+                <span>任务链编排</span>
+            </div>
+        </div>
+
+        <div v-if="['Main', 'TaskChain'].includes(uiStore.activeRibbonTab)" class="flex space-x-2 pr-6 border-r border-gray-200 relative pb-4">
+            <div @click="navigate('TaskChain')" class="ribbon-btn group">
+                <div class="icon-box bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"><i class="ri-git-merge-line text-2xl"></i></div>
+                <span>打开任务链编排</span>
+            </div>
+            <div @click="navigate('Relation')" class="ribbon-btn group">
                 <div class="icon-box bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100"><i class="ri-links-line text-2xl"></i></div>
-                <span>关联规则配置</span>
+                <span>返回关联管理</span>
             </div>
         </div>
 

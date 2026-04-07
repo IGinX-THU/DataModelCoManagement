@@ -35,6 +35,11 @@ const router = createRouter({
           component: () => import('../views/TaskMonitorView.vue')
         },
         {
+          path: 'task-chains',
+          name: 'task-chains',
+          component: () => import('../views/TaskChainView.vue')
+        },
+        {
           path: 'analysis',
           name: 'analysis',
           component: () => import('../views/AnalysisView.vue')

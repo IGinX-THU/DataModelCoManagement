@@ -73,10 +73,11 @@ public class TaskModelExecutionEngine {
 
         TaskModelExecutor.ExecutionResult executionResult = executor.execute(plan, functionArguments, modelBytes);
         LinkedHashMap<String, Object> outputs = normalizeOutputs(executionResult.rawResult(), safeBindings(snapshot.getOutputs()));
-        int writeCount = writeOutputs(snapshot, loadedInputs, outputs);
+        OutputWriteSummary writeSummary = writeOutputs(snapshot, loadedInputs, outputs);
 
         TaskExecutionOutcome outcome = new TaskExecutionOutcome();
-        outcome.setWrittenOutputCount(writeCount);
+        outcome.setWrittenOutputCount(writeSummary.writtenOutputCount());
+        outcome.setOutputValueCounts(writeSummary.outputValueCounts());
         outcome.setExecLog(buildExecLog(plan, snapshot, loadedInputs, outputs, executionResult.runtimeLog()));
         return outcome;
     }
@@ -378,10 +379,11 @@ public class TaskModelExecutionEngine {
     /**
      * 写回任务输出。
      */
-    private int writeOutputs(TaskExecutionSnapshot snapshot,
-                             LoadedInputs loadedInputs,
-                             LinkedHashMap<String, Object> outputs) {
+    private OutputWriteSummary writeOutputs(TaskExecutionSnapshot snapshot,
+                                            LoadedInputs loadedInputs,
+                                            LinkedHashMap<String, Object> outputs) {
         int written = 0;
+        Map<String, Integer> outputValueCounts = new LinkedHashMap<>();
         long[] timelineKeys = loadedInputs.timelineKeys();
         boolean hasTimeline = timelineKeys != null && timelineKeys.length > 0;
         boolean structuredOnlyInput = loadedInputs.structuredOnlyInput();
@@ -397,8 +399,9 @@ public class TaskModelExecutionEngine {
             OutputWriteData writeData = resolveOutputWriteData(rawValue, binding.getType(), sequenceKeys, singleKey);
             executeInsertSql(binding.getResolvedPath(), writeData.keys(), writeData.values());
             written++;
+            outputValueCounts.put(binding.getName(), writeData.keys().length);
         }
-        return written;
+        return new OutputWriteSummary(written, outputValueCounts);
     }
 
     /**
@@ -888,6 +891,12 @@ public class TaskModelExecutionEngine {
      * 输出写入数据。
      */
     private record OutputWriteData(long[] keys, List<Object> values) {
+    }
+
+    /**
+     * 输出写入汇总。
+     */
+    private record OutputWriteSummary(int writtenOutputCount, Map<String, Integer> outputValueCounts) {
     }
 
     /**
