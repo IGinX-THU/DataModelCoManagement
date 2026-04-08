@@ -25,9 +25,9 @@ const loading = ref(false)
 const saving = ref(false)
 const showRunModal = ref(false)
 const submittingRun = ref(false)
+const showChainSidebar = ref(true)
 const centerViewMode = ref('editor')
 const showGuide = ref(true)
-const showAdvanced = ref(false)
 const showRunAdvanced = ref(false)
 const topologyChartRef = ref(null)
 
@@ -130,7 +130,8 @@ const setupChecklist = computed(() => {
   ]
 })
 
-const showRightPanel = computed(() => showAdvanced.value || runs.value.length > 0 || Boolean(selectedRun.value))
+const isTopologyView = computed(() => centerViewMode.value === 'topology')
+const isInspectorView = computed(() => centerViewMode.value === 'inspector')
 
 /**
  * 统一构建任务链拓扑图，编辑区和拓扑预览共用同一套层级关系。
@@ -207,7 +208,31 @@ const buildTopologyGraph = (nodes = []) => {
 }
 
 const graphPreview = computed(() => buildTopologyGraph(editor.nodes))
-const isTopologyView = computed(() => centerViewMode.value === 'topology' && Boolean(selectedChainId.value))
+
+/**
+ * 切换任务链主视图，支持在编排 / 拓扑 / 依赖与运行之间切换。
+ */
+const switchCenterView = async (mode) => {
+  centerViewMode.value = mode || 'editor'
+  if (centerViewMode.value === 'topology') {
+    await nextTick()
+    renderTopologyChart()
+  }
+}
+
+/**
+ * 收起任务链列表侧栏，主视图可获得更大的工作空间。
+ */
+const collapseChainSidebar = () => {
+  showChainSidebar.value = false
+}
+
+/**
+ * 在主视图内重新展开任务链列表侧栏。
+ */
+const expandChainSidebar = () => {
+  showChainSidebar.value = true
+}
 
 /**
  * 把任务链 DAG 映射成 ECharts 固定坐标图，确保多父节点场景也能稳定展示。
@@ -600,24 +625,34 @@ const loadChainDetail = async (chainId) => {
   await loadRuns(detail.id)
 }
 
-const openChainEditor = async (chainId) => {
+const openChainInCurrentView = async (chainId) => {
   if (chainId && selectedChainId.value !== chainId) {
     await loadChainDetail(chainId)
   }
-  centerViewMode.value = 'editor'
-}
-
-const openChainTopology = async (chainId) => {
-  if (!chainId) return
-  const shouldCollapse = selectedChainId.value === chainId && centerViewMode.value === 'topology'
-  if (selectedChainId.value !== chainId) {
-    await loadChainDetail(chainId)
-  }
-  centerViewMode.value = shouldCollapse ? 'editor' : 'topology'
   if (centerViewMode.value === 'topology') {
     await nextTick()
     renderTopologyChart()
   }
+}
+
+const openChainTopology = async (chainId) => {
+  const shouldCollapse = Boolean(chainId)
+    && selectedChainId.value === chainId
+    && centerViewMode.value === 'topology'
+  if (chainId && selectedChainId.value !== chainId) {
+    await loadChainDetail(chainId)
+  }
+  await switchCenterView(shouldCollapse ? 'editor' : 'topology')
+}
+
+const openChainInspector = async (chainId) => {
+  const shouldCollapse = Boolean(chainId)
+    && selectedChainId.value === chainId
+    && centerViewMode.value === 'inspector'
+  if (chainId && selectedChainId.value !== chainId) {
+    await loadChainDetail(chainId)
+  }
+  await switchCenterView(shouldCollapse ? 'editor' : 'inspector')
 }
 
 const loadRuns = async (chainId) => {
@@ -693,7 +728,7 @@ const saveChain = async () => {
       const chainId = await createTaskChain(payload)
       await loadChains()
       await loadChainDetail(chainId)
-      centerViewMode.value = 'editor'
+      await switchCenterView('editor')
       alert('任务链已创建。')
     }
   } catch (error) {
@@ -787,6 +822,7 @@ const submitRun = async () => {
     showRunModal.value = false
     await loadRuns(editor.id)
     await loadRunDetail(runId)
+    await switchCenterView('inspector')
     alert(`任务链已提交，运行ID：${runId}`)
   } catch (error) {
     alert(error.message || '任务链运行提交失败')
@@ -933,16 +969,27 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="grid h-full gap-5" :style="showRightPanel ? 'grid-template-columns: 260px minmax(0, 1fr) 360px;' : 'grid-template-columns: 260px minmax(0, 1fr);'">
-      <div class="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden">
+    <div class="flex h-full gap-5">
+      <div v-if="showChainSidebar" class="w-72 rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden">
         <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-[linear-gradient(135deg,#f8fbff,#eef4ff)]">
           <div>
             <div class="text-sm font-bold text-slate-800">任务链列表</div>
-            <div class="text-[11px] text-slate-400 mt-1">独立于原有任务定义的编排视图</div>
+            <div class="text-[11px] text-slate-400 mt-1">像资源库一样可收起、可再次展开</div>
           </div>
-          <button class="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 hover:bg-sky-100" @click="resetEditor">
-            <i class="ri-add-line text-lg"></i>
-          </button>
+          <div class="flex items-center gap-2">
+            <button class="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 hover:bg-sky-100" title="新建任务链" @click="resetEditor">
+              <i class="ri-add-line text-lg"></i>
+            </button>
+            <button class="h-9 w-9 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="收起任务链列表" @click="collapseChainSidebar">
+              <i class="ri-close-line text-lg"></i>
+            </button>
+          </div>
+        </div>
+        <div class="px-4 py-3 border-b border-slate-100 bg-slate-50/80">
+          <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+            <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1">共 {{ chains.length }} 条任务链</span>
+            <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1">{{ activeRuns.length }} 条运行中</span>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-3">
           <div v-if="loading" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
@@ -958,13 +1005,13 @@ onBeforeUnmount(() => {
           >
             <div class="p-4">
               <div class="flex items-start justify-between gap-3">
-                <button type="button" class="min-w-0 flex-1 text-left" @click="openChainEditor(chain.id)">
+                <button type="button" class="min-w-0 flex-1 text-left" @click="openChainInCurrentView(chain.id)">
                   <div class="truncate text-sm font-bold text-slate-800">{{ chain.chainName }}</div>
                   <div class="text-[11px] text-slate-400 mt-1">
                     {{ chain.chainMode === 'TIME_SERIES' ? '时序' : '结构化' }} · {{ chain.nodeCount }} 节点 / {{ chain.edgeCount }} 连线
                   </div>
                 </button>
-                <div class="flex items-center gap-2 shrink-0">
+                <div class="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     class="rounded p-1 transition-all"
@@ -975,6 +1022,17 @@ onBeforeUnmount(() => {
                     @click.stop="openChainTopology(chain.id)"
                   >
                     <i class="ri-node-tree text-sm"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded p-1 transition-all"
+                    :class="selectedChainId === chain.id && isInspectorView
+                      ? 'opacity-100 bg-indigo-100 text-indigo-600'
+                      : 'opacity-0 text-slate-400 group-hover:opacity-100 hover:bg-indigo-100 hover:text-indigo-600'"
+                    :title="selectedChainId === chain.id && isInspectorView ? '收起依赖与运行页' : '打开依赖与运行页'"
+                    @click.stop="openChainInspector(chain.id)"
+                  >
+                    <i class="ri-layout-right-2-line text-sm"></i>
                   </button>
                   <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold"
                         :class="chain.chainMode === 'TIME_SERIES'
@@ -988,12 +1046,62 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="!loading && !chains.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
-            还没有任务链，点击右上角开始创建。
+            还没有任务链，点击左上角开始创建。
           </div>
         </div>
       </div>
 
-      <div class="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
+      <div class="min-w-0 flex-1 flex flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              v-if="!showChainSidebar"
+              class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm hover:bg-slate-50"
+              @click="expandChainSidebar"
+            >
+              <i class="ri-menu-unfold-line mr-1"></i>展开任务链列表
+            </button>
+            <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600 shadow-sm">
+              当前任务链：{{ editor.chainName || '未命名任务链' }}
+            </span>
+            <span class="rounded-full border px-3 py-1 text-[11px] font-bold shadow-sm"
+                  :class="editorChainMode === 'TIME_SERIES'
+                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'">
+              {{ editorChainMode === 'TIME_SERIES' ? '时序任务链' : '结构化任务链' }}
+            </span>
+            <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600 shadow-sm">
+              {{ editor.nodes.length }} 个节点 / {{ graphPreview.edges.length }} 条连接
+            </span>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+            <div class="flex flex-wrap items-center gap-1">
+              <button
+                class="rounded-xl px-4 py-2 text-sm font-medium transition"
+                :class="!isTopologyView && !isInspectorView ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                @click="switchCenterView('editor')"
+              >
+                任务链编排
+              </button>
+              <button
+                class="rounded-xl px-4 py-2 text-sm font-medium transition"
+                :class="isTopologyView ? 'bg-sky-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                @click="switchCenterView('topology')"
+              >
+                拓扑预览
+              </button>
+              <button
+                class="rounded-xl px-4 py-2 text-sm font-medium transition"
+                :class="isInspectorView ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                @click="switchCenterView('inspector')"
+              >
+                依赖与运行
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col min-h-0 flex-1">
         <template v-if="isTopologyView">
           <div class="px-6 py-5 border-b border-slate-100 bg-[radial-gradient(circle_at_top_left,#eef6ff,transparent_48%),linear-gradient(135deg,#ffffff,#f7fbff)]">
             <div class="flex flex-wrap items-start justify-between gap-4">
@@ -1003,12 +1111,15 @@ onBeforeUnmount(() => {
                   <div class="text-xl font-bold text-slate-800">任务链拓扑预览：{{ editor.chainName || '未命名任务链' }}</div>
                 </div>
                 <div class="text-sm text-slate-500 mt-1">
-                  交互方式和数据模块保持一致，点左侧记录旁边的小拓扑按钮即可切换到这里。
+                  这里作为独立主页面展示当前任务链依赖结构，保存前后都可以直接预览。
                 </div>
               </div>
               <div class="flex flex-wrap gap-2">
-                <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="centerViewMode = 'editor'">
+                <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="switchCenterView('editor')">
                   返回编排
+                </button>
+                <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="switchCenterView('inspector')">
+                  打开依赖与运行页
                 </button>
                 <button class="rounded-xl bg-sky-600 px-4 py-2 text-sm text-white hover:bg-sky-700" @click="openRunDialog">
                   运行任务链
@@ -1056,21 +1167,235 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
+        <template v-else-if="isInspectorView">
+          <div class="px-6 py-5 border-b border-slate-100 bg-[radial-gradient(circle_at_top_left,#eef2ff,transparent_48%),linear-gradient(135deg,#ffffff,#f7faff)]">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <i class="ri-layout-right-2-line text-xl text-indigo-500"></i>
+                  <div class="text-xl font-bold text-slate-800">依赖预览与运行记录</div>
+                </div>
+                <div class="text-sm text-slate-500 mt-1">
+                  原来的右侧窄面板已提升为独立主页面，方便集中查看依赖关系、运行历史和异常日志。
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="switchCenterView('editor')">
+                  返回编排
+                </button>
+                <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="switchCenterView('topology')">
+                  查看拓扑
+                </button>
+                <button class="rounded-xl bg-sky-600 px-4 py-2 text-sm text-white hover:bg-sky-700" @click="openRunDialog">
+                  运行任务链
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5 bg-[linear-gradient(180deg,#ffffff,#f8fafc)]">
+            <div class="grid gap-4 xl:grid-cols-3">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="rounded-full border px-2.5 py-1 text-[10px] font-bold"
+                        :class="editorChainMode === 'TIME_SERIES'
+                          ? 'border-blue-200 bg-blue-50 text-blue-700'
+                          : 'border-emerald-200 bg-emerald-50 text-emerald-700'">
+                    {{ editorChainMode === 'TIME_SERIES' ? '时序任务链' : '结构化任务链' }}
+                  </span>
+                  <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] text-slate-600">{{ editor.nodes.length }} 个节点</span>
+                  <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] text-slate-600">{{ graphPreview.edges.length }} 条输入连接</span>
+                </div>
+                <div class="mt-4 grid gap-3 text-[11px] text-slate-500 md:grid-cols-2 xl:grid-cols-1">
+                  <div>
+                    <div class="text-slate-400">当前任务链</div>
+                    <div class="mt-1 text-sm font-semibold text-slate-700">{{ editor.chainName || '未命名任务链' }}</div>
+                  </div>
+                  <div>
+                    <div class="text-slate-400">任务链 ID</div>
+                    <div class="mt-1 break-all font-mono text-slate-700">{{ editor.id || '尚未保存' }}</div>
+                  </div>
+                </div>
+                <div v-if="graphPreview.hasCycle" class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                  当前编辑视图存在环形依赖风险，后端保存时会拒绝。
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="text-sm font-bold text-slate-700 mb-3">层级结构</div>
+                <div v-if="!graphPreview.levels.length" class="text-sm text-slate-400">暂无节点。</div>
+                <div v-for="(level, levelIndex) in graphPreview.levels" :key="levelIndex" class="mb-3 last:mb-0">
+                  <div class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-2">Level {{ levelIndex + 1 }}</div>
+                  <div class="space-y-2">
+                    <div v-for="node in level" :key="node.nodeId" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div class="text-sm font-semibold text-slate-700">{{ node.nodeName || node.nodeId }}</div>
+                      <div class="text-[11px] text-slate-400">{{ node.ruleName || '-' }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="text-sm font-bold text-slate-700 mb-3">输入连接</div>
+                <div v-if="!graphPreview.edges.length" class="text-sm text-slate-400">当前没有上游输出连接，所有输入都将走外部路径。</div>
+                <div v-for="edge in graphPreview.edges" :key="`${edge.fromId}-${edge.toId}-${edge.inputName}`" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 mb-2 last:mb-0">
+                  <div class="text-xs text-slate-600">
+                    <span class="font-semibold text-slate-800">{{ edge.fromName }}</span>.{{ edge.outputName }}
+                    <span class="mx-2 text-slate-300">→</span>
+                    <span class="font-semibold text-slate-800">{{ edge.toName }}</span>.{{ edge.inputName }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid gap-5 xl:grid-cols-[340px,minmax(0,1fr)]">
+              <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                  <div class="text-sm font-bold text-slate-700">运行记录</div>
+                  <div class="text-[11px] text-slate-400">{{ runs.length }} 条记录</div>
+                </div>
+                <div v-if="!runs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
+                  当前任务链还没有运行记录。
+                </div>
+                <div v-else class="space-y-2">
+                  <button
+                    v-for="run in runs"
+                    :key="run.id"
+                    type="button"
+                    class="w-full rounded-xl border px-3 py-3 text-left transition"
+                    :class="selectedRunId === run.id
+                      ? 'border-sky-300 bg-sky-50'
+                      : 'border-slate-200 bg-slate-50 hover:border-slate-300'"
+                    @click="loadRunDetail(run.id)"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="truncate text-sm font-semibold text-slate-800">{{ run.runName || run.id }}</div>
+                        <div class="mt-1 space-y-0.5 text-[11px] text-slate-400">
+                          <div>{{ formatTime(run.createTime) }}</div>
+                          <div>计划开始：{{ formatScheduleTime(run.scheduledStartTime, '立即执行') }}</div>
+                          <div>计划终止：{{ formatScheduleTime(run.scheduledEndTime, '不限制') }}</div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <button
+                          v-if="canDeleteRunRecord(run)"
+                          type="button"
+                          class="rounded p-1 text-rose-500 hover:bg-rose-100"
+                          title="删除任务链运行记录"
+                          @click.stop="handleDeleteRun(run.id)"
+                        >
+                          <i class="ri-delete-bin-line text-sm"></i>
+                        </button>
+                        <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold" :class="resolveStatusClass(run.status)">
+                          {{ run.status }}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                  <div class="text-sm font-bold text-slate-700">运行详情</div>
+                  <div class="flex items-center gap-2">
+                    <button
+                      v-if="selectedRun && ['PENDING', 'RUNNING'].includes(selectedRun.status)"
+                      class="rounded-xl border border-rose-200 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
+                      @click="handleStopRun(selectedRun.id)"
+                    >
+                      终止当前运行
+                    </button>
+                    <button
+                      v-if="selectedRun && canDeleteRunRecord(selectedRun)"
+                      class="rounded-xl border border-rose-200 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
+                      @click="handleDeleteRun(selectedRun.id)"
+                    >
+                      删除记录
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="!selectedRun" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
+                  请先从左侧运行记录里选择一条运行，查看详细状态、节点输出和执行日志。
+                </div>
+
+                <template v-else>
+                  <div class="grid gap-3 text-[11px] text-slate-500 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <div class="text-slate-400">运行名称</div>
+                      <div class="text-slate-700 mt-1">{{ selectedRun.runName }}</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">状态</div>
+                      <div class="text-slate-700 mt-1">{{ selectedRun.status }}</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">开始时间</div>
+                      <div class="text-slate-700 mt-1">{{ formatTime(selectedRun.startTime) }}</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">结束时间</div>
+                      <div class="text-slate-700 mt-1">{{ formatTime(selectedRun.endTime) }}</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">计划开始时间</div>
+                      <div class="text-slate-700 mt-1">{{ formatScheduleTime(selectedRun.scheduledStartTime, '立即执行') }}</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">计划终止时间</div>
+                      <div class="text-slate-700 mt-1">{{ formatScheduleTime(selectedRun.scheduledEndTime, '不限制') }}</div>
+                    </div>
+                    <div class="md:col-span-2 xl:col-span-3">
+                      <div class="text-slate-400">结果前缀</div>
+                      <div class="mt-1 break-all font-mono text-slate-700">{{ selectedRun.resultPrefix || '-' }}</div>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 space-y-3">
+                    <div v-for="node in selectedRun.nodes || []" :key="node.nodeId" class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div class="flex items-center justify-between gap-3">
+                        <div>
+                          <div class="text-sm font-semibold text-slate-800">{{ node.nodeName }}</div>
+                          <div class="text-[11px] text-slate-400">{{ node.ruleName }} / {{ node.functionName }}</div>
+                        </div>
+                        <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold" :class="resolveStatusClass(node.status)">
+                          {{ node.status }}
+                        </span>
+                      </div>
+                      <div v-if="node.outputPaths && Object.keys(node.outputPaths).length" class="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-[11px] text-slate-600 space-y-1">
+                        <div v-for="(path, name) in node.outputPaths" :key="name">
+                          <span class="font-semibold text-slate-700">{{ name }}</span> -> <span class="font-mono">{{ path }}</span>
+                        </div>
+                      </div>
+                      <pre class="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-5 text-slate-600 whitespace-pre-wrap">{{ node.execLog || '暂无日志' }}</pre>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+
         <template v-else>
         <div class="px-6 py-5 border-b border-slate-100 bg-[radial-gradient(circle_at_top_left,#eef6ff,transparent_48%),linear-gradient(135deg,#ffffff,#f7fbff)]">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="min-w-0">
               <div class="text-xl font-bold text-slate-800">任务链编排</div>
               <div class="text-sm text-slate-500 mt-1">
-                默认只显示最常用的编排信息。你先完成名称、节点和输入来源，保存后再运行即可。
+                编排、依赖检查和运行历史现在分成独立主视图，当前页面专注编辑任务链本身。
               </div>
             </div>
             <div class="flex flex-wrap gap-2">
               <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="showGuide = !showGuide">
                 {{ showGuide ? '收起操作说明' : '显示操作说明' }}
               </button>
-              <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="showAdvanced = !showAdvanced">
-                {{ showRightPanel ? '收起高级信息' : '显示高级信息' }}
+              <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="switchCenterView('topology')">
+                查看拓扑预览
+              </button>
+              <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="switchCenterView('inspector')">
+                打开依赖与运行页
               </button>
               <button class="rounded-xl border border-rose-200 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50" @click="deleteCurrentChain">
                 {{ editor.id ? '删除任务链' : '清空编辑器' }}
@@ -1243,6 +1568,9 @@ onBeforeUnmount(() => {
                 <button class="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60" :disabled="saving" @click="saveChain">
                   {{ saving ? '保存中...' : (editor.id ? '保存修改' : '创建任务链') }}
                 </button>
+                <button class="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="switchCenterView('inspector')">
+                  查看依赖与运行
+                </button>
                 <button class="rounded-xl bg-sky-600 px-4 py-2 text-sm text-white hover:bg-sky-700" @click="openRunDialog">运行任务链</button>
               </div>
             </div>
@@ -1251,167 +1579,6 @@ onBeforeUnmount(() => {
         </template>
       </div>
 
-      <div v-if="showRightPanel" class="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
-        <div class="px-5 py-4 border-b border-slate-100 bg-[linear-gradient(135deg,#f9fafb,#eff6ff)]">
-          <div class="text-sm font-bold text-slate-800">依赖预览与运行记录</div>
-          <div class="text-[11px] text-slate-400 mt-1">这里是高级信息区，主要用于检查依赖关系、查看运行历史和排查问题。</div>
-        </div>
-        <div class="flex-1 overflow-y-auto p-4 space-y-4">
-          <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="rounded-full border px-2.5 py-1 text-[10px] font-bold"
-                    :class="editorChainMode === 'TIME_SERIES'
-                      ? 'border-blue-200 bg-blue-50 text-blue-700'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'">
-                {{ editorChainMode === 'TIME_SERIES' ? '时序任务链' : '结构化任务链' }}
-              </span>
-              <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] text-slate-600">{{ editor.nodes.length }} 个节点</span>
-              <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] text-slate-600">{{ graphPreview.edges.length }} 条输入连接</span>
-            </div>
-            <div v-if="graphPreview.hasCycle" class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
-              当前编辑视图存在环形依赖风险，后端保存时会拒绝。
-            </div>
-          </div>
-
-          <div class="rounded-2xl border border-slate-200 bg-white p-4">
-            <div class="text-sm font-bold text-slate-700 mb-3">层级结构</div>
-            <div v-if="!graphPreview.levels.length" class="text-sm text-slate-400">暂无节点。</div>
-            <div v-for="(level, levelIndex) in graphPreview.levels" :key="levelIndex" class="mb-3 last:mb-0">
-              <div class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-2">Level {{ levelIndex + 1 }}</div>
-              <div class="space-y-2">
-                <div v-for="node in level" :key="node.nodeId" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                  <div class="text-sm font-semibold text-slate-700">{{ node.nodeName || node.nodeId }}</div>
-                  <div class="text-[11px] text-slate-400">{{ node.ruleName || '-' }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rounded-2xl border border-slate-200 bg-white p-4">
-            <div class="text-sm font-bold text-slate-700 mb-3">输入连接</div>
-            <div v-if="!graphPreview.edges.length" class="text-sm text-slate-400">当前没有上游输出连接，所有输入都将走外部路径。</div>
-            <div v-for="edge in graphPreview.edges" :key="`${edge.fromId}-${edge.toId}-${edge.inputName}`" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 mb-2 last:mb-0">
-              <div class="text-xs text-slate-600">
-                <span class="font-semibold text-slate-800">{{ edge.fromName }}</span>.{{ edge.outputName }}
-                <span class="mx-2 text-slate-300">→</span>
-                <span class="font-semibold text-slate-800">{{ edge.toName }}</span>.{{ edge.inputName }}
-              </div>
-            </div>
-          </div>
-
-          <div class="rounded-2xl border border-slate-200 bg-white p-4">
-            <div class="flex items-center justify-between gap-3 mb-3">
-              <div class="text-sm font-bold text-slate-700">运行记录</div>
-              <div class="flex items-center gap-2">
-                <button
-                  v-if="selectedRun && ['PENDING', 'RUNNING'].includes(selectedRun.status)"
-                  class="rounded-xl border border-rose-200 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
-                  @click="handleStopRun(selectedRun.id)"
-                >
-                  终止当前运行
-                </button>
-                <button
-                  v-if="selectedRun && canDeleteRunRecord(selectedRun)"
-                  class="rounded-xl border border-rose-200 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
-                  @click="handleDeleteRun(selectedRun.id)"
-                >
-                  删除记录
-                </button>
-              </div>
-            </div>
-            <div v-if="!runs.length" class="text-sm text-slate-400">当前任务链还没有运行记录。</div>
-            <div class="space-y-2">
-              <button
-                v-for="run in runs"
-                :key="run.id"
-                type="button"
-                class="w-full rounded-xl border px-3 py-3 text-left transition"
-                :class="selectedRunId === run.id
-                  ? 'border-sky-300 bg-sky-50'
-                  : 'border-slate-200 bg-slate-50 hover:border-slate-300'"
-                @click="loadRunDetail(run.id)"
-              >
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="truncate text-sm font-semibold text-slate-800">{{ run.runName || run.id }}</div>
-                    <div class="mt-1 space-y-0.5 text-[11px] text-slate-400">
-                      <div>{{ formatTime(run.createTime) }}</div>
-                      <div>计划开始：{{ formatScheduleTime(run.scheduledStartTime, '立即执行') }}</div>
-                      <div>计划终止：{{ formatScheduleTime(run.scheduledEndTime, '不限制') }}</div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <button
-                      v-if="canDeleteRunRecord(run)"
-                      type="button"
-                      class="rounded p-1 text-rose-500 hover:bg-rose-100"
-                      title="删除任务链运行记录"
-                      @click.stop="handleDeleteRun(run.id)"
-                    >
-                      <i class="ri-delete-bin-line text-sm"></i>
-                    </button>
-                    <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold" :class="resolveStatusClass(run.status)">
-                      {{ run.status }}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div v-if="selectedRun" class="rounded-2xl border border-slate-200 bg-white p-4">
-            <div class="text-sm font-bold text-slate-700 mb-3">运行详情</div>
-            <div class="grid grid-cols-2 gap-3 text-[11px] text-slate-500">
-              <div>
-                <div class="text-slate-400">运行名称</div>
-                <div class="text-slate-700 mt-1">{{ selectedRun.runName }}</div>
-              </div>
-              <div>
-                <div class="text-slate-400">状态</div>
-                <div class="text-slate-700 mt-1">{{ selectedRun.status }}</div>
-              </div>
-              <div>
-                <div class="text-slate-400">开始时间</div>
-                <div class="text-slate-700 mt-1">{{ formatTime(selectedRun.startTime) }}</div>
-              </div>
-              <div>
-                <div class="text-slate-400">结束时间</div>
-                <div class="text-slate-700 mt-1">{{ formatTime(selectedRun.endTime) }}</div>
-              </div>
-              <div>
-                <div class="text-slate-400">计划开始时间</div>
-                <div class="text-slate-700 mt-1">{{ formatScheduleTime(selectedRun.scheduledStartTime, '立即执行') }}</div>
-              </div>
-              <div>
-                <div class="text-slate-400">计划终止时间</div>
-                <div class="text-slate-700 mt-1">{{ formatScheduleTime(selectedRun.scheduledEndTime, '不限制') }}</div>
-              </div>
-              <div class="col-span-2">
-                <div class="text-slate-400">结果前缀</div>
-                <div class="mt-1 break-all font-mono text-slate-700">{{ selectedRun.resultPrefix || '-' }}</div>
-              </div>
-            </div>
-            <div class="mt-4 space-y-3">
-              <div v-for="node in selectedRun.nodes || []" :key="node.nodeId" class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <div class="text-sm font-semibold text-slate-800">{{ node.nodeName }}</div>
-                    <div class="text-[11px] text-slate-400">{{ node.ruleName }} / {{ node.functionName }}</div>
-                  </div>
-                  <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold" :class="resolveStatusClass(node.status)">
-                    {{ node.status }}
-                  </span>
-                </div>
-                <div v-if="node.outputPaths && Object.keys(node.outputPaths).length" class="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-[11px] text-slate-600 space-y-1">
-                  <div v-for="(path, name) in node.outputPaths" :key="name">
-                    <span class="font-semibold text-slate-700">{{ name }}</span> -> <span class="font-mono">{{ path }}</span>
-                  </div>
-                </div>
-                <pre class="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-5 text-slate-600 whitespace-pre-wrap">{{ node.execLog || '暂无日志' }}</pre>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
