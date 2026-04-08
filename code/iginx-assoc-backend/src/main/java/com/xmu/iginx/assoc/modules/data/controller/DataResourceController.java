@@ -2,6 +2,7 @@ package com.xmu.iginx.assoc.modules.data.controller;
 
 import com.xmu.iginx.assoc.common.Result;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataExportRequest;
 import com.xmu.iginx.assoc.modules.data.dto.DataImportRequest;
@@ -204,7 +205,7 @@ public class DataResourceController {
             Files.copy(path, response.getOutputStream());
             response.flushBuffer();
         } catch (Exception ex) {
-            throw BizException.internal("文件下载失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("文件下载失败", ex), ex);
         }
     }
 }

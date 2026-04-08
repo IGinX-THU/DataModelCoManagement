@@ -1,5 +1,6 @@
 package com.xmu.iginx.assoc.modules.analysis.util;
 
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import lombok.Data;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -1114,7 +1115,7 @@ public class ReportPdfBuilder {
             try {
                 currentStream.setStrokingColor(clampColor(r), clampColor(g), clampColor(b));
             } catch (IOException ex) {
-                throw new IllegalStateException("设置描边颜色失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("设置描边颜色失败", ex), ex);
             }
         }
 
@@ -1125,7 +1126,7 @@ public class ReportPdfBuilder {
             try {
                 currentStream.setNonStrokingColor(clampColor(r), clampColor(g), clampColor(b));
             } catch (IOException ex) {
-                throw new IllegalStateException("设置填充颜色失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("设置填充颜色失败", ex), ex);
             }
         }
 
@@ -1136,7 +1137,7 @@ public class ReportPdfBuilder {
             try {
                 currentStream.setLineWidth(width);
             } catch (IOException ex) {
-                throw new IllegalStateException("设置线宽失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("设置线宽失败", ex), ex);
             }
         }
 
@@ -1149,7 +1150,7 @@ public class ReportPdfBuilder {
                 currentStream.lineTo(x2, toPdfY(y2Top));
                 currentStream.stroke();
             } catch (IOException ex) {
-                throw new IllegalStateException("绘制直线失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("绘制直线失败", ex), ex);
             }
         }
 
@@ -1167,7 +1168,7 @@ public class ReportPdfBuilder {
                     currentStream.stroke();
                 }
             } catch (IOException ex) {
-                throw new IllegalStateException("绘制矩形失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("绘制矩形失败", ex), ex);
             }
         }
 
@@ -1186,7 +1187,7 @@ public class ReportPdfBuilder {
                 currentStream.showText(text);
                 currentStream.endText();
             } catch (IOException ex) {
-                throw new IllegalStateException("绘制文本失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("绘制文本失败", ex), ex);
             }
         }
 
@@ -1206,7 +1207,7 @@ public class ReportPdfBuilder {
                 }
                 currentStream.stroke();
             } catch (IOException ex) {
-                throw new IllegalStateException("绘制折线失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("绘制折线失败", ex), ex);
             }
         }
 
@@ -1242,7 +1243,7 @@ public class ReportPdfBuilder {
                     stream.showText(text);
                     stream.endText();
                 } catch (IOException ex) {
-                    throw new IllegalStateException("追加页码失败: " + ex.getMessage(), ex);
+                    throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("追加页码失败", ex), ex);
                 }
             }
         }
@@ -1257,7 +1258,7 @@ public class ReportPdfBuilder {
                 document.close();
                 return output.toByteArray();
             } catch (IOException ex) {
-                throw new IllegalStateException("构建PDF失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("构建PDF失败", ex), ex);
             }
         }
 
@@ -1278,7 +1279,7 @@ public class ReportPdfBuilder {
                 }
                 return new PDPageContentStream(document, page);
             } catch (IOException ex) {
-                throw new IllegalStateException("创建PDF内容流失败: " + ex.getMessage(), ex);
+                throw new IllegalStateException(ExceptionMessageUtils.buildDetailedMessage("创建PDF内容流失败", ex), ex);
             }
         }
 

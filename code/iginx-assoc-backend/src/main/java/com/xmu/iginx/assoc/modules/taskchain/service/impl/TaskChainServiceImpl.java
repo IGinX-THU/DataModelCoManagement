@@ -2,6 +2,7 @@ package com.xmu.iginx.assoc.modules.taskchain.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
@@ -239,13 +240,13 @@ public class TaskChainServiceImpl implements TaskChainService {
             }
             if (scheduledStartTime != null && scheduledStartTime.isAfter(LocalDateTime.now())) {
                 taskScheduler.schedule(runId, runner, scheduledStartTime,
-                    ex -> markRunFailed(runId, "任务链提交失败: " + ex.getMessage()));
+                    ex -> markRunFailed(runId, ExceptionMessageUtils.buildDetailedMessage("任务链提交失败", ex)));
             } else {
                 taskScheduler.submit(runId, runner);
             }
         } catch (BizException ex) {
             taskScheduler.clear(runId);
-            markRunFailed(runId, "任务链提交失败: " + ex.getMessage());
+            markRunFailed(runId, ExceptionMessageUtils.buildDetailedMessage("任务链提交失败", ex));
             throw ex;
         }
     }
@@ -321,21 +322,21 @@ public class TaskChainServiceImpl implements TaskChainService {
             if (currentNode != null && TaskStatus.RUNNING.name().equals(currentNode.getStatus())) {
                 currentNode.setStatus(TaskStatus.FAILED.name());
                 currentNode.setEndTime(LocalDateTime.now());
-                currentNode.setExecLog("节点执行失败: " + ex.getMessage());
+                currentNode.setExecLog(ExceptionMessageUtils.buildDetailedMessage("节点执行失败", ex));
                 persistRunSnapshot(run, snapshot);
             }
             run.setStatus(TaskStatus.FAILED.name());
-            run.setExecLog(appendRunLog(run.getExecLog(), "任务链执行失败: " + ex.getMessage()));
+            run.setExecLog(appendRunLog(run.getExecLog(), ExceptionMessageUtils.buildDetailedMessage("任务链执行失败", ex)));
         } catch (Exception ex) {
             if (currentNode != null && TaskStatus.RUNNING.name().equals(currentNode.getStatus())) {
                 currentNode.setStatus(TaskStatus.FAILED.name());
                 currentNode.setEndTime(LocalDateTime.now());
-                currentNode.setExecLog("节点执行失败: " + ex.getMessage());
+                currentNode.setExecLog(ExceptionMessageUtils.buildDetailedMessage("节点执行失败", ex));
                 persistRunSnapshot(run, snapshot);
             }
             log.error("任务链执行失败，runId={}", runId, ex);
             run.setStatus(TaskStatus.FAILED.name());
-            run.setExecLog(appendRunLog(run.getExecLog(), "任务链执行失败: " + ex.getMessage()));
+            run.setExecLog(appendRunLog(run.getExecLog(), ExceptionMessageUtils.buildDetailedMessage("任务链执行失败", ex)));
         } finally {
             run.setEndTime(run.getEndTime() == null ? LocalDateTime.now() : run.getEndTime());
             run.setRunSnapshot(writeJson(snapshot));
@@ -1099,7 +1100,10 @@ public class TaskChainServiceImpl implements TaskChainService {
             TaskChainRunSnapshot snapshot = objectMapper.readValue(json, TaskChainRunSnapshot.class);
             return snapshot == null ? null : snapshot;
         } catch (Exception ex) {
-            throw BizException.badRequest("任务链运行快照解析失败，无法安全清理输出数据");
+            throw BizException.badRequest(
+                ExceptionMessageUtils.buildDetailedMessage("任务链运行快照解析失败，无法安全清理输出数据", ex),
+                ex
+            );
         }
     }
 
@@ -1111,7 +1115,7 @@ public class TaskChainServiceImpl implements TaskChainService {
             TaskChainDefinition definition = objectMapper.readValue(json, TaskChainDefinition.class);
             return definition == null ? new TaskChainDefinition() : definition;
         } catch (Exception ex) {
-            throw BizException.badRequest("任务链定义解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("任务链定义解析失败", ex), ex);
         }
     }
 
@@ -1123,7 +1127,7 @@ public class TaskChainServiceImpl implements TaskChainService {
             TaskChainRunSnapshot snapshot = objectMapper.readValue(json, TaskChainRunSnapshot.class);
             return snapshot == null ? new TaskChainRunSnapshot() : snapshot;
         } catch (Exception ex) {
-            throw BizException.badRequest("任务链运行快照解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("任务链运行快照解析失败", ex), ex);
         }
     }
 
@@ -1131,7 +1135,7 @@ public class TaskChainServiceImpl implements TaskChainService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (Exception ex) {
-            throw BizException.internal("任务链快照序列化失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("任务链快照序列化失败", ex), ex);
         }
     }
 

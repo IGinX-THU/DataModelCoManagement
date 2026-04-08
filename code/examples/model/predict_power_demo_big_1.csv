@@ -1,4 +1,4 @@
-timestamp,temperature,pressure,flow
+mytime,temperature,pressure,flow
 2026-02-18 00:00:00,21.99,1.11,1.04
 2026-02-18 00:01:00,22.1,1.11,1.03
 2026-02-18 00:02:00,22.1,1.12,1.03

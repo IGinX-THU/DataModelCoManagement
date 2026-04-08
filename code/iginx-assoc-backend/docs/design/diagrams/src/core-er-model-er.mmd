@@ -9,7 +9,6 @@ erDiagram
         bigint id PK
         string name
         string source_type
-        string mount_path
         text conn_config
     }
     META_MODEL_PROFILE {
@@ -28,7 +27,6 @@ erDiagram
         bigint id PK
         bigint data_id FK
         bigint model_id FK
-        string trigger_type
         jsonb mapping_json
         jsonb output_target
         boolean enabled

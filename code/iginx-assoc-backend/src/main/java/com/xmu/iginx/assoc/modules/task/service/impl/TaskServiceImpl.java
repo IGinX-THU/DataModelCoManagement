@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.task.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
@@ -195,7 +196,7 @@ public class TaskServiceImpl implements TaskService {
             }
         } catch (BizException ex) {
             taskScheduler.clear(taskId);
-            markTaskFailed(taskId, "任务提交失败: " + ex.getMessage());
+            markTaskFailed(taskId, ExceptionMessageUtils.buildDetailedMessage("任务提交失败", ex));
             throw ex;
         }
     }
@@ -230,7 +231,7 @@ public class TaskServiceImpl implements TaskService {
                 task.setExecLog(resolveAbortReason(taskId, "任务执行过程中被终止"));
             } else {
                 task.setStatus(TaskStatus.FAILED.name());
-                task.setExecLog("任务执行失败: " + ex.getMessage());
+                task.setExecLog(ExceptionMessageUtils.buildDetailedMessage("任务执行失败", ex));
             }
         } catch (Exception ex) {
             if (Thread.currentThread().isInterrupted()) {
@@ -239,7 +240,7 @@ public class TaskServiceImpl implements TaskService {
             } else {
                 log.error("任务执行失败，taskId={}", taskId, ex);
                 task.setStatus(TaskStatus.FAILED.name());
-                task.setExecLog("任务执行失败: " + ex.getMessage());
+                task.setExecLog(ExceptionMessageUtils.buildDetailedMessage("任务执行失败", ex));
             }
         } finally {
             task.setEndTime(LocalDateTime.now());
@@ -359,7 +360,7 @@ public class TaskServiceImpl implements TaskService {
             }
             return result;
         } catch (Exception ex) {
-            throw BizException.badRequest("关联规则输入绑定解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("关联规则输入绑定解析失败", ex), ex);
         }
     }
 
@@ -424,7 +425,7 @@ public class TaskServiceImpl implements TaskService {
             }
             return result;
         } catch (Exception ex) {
-            throw BizException.badRequest("关联规则输出绑定解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("关联规则输出绑定解析失败", ex), ex);
         }
     }
 
@@ -550,7 +551,7 @@ public class TaskServiceImpl implements TaskService {
         } catch (BizException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw BizException.badRequest("关联规则函数定义解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("关联规则函数定义解析失败", ex), ex);
         }
     }
 
@@ -570,9 +571,9 @@ public class TaskServiceImpl implements TaskService {
             try {
                 return functionSchemaParser.parseByFunction(fileBytes, modelType, functionName).schema();
             } catch (IllegalArgumentException ex) {
-                throw BizException.badRequest("模型函数不存在或解析失败: " + ex.getMessage());
+                throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("模型函数不存在或解析失败", ex), ex);
             } catch (Exception ex) {
-                throw BizException.badRequest("模型函数结构解析失败");
+                throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("模型函数结构解析失败", ex), ex);
             }
         }
         String ioSchemaJson = asset.getIoSchema();
@@ -586,7 +587,7 @@ public class TaskServiceImpl implements TaskService {
         try {
             return objectMapper.readValue(ioSchemaJson, ModelIoSchema.class);
         } catch (Exception ex) {
-            throw BizException.badRequest("模型输入输出结构解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("模型输入输出结构解析失败", ex), ex);
         }
     }
 
@@ -686,7 +687,7 @@ public class TaskServiceImpl implements TaskService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (Exception ex) {
-            throw BizException.internal("任务快照序列化失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("任务快照序列化失败", ex), ex);
         }
     }
 
@@ -827,7 +828,10 @@ public class TaskServiceImpl implements TaskService {
             TaskExecutionSnapshot snapshot = objectMapper.readValue(executionSnapshotJson, TaskExecutionSnapshot.class);
             return snapshot == null ? null : snapshot;
         } catch (Exception ex) {
-            throw BizException.badRequest("任务执行快照解析失败，无法安全清理输出数据");
+            throw BizException.badRequest(
+                ExceptionMessageUtils.buildDetailedMessage("任务执行快照解析失败，无法安全清理输出数据", ex),
+                ex
+            );
         }
     }
 
@@ -1073,7 +1077,7 @@ public class TaskServiceImpl implements TaskService {
      */
     private void handleDelayedSubmitFailure(String taskId, BizException ex) {
         taskScheduler.clear(taskId);
-        markTaskFailed(taskId, "任务提交失败: " + ex.getMessage());
+        markTaskFailed(taskId, ExceptionMessageUtils.buildDetailedMessage("任务提交失败", ex));
     }
 
     /**

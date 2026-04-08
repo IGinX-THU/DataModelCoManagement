@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.model.util;
 import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.framework.iginx.IginxFileSystemRegistrar;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import lombok.RequiredArgsConstructor;
@@ -152,7 +153,7 @@ public class ModelFileStorageService {
             writeTo(storageUri, fileSize, outputStream);
             return outputStream.toByteArray();
         } catch (IOException ex) {
-            throw BizException.internal("读取模型文件失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("读取模型文件失败", ex), ex);
         }
     }
 
@@ -377,7 +378,7 @@ public class ModelFileStorageService {
         try {
             return MessageDigest.getInstance("MD5");
         } catch (Exception ex) {
-            throw BizException.internal("模型文件校验失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("模型文件校验失败", ex), ex);
         }
     }
 

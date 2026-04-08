@@ -9,6 +9,7 @@ import com.alibaba.excel.write.metadata.WriteSheet;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.DataExportRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryCondition;
@@ -132,7 +133,7 @@ public class DataExportServiceImpl implements DataExportService {
             throw e;
         } catch (Exception ex) {
             task.setStatus(DataExportTaskStatus.FAILED.name());
-            task.setErrorMessage(ex.getMessage());
+            task.setErrorMessage(ExceptionMessageUtils.buildDetailedMessage("导出任务执行失败", ex));
         }
         task.setUpdateTime(LocalDateTime.now());
         taskRepository.save(task);
@@ -226,7 +227,7 @@ public class DataExportServiceImpl implements DataExportService {
                 closeQuietly(dataSet);
             }
         } catch (Exception ex) {
-            throw BizException.internal("结构化数据导出失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("结构化数据导出失败", ex), ex);
         }
         return file;
     }
@@ -283,7 +284,7 @@ public class DataExportServiceImpl implements DataExportService {
                 }
             }
         } catch (Exception ex) {
-            throw BizException.internal("时序数据导出失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("时序数据导出失败", ex), ex);
         }
     }
 
@@ -318,7 +319,7 @@ public class DataExportServiceImpl implements DataExportService {
             generator.writeEndArray();
             generator.writeEndObject();
         } catch (Exception ex) {
-            throw BizException.internal("时序数据导出失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("时序数据导出失败", ex), ex);
         }
     }
 

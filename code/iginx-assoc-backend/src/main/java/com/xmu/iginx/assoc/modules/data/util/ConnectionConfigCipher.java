@@ -4,6 +4,7 @@ import cn.hutool.crypto.symmetric.AES;
 import cn.hutool.crypto.SecureUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.framework.crypto.CryptoConfig;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +33,7 @@ public class ConnectionConfigCipher {
             String json = objectMapper.writeValueAsString(connectionConfig);
             return aes().encryptBase64(json, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw BizException.internal("连接配置加密失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("连接配置加密失败", e), e);
         }
     }
 
@@ -47,7 +48,7 @@ public class ConnectionConfigCipher {
             String json = aes().decryptStr(cipherText, StandardCharsets.UTF_8);
             return objectMapper.readValue(json, DataSourceConnectionConfig.class);
         } catch (Exception e) {
-            throw BizException.internal("连接配置解密失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("连接配置解密失败", e), e);
         }
     }
 

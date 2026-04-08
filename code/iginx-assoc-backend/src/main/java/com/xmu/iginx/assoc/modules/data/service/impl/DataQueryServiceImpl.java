@@ -6,6 +6,7 @@ import cn.edu.tsinghua.iginx.thrift.AggregateType;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.xmu.iginx.assoc.common.PageResult;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryCondition;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryRequest;
@@ -741,7 +742,7 @@ public class DataQueryServiceImpl implements DataQueryService {
         } catch (BizException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw BizException.internal("结构化查询失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("结构化查询失败", ex), ex);
         }
     }
 

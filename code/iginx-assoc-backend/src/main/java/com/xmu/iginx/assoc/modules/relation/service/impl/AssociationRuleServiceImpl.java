@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.relation.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.model.dto.ModelIoSchema;
@@ -276,9 +277,9 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         try {
             return functionSchemaParser.parseByFunction(fileBytes, fileType, functionName).schema();
         } catch (IllegalArgumentException ex) {
-            throw BizException.badRequest("函数解析失败: " + ex.getMessage());
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("函数解析失败", ex), ex);
         } catch (Exception ex) {
-            throw BizException.badRequest("模型函数结构解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("模型函数结构解析失败", ex), ex);
         }
     }
 
@@ -563,7 +564,7 @@ public class AssociationRuleServiceImpl implements AssociationRuleService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
-            throw BizException.internal("关联规则保存失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("关联规则保存失败", e), e);
         }
     }
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.model.dto.ModelIoSchema;
 import com.xmu.iginx.assoc.modules.model.dto.ModelProfileUpdateRequest;
 import com.xmu.iginx.assoc.modules.model.dto.ModelSchemaParam;
@@ -526,7 +527,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
             try {
                 return normalizeSchema(objectMapper.readValue(request.getIoSchema(), ModelIoSchema.class));
             } catch (IOException e) {
-                throw BizException.badRequest("IO Schema 解析失败，请检查 JSON 格式");
+                throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("IO Schema 解析失败，请检查 JSON 格式", e), e);
             }
         }
         if (TEXT_TYPES.contains(fileType)) {
@@ -549,7 +550,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         try {
             return normalizeSchema(schemaParser.parse(file.getBytes()));
         } catch (IOException e) {
-            throw BizException.internal("模型文件解析失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("模型文件解析失败", e), e);
         }
     }
 
@@ -563,7 +564,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         try {
             return file.getBytes();
         } catch (IOException e) {
-            throw BizException.internal("读取模型文件失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("读取模型文件失败", e), e);
         }
     }
 
@@ -699,7 +700,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         try {
             return fileStorageService.store(file, fileType, profileId, version);
         } catch (IOException e) {
-            throw BizException.internal("模型文件保存失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("模型文件保存失败", e), e);
         }
     }
 
@@ -825,7 +826,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
         try {
             return objectMapper.writeValueAsString(normalizeSchema(schema));
         } catch (JsonProcessingException e) {
-            throw BizException.internal("模型结构序列化失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("模型结构序列化失败", e), e);
         }
     }
 
@@ -840,7 +841,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
             List<ModelFunctionOptionVO> safe = functions == null ? Collections.emptyList() : functions;
             return objectMapper.writeValueAsString(safe);
         } catch (JsonProcessingException e) {
-            throw BizException.internal("模型函数列表序列化失败");
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("模型函数列表序列化失败", e), e);
         }
     }
 
@@ -949,7 +950,7 @@ public class ModelAssetServiceImpl implements ModelAssetService {
             ModelIoSchema schema = objectMapper.readValue(ioSchema, ModelIoSchema.class);
             return writeSchema(schema);
         } catch (IOException e) {
-            throw BizException.badRequest("IO Schema 解析失败，请检查 JSON 格式");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("IO Schema 解析失败，请检查 JSON 格式", e), e);
         }
     }
 

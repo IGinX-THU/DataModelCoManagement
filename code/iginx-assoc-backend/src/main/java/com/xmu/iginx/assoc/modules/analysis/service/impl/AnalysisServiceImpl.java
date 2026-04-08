@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import cn.edu.tsinghua.iginx.thrift.AggregateType;
 import com.xmu.iginx.assoc.common.PageResult;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskCompareRequest;
 import com.xmu.iginx.assoc.modules.analysis.dto.TaskExportRequest;
@@ -171,7 +172,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                     throw ex;
                 }
             } catch (Exception ex) {
-                throw BizException.internal("读取模型文件失败: " + ex.getMessage());
+                throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("读取模型文件失败", ex), ex);
             }
         }
 
@@ -280,7 +281,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         try {
             Files.write(file.path(), pdfBytes);
         } catch (Exception ex) {
-            throw BizException.internal("写入报告文件失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("写入报告文件失败", ex), ex);
         }
         return "/api/v1/data/files/" + file.fileName();
     }
@@ -594,7 +595,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         try {
             return objectMapper.writeValueAsBytes(value);
         } catch (Exception e) {
-            throw BizException.internal("导出元数据失败: " + e.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("导出元数据失败", e), e);
         }
     }
 
@@ -1484,7 +1485,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             writer.flush();
             return outputStream.toByteArray();
         } catch (Exception ex) {
-            throw BizException.internal("导出结构化表失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("导出结构化表失败", ex), ex);
         }
     }
 
@@ -1550,7 +1551,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             writer.flush();
             return outputStream.toByteArray();
         } catch (Exception ex) {
-            throw BizException.internal("导出数据失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("导出数据失败", ex), ex);
         }
     }
 
@@ -2033,7 +2034,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 zip.closeEntry();
             }
         } catch (Exception ex) {
-            throw BizException.internal("资源包导出失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("资源包导出失败", ex), ex);
         }
     }
 

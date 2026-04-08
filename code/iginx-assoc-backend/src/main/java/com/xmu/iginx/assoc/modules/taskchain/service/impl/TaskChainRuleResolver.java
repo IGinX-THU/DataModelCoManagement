@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.taskchain.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.model.dto.ModelIoSchema;
@@ -183,7 +184,7 @@ public class TaskChainRuleResolver {
         } catch (BizException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw BizException.badRequest("关联规则输入绑定解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("关联规则输入绑定解析失败", ex), ex);
         }
     }
 
@@ -253,7 +254,7 @@ public class TaskChainRuleResolver {
         } catch (BizException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw BizException.badRequest("关联规则函数定义解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("关联规则函数定义解析失败", ex), ex);
         }
     }
 
@@ -270,9 +271,9 @@ public class TaskChainRuleResolver {
             try {
                 return functionSchemaParser.parseByFunction(fileBytes, modelType, functionName).schema();
             } catch (IllegalArgumentException ex) {
-                throw BizException.badRequest("模型函数不存在或解析失败: " + ex.getMessage());
+                throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("模型函数不存在或解析失败", ex), ex);
             } catch (Exception ex) {
-                throw BizException.badRequest("模型函数结构解析失败");
+                throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("模型函数结构解析失败", ex), ex);
             }
         }
         String ioSchemaJson = asset.getIoSchema();
@@ -286,7 +287,7 @@ public class TaskChainRuleResolver {
         try {
             return objectMapper.readValue(ioSchemaJson, ModelIoSchema.class);
         } catch (Exception ex) {
-            throw BizException.badRequest("模型输入输出结构解析失败");
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("模型输入输出结构解析失败", ex), ex);
         }
     }
 

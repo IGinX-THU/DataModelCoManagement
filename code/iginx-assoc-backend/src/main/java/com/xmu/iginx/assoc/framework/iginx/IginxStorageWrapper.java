@@ -5,6 +5,7 @@ import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
 import cn.edu.tsinghua.iginx.thrift.FileChunk;
 import cn.edu.tsinghua.iginx.utils.Pair;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,7 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class IginxStorageWrapper {
 
-    private static final String IGINX_UNAVAILABLE_MESSAGE = "IGinX service unavailable, please retry later.";
+    private static final String IGINX_UNAVAILABLE_MESSAGE = "IGinX 服务当前不可用，请检查服务状态后重试";
     private static final int LOAD_CSV_CHUNK_SIZE = 1024 * 1024;
 
     private final IginxConfig config;
@@ -160,7 +161,7 @@ public class IginxStorageWrapper {
         } catch (BizException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw BizException.badRequest(safeMessage(ex));
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("导入 CSV 失败", ex), ex);
         }
     }
 
@@ -405,17 +406,17 @@ public class IginxStorageWrapper {
             String trimmed = message.trim();
             if (!trimmed.isBlank()) {
                 if (isConnectionIssue(trimmed)) {
-                    return BizException.internal(IGINX_UNAVAILABLE_MESSAGE);
+                    return BizException.internal(IGINX_UNAVAILABLE_MESSAGE, ex);
                 }
-                return BizException.badRequest(trimmed);
+                return BizException.badRequest(ExceptionMessageUtils.extractReadableMessage(ex), ex);
             }
         }
         // 某些异常（如 UnsupportedOperationException）可能没有 message，
         // 此时根据异常链判定是否连接问题，避免误报为“服务不可用”。
         if (isConnectionIssue(ex)) {
-            return BizException.internal(IGINX_UNAVAILABLE_MESSAGE);
+            return BizException.internal(IGINX_UNAVAILABLE_MESSAGE, ex);
         }
-        return BizException.badRequest("IGinX request failed: " + ex.getClass().getSimpleName());
+        return BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("IGinX 请求执行失败", ex), ex);
     }
 
     /**

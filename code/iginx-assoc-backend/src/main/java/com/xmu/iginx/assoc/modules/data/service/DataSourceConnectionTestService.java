@@ -1,6 +1,7 @@
 package com.xmu.iginx.assoc.modules.data.service;
 
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.data.dto.DataSourceConnectionConfig;
 import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +48,7 @@ public class DataSourceConnectionTestService {
             socket.connect(new InetSocketAddress(testHost, port), (int) timeout.toMillis());
         } catch (Exception e) {
             log.warn("连接测试失败 host={}, port={}, err={}", host, port, e.getMessage());
-            throw BizException.badRequest("连接测试失败: " + e.getMessage());
+            throw BizException.badRequest(ExceptionMessageUtils.buildDetailedMessage("连接测试失败", e), e);
         }
     }
 }

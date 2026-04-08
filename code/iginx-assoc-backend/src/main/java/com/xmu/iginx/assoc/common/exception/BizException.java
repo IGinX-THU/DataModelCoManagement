@@ -15,6 +15,11 @@ public class BizException extends RuntimeException {
         this.code = code;
     }
 
+    public BizException(Integer code, String message, Throwable cause) {
+        super(message, cause);
+        this.code = code;
+    }
+
     /**
      * 构造 400（请求参数错误）异常。
      *
@@ -23,6 +28,10 @@ public class BizException extends RuntimeException {
      */
     public static BizException badRequest(String message) {
         return new BizException(400, message);
+    }
+
+    public static BizException badRequest(String message, Throwable cause) {
+        return new BizException(400, message, cause);
     }
 
     /**
@@ -35,6 +44,10 @@ public class BizException extends RuntimeException {
         return new BizException(401, message);
     }
 
+    public static BizException unauthorized(String message, Throwable cause) {
+        return new BizException(401, message, cause);
+    }
+
     /**
      * 构造 403（禁止访问）异常。
      *
@@ -43,6 +56,10 @@ public class BizException extends RuntimeException {
      */
     public static BizException forbidden(String message) {
         return new BizException(403, message);
+    }
+
+    public static BizException forbidden(String message, Throwable cause) {
+        return new BizException(403, message, cause);
     }
 
     /**
@@ -55,6 +72,10 @@ public class BizException extends RuntimeException {
         return new BizException(500, message);
     }
 
+    public static BizException internal(String message, Throwable cause) {
+        return new BizException(500, message, cause);
+    }
+
     /**
      * 构造 503（服务繁忙）异常。
      *
@@ -63,5 +84,9 @@ public class BizException extends RuntimeException {
      */
     public static BizException busy(String message) {
         return new BizException(503, message);
+    }
+
+    public static BizException busy(String message, Throwable cause) {
+        return new BizException(503, message, cause);
     }
 }

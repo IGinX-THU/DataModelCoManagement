@@ -1,6 +1,7 @@
 package com.xmu.iginx.assoc.modules.task.service.impl;
 
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.modules.task.config.TaskExecutionProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
@@ -86,7 +87,7 @@ public abstract class AbstractCommandTaskModelExecutor implements TaskModelExecu
             Files.createDirectories(taskDir);
             return taskDir;
         } catch (IOException ex) {
-            throw BizException.internal("创建任务临时目录失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("创建任务临时目录失败", ex), ex);
         }
     }
 
@@ -100,7 +101,7 @@ public abstract class AbstractCommandTaskModelExecutor implements TaskModelExecu
         try {
             Files.writeString(file, content, StandardCharsets.UTF_8);
         } catch (IOException ex) {
-            throw BizException.internal("写入任务临时文件失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("写入任务临时文件失败", ex), ex);
         }
     }
 
@@ -114,7 +115,7 @@ public abstract class AbstractCommandTaskModelExecutor implements TaskModelExecu
         try {
             Files.write(file, bytes);
         } catch (IOException ex) {
-            throw BizException.internal("写入模型临时文件失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("写入模型临时文件失败", ex), ex);
         }
     }
 

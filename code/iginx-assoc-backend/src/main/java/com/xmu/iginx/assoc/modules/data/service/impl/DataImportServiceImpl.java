@@ -1,6 +1,7 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.common.exception.ExceptionMessageUtils;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.DataImportRequest;
 import com.xmu.iginx.assoc.modules.data.service.DataImportService;
@@ -71,7 +72,7 @@ public class DataImportServiceImpl implements DataImportService {
         } catch (BizException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw BizException.internal("导入 CSV 失败: " + ex.getMessage());
+            throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("导入 CSV 失败", ex), ex);
         } finally {
             deleteFileQuietly(storedPath);
         }
