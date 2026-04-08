@@ -5,6 +5,7 @@ import { useAssociationStore } from '../stores/association'
 import TaskMonitorView from './TaskMonitorView.vue'
 import { fetchTaskSeries, compareTaskSeries, exportTaskPackage, exportTaskReport } from '../api/analysis'
 import { BASE_URL } from '../api/request'
+import { TIME_PRECISION_UNIT_OPTIONS, formatPrecisionMs, parsePrecisionValueToMs } from '../utils/timePrecision'
 
 const associationStore = useAssociationStore()
 const DEFAULT_ANALYSIS_MAX_POINTS = 1200
@@ -30,6 +31,12 @@ const structuredDisplayMode = ref('chart')
 const structuredChartType = ref('line')
 const structuredXAxis = ref('')
 const structuredYAxis = ref('')
+const structuredAxisRange = reactive({
+  xMin: '',
+  xMax: '',
+  yMin: '',
+  yMax: ''
+})
 const loadingSeries = ref(false)
 const structuredChartLoading = ref(false)
 const structuredChartLoaded = ref(false)
@@ -49,7 +56,8 @@ const reportConfig = reactive({
 const analysisQuery = reactive({
   downsample: true,
   aggregator: 'AVG',
-  precisionMs: ''
+  precisionValue: '',
+  precisionUnit: 'ms'
 })
 const structuredPagination = reactive({
   pageNum: 1,
@@ -140,9 +148,12 @@ const resolvedAnalysisPrecisionMs = computed(() => {
   if (!analysisQuery.downsample) {
     return null
   }
-  const manualPrecision = Number(analysisQuery.precisionMs)
-  if (Number.isFinite(manualPrecision) && manualPrecision > 0) {
-    return Math.floor(manualPrecision)
+  const manualPrecision = parsePrecisionValueToMs(
+    analysisQuery.precisionValue,
+    analysisQuery.precisionUnit
+  )
+  if (manualPrecision) {
+    return manualPrecision
   }
   const durations = selectedTasks.value
     .map(task => {
@@ -161,7 +172,7 @@ const analysisPrecisionText = computed(() => {
   if (!analysisQuery.downsample) {
     return '未启用'
   }
-  return `${resolvedAnalysisPrecisionMs.value || 1}ms`
+  return formatPrecisionMs(resolvedAnalysisPrecisionMs.value || 1) || '1 毫秒'
 })
 
 const resetAnalysisState = () => {
@@ -249,6 +260,178 @@ const formatChartNumber = (value) => {
   }).format(value)
 }
 
+const formatAxisInputValue = (value) => {
+  if (!Number.isFinite(value)) {
+    return ''
+  }
+  if (Math.abs(value) >= 1000000 || Number.isInteger(value)) {
+    return String(value)
+  }
+  return value.toFixed(6).replace(/\.?0+$/, '')
+}
+
+const parseOptionalAxisNumber = (value) => {
+  if (value === null || value === undefined) {
+    return null
+  }
+  const text = String(value).trim()
+  if (!text) {
+    return null
+  }
+  const numericValue = Number(text)
+  return Number.isFinite(numericValue) ? numericValue : Number.NaN
+}
+
+const sortNumericValues = (values) =>
+  values
+    .filter(value => Number.isFinite(value))
+    .slice()
+    .sort((left, right) => left - right)
+
+const calculateQuantile = (sortedValues, ratio) => {
+  if (!sortedValues.length) {
+    return null
+  }
+  if (sortedValues.length === 1) {
+    return sortedValues[0]
+  }
+  const index = (sortedValues.length - 1) * ratio
+  const lowerIndex = Math.floor(index)
+  const upperIndex = Math.ceil(index)
+  if (lowerIndex === upperIndex) {
+    return sortedValues[lowerIndex]
+  }
+  const weight = index - lowerIndex
+  return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight
+}
+
+const expandAxisExtent = (minValue, maxValue, paddingRatio = 0.08) => {
+  if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+    return null
+  }
+  if (minValue === maxValue) {
+    const padding = Math.max(Math.abs(minValue) * paddingRatio, 1)
+    return {
+      min: minValue - padding,
+      max: maxValue + padding
+    }
+  }
+  const span = maxValue - minValue
+  const padding = span * paddingRatio
+  return {
+    min: minValue - padding,
+    max: maxValue + padding
+  }
+}
+
+const calculateValueAxisWindow = (values, { focus = false, paddingRatio = 0.08 } = {}) => {
+  const sortedValues = sortNumericValues(values)
+  if (!sortedValues.length) {
+    return null
+  }
+
+  const rawMin = sortedValues[0]
+  const rawMax = sortedValues[sortedValues.length - 1]
+  const fullExtent = expandAxisExtent(rawMin, rawMax, paddingRatio)
+  let autoExtent = fullExtent
+  let focusApplied = false
+
+  if (focus && sortedValues.length >= 6) {
+    const q1 = calculateQuantile(sortedValues, 0.25)
+    const q3 = calculateQuantile(sortedValues, 0.75)
+    const interQuartileRange = (q3 ?? 0) - (q1 ?? 0)
+    if (Number.isFinite(interQuartileRange) && interQuartileRange > 0) {
+      const lowerFence = q1 - interQuartileRange * 1.5
+      const upperFence = q3 + interQuartileRange * 1.5
+      const focusedValues = sortedValues.filter(value => value >= lowerFence && value <= upperFence)
+      if (focusedValues.length >= Math.max(4, Math.ceil(sortedValues.length * 0.6))) {
+        autoExtent = expandAxisExtent(
+          focusedValues[0],
+          focusedValues[focusedValues.length - 1],
+          Math.max(paddingRatio, 0.08)
+        )
+        focusApplied = autoExtent.min > fullExtent.min || autoExtent.max < fullExtent.max
+      }
+    }
+  }
+
+  return {
+    rawMin,
+    rawMax,
+    autoMin: autoExtent.min,
+    autoMax: autoExtent.max,
+    focusApplied
+  }
+}
+
+const resolveVisibleAxisRange = (axisLabel, axisWindow, minInput, maxInput) => {
+  if (!axisWindow) {
+    return {
+      range: null,
+      issue: '',
+      usingManual: false
+    }
+  }
+
+  const parsedMin = parseOptionalAxisNumber(minInput)
+  const parsedMax = parseOptionalAxisNumber(maxInput)
+  if (Number.isNaN(parsedMin) || Number.isNaN(parsedMax)) {
+    return {
+      range: null,
+      issue: `${axisLabel} 范围必须填写为有效数字`,
+      usingManual: false
+    }
+  }
+
+  const minValue = parsedMin ?? axisWindow.autoMin
+  const maxValue = parsedMax ?? axisWindow.autoMax
+  if (!Number.isFinite(minValue) || !Number.isFinite(maxValue) || minValue >= maxValue) {
+    return {
+      range: null,
+      issue: `${axisLabel} 最小值必须小于最大值`,
+      usingManual: parsedMin !== null || parsedMax !== null
+    }
+  }
+
+  return {
+    range: {
+      min: minValue,
+      max: maxValue
+    },
+    issue: '',
+    usingManual: parsedMin !== null || parsedMax !== null
+  }
+}
+
+const createAxisMeta = ({
+  axisLabel,
+  supportsManual = false,
+  autoMin = null,
+  autoMax = null,
+  rawMin = null,
+  rawMax = null,
+  focusApplied = false,
+  helperText = ''
+}) => {
+  return {
+    supportsManual,
+    minPlaceholder: supportsManual ? formatAxisInputValue(autoMin) : '',
+    maxPlaceholder: supportsManual ? formatAxisInputValue(autoMax) : '',
+    helperText: helperText || (
+      supportsManual
+        ? focusApplied
+          ? `${axisLabel} 已自动聚焦主数据区间，自动范围 ${formatChartNumber(autoMin)} ~ ${formatChartNumber(autoMax)}，完整数据范围 ${formatChartNumber(rawMin)} ~ ${formatChartNumber(rawMax)}。`
+          : `${axisLabel} 自动范围 ${formatChartNumber(autoMin)} ~ ${formatChartNumber(autoMax)}。`
+        : `${axisLabel} 当前不支持直接输入数值范围。`
+    )
+  }
+}
+
+const createEmptyStructuredAxisMeta = () => ({
+  x: createAxisMeta({ axisLabel: 'X 轴' }),
+  y: createAxisMeta({ axisLabel: 'Y 轴' })
+})
+
 const createChartBaseOption = () => ({
   backgroundColor: 'transparent',
   animationDuration: 300,
@@ -256,11 +439,19 @@ const createChartBaseOption = () => ({
   tooltip: { trigger: 'axis' }
 })
 
+const resetStructuredAxisControls = () => {
+  structuredAxisRange.xMin = ''
+  structuredAxisRange.xMax = ''
+  structuredAxisRange.yMin = ''
+  structuredAxisRange.yMax = ''
+}
+
 const resetStructuredChartState = () => {
   structuredDisplayMode.value = 'chart'
   structuredChartType.value = 'line'
   structuredXAxis.value = ''
   structuredYAxis.value = ''
+  resetStructuredAxisControls()
   disposeStructuredChart()
 }
 
@@ -271,6 +462,7 @@ const clearStructuredChartData = () => {
   structuredChartLoaded.value = false
   structuredChartError.value = ''
   structuredChartTaskId.value = ''
+  resetStructuredAxisControls()
   disposeStructuredChart()
 }
 
@@ -463,34 +655,183 @@ const initChart = () => {
 
 const buildStructuredLineOption = () => {
   if (!structuredXAxis.value) {
-    return { option: null, issue: '请选择 X 轴列' }
+    return { option: null, issue: '请选择 X 轴列', axisMeta: createEmptyStructuredAxisMeta() }
   }
   if (!structuredYAxis.value) {
-    return { option: null, issue: '请选择 Y 轴列' }
+    return { option: null, issue: '请选择 Y 轴列', axisMeta: createEmptyStructuredAxisMeta() }
   }
-  const points = structuredChartDataRows.value
+
+  const rawPoints = structuredChartDataRows.value
     .map((row, index) => {
       const yValue = toFiniteNumber(row?.[structuredYAxis.value])
       if (yValue === null) {
         return null
       }
       return {
+        rowLabel: `第 ${index + 1} 行`,
+        rawX: row?.[structuredXAxis.value],
         xLabel: formatStructuredCell(row?.[structuredXAxis.value] ?? `第 ${index + 1} 行`),
         yValue
       }
     })
     .filter(Boolean)
 
-  if (!points.length) {
-    return { option: null, issue: '所选列在完整结果表中没有可绘制的数值结果' }
+  if (!rawPoints.length) {
+    return {
+      option: null,
+      issue: '所选列在完整结果表中没有可绘制的数值结果',
+      axisMeta: createEmptyStructuredAxisMeta()
+    }
+  }
+
+  const yAxisWindow = calculateValueAxisWindow(
+    rawPoints.map(point => point.yValue),
+    { focus: false, paddingRatio: 0.08 }
+  )
+  const yAxisRange = resolveVisibleAxisRange('Y 轴', yAxisWindow, structuredAxisRange.yMin, structuredAxisRange.yMax)
+  if (yAxisRange.issue) {
+    return {
+      option: null,
+      issue: yAxisRange.issue,
+      axisMeta: {
+        x: createAxisMeta({
+          axisLabel: 'X 轴',
+          helperText: '当前 X 轴范围将根据所选列自动计算。'
+        }),
+        y: createAxisMeta({
+          axisLabel: 'Y 轴',
+          supportsManual: true,
+          autoMin: yAxisWindow?.autoMin,
+          autoMax: yAxisWindow?.autoMax,
+          rawMin: yAxisWindow?.rawMin,
+          rawMax: yAxisWindow?.rawMax
+        })
+      }
+    }
+  }
+
+  const numericPoints = rawPoints
+    .map(point => ({
+      ...point,
+      xValue: toFiniteNumber(point.rawX)
+    }))
+    .filter(point => point.xValue !== null)
+
+  const canUseNumericXAxis = numericPoints.length === rawPoints.length
+
+  if (canUseNumericXAxis) {
+    const points = numericPoints.sort((left, right) => left.xValue - right.xValue)
+    const xAxisWindow = calculateValueAxisWindow(
+      points.map(point => point.xValue),
+      { focus: false, paddingRatio: 0.06 }
+    )
+    const xAxisRange = resolveVisibleAxisRange('X 轴', xAxisWindow, structuredAxisRange.xMin, structuredAxisRange.xMax)
+    if (xAxisRange.issue) {
+      return {
+        option: null,
+        issue: xAxisRange.issue,
+        axisMeta: {
+          x: createAxisMeta({
+            axisLabel: 'X 轴',
+            supportsManual: true,
+            autoMin: xAxisWindow?.autoMin,
+            autoMax: xAxisWindow?.autoMax,
+            rawMin: xAxisWindow?.rawMin,
+            rawMax: xAxisWindow?.rawMax
+          }),
+          y: createAxisMeta({
+            axisLabel: 'Y 轴',
+            supportsManual: true,
+            autoMin: yAxisWindow?.autoMin,
+            autoMax: yAxisWindow?.autoMax,
+            rawMin: yAxisWindow?.rawMin,
+            rawMax: yAxisWindow?.rawMax
+          })
+        }
+      }
+    }
+
+    const option = {
+      ...createChartBaseOption(),
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params) => {
+          const [xValue, yValue] = params?.[0]?.value || []
+          return [
+            `${structuredXAxis.value}: ${formatChartNumber(Number(xValue))}`,
+            `${structuredYAxis.value}: ${formatChartNumber(Number(yValue))}`
+          ].join('<br/>')
+        }
+      },
+      xAxis: {
+        type: 'value',
+        name: structuredXAxis.value,
+        min: xAxisRange.range.min,
+        max: xAxisRange.range.max,
+        boundaryGap: false,
+        splitLine: { lineStyle: { color: '#e2e8f0' } },
+        axisLabel: {
+          color: '#64748b',
+          formatter: value => formatChartNumber(value)
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: structuredYAxis.value,
+        min: yAxisRange.range.min,
+        max: yAxisRange.range.max,
+        splitLine: { lineStyle: { color: '#e2e8f0' } },
+        axisLabel: {
+          color: '#64748b',
+          formatter: value => formatChartNumber(value)
+        }
+      },
+      series: [
+        {
+          name: structuredYAxis.value,
+          type: 'line',
+          smooth: true,
+          showSymbol: points.length <= 80,
+          symbolSize: 7,
+          data: points.map(point => [point.xValue, point.yValue]),
+          lineStyle: { width: 3, color: '#2563eb' },
+          itemStyle: { color: '#2563eb' },
+          areaStyle: { color: 'rgba(37, 99, 235, 0.12)' }
+        }
+      ]
+    }
+
+    return {
+      option,
+      issue: '',
+      axisMeta: {
+        x: createAxisMeta({
+          axisLabel: 'X 轴',
+          supportsManual: true,
+          autoMin: xAxisWindow.autoMin,
+          autoMax: xAxisWindow.autoMax,
+          rawMin: xAxisWindow.rawMin,
+          rawMax: xAxisWindow.rawMax
+        }),
+        y: createAxisMeta({
+          axisLabel: 'Y 轴',
+          supportsManual: true,
+          autoMin: yAxisWindow.autoMin,
+          autoMax: yAxisWindow.autoMax,
+          rawMin: yAxisWindow.rawMin,
+          rawMax: yAxisWindow.rawMax
+        })
+      }
+    }
   }
 
   const option = {
     ...createChartBaseOption(),
+    grid: { top: 48, right: 24, bottom: 92, left: 56 },
     tooltip: {
       trigger: 'axis',
       formatter: (params) => {
-        const point = points[params?.[0]?.dataIndex ?? 0]
+        const point = rawPoints[params?.[0]?.dataIndex ?? 0]
         if (!point) {
           return ''
         }
@@ -502,7 +843,7 @@ const buildStructuredLineOption = () => {
     },
     xAxis: {
       type: 'category',
-      data: points.map(point => point.xLabel),
+      data: rawPoints.map(point => point.xLabel),
       boundaryGap: false,
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       axisLabel: { color: '#64748b' }
@@ -510,20 +851,36 @@ const buildStructuredLineOption = () => {
     yAxis: {
       type: 'value',
       name: structuredYAxis.value,
+      min: yAxisRange.range.min,
+      max: yAxisRange.range.max,
       splitLine: { lineStyle: { color: '#e2e8f0' } },
       axisLabel: {
         color: '#64748b',
         formatter: value => formatChartNumber(value)
       }
     },
+    dataZoom: rawPoints.length > 20 ? [
+      {
+        type: 'inside',
+        xAxisIndex: 0,
+        filterMode: 'none'
+      },
+      {
+        type: 'slider',
+        xAxisIndex: 0,
+        filterMode: 'none',
+        height: 18,
+        bottom: 16
+      }
+    ] : [],
     series: [
       {
         name: structuredYAxis.value,
         type: 'line',
         smooth: true,
-        showSymbol: points.length <= 80,
+        showSymbol: rawPoints.length <= 80,
         symbolSize: 7,
-        data: points.map(point => point.yValue),
+        data: rawPoints.map(point => point.yValue),
         lineStyle: { width: 3, color: '#2563eb' },
         itemStyle: { color: '#2563eb' },
         areaStyle: { color: 'rgba(37, 99, 235, 0.12)' }
@@ -531,15 +888,34 @@ const buildStructuredLineOption = () => {
     ]
   }
 
-  return { option, issue: '' }
+  return {
+    option,
+    issue: '',
+    axisMeta: {
+      x: createAxisMeta({
+        axisLabel: 'X 轴',
+        helperText: rawPoints.length > 20
+          ? '当前 X 轴为类目轴，可通过图内底部缩放条调整显示窗口。'
+          : '当前 X 轴为类目轴，可直接切换列查看不同趋势。'
+      }),
+      y: createAxisMeta({
+        axisLabel: 'Y 轴',
+        supportsManual: true,
+        autoMin: yAxisWindow.autoMin,
+        autoMax: yAxisWindow.autoMax,
+        rawMin: yAxisWindow.rawMin,
+        rawMax: yAxisWindow.rawMax
+      })
+    }
+  }
 }
 
 const buildStructuredScatterOption = () => {
   if (!structuredXAxis.value) {
-    return { option: null, issue: '请选择数值型 X 轴列' }
+    return { option: null, issue: '请选择数值型 X 轴列', axisMeta: createEmptyStructuredAxisMeta() }
   }
   if (!structuredYAxis.value) {
-    return { option: null, issue: '请选择数值型 Y 轴列' }
+    return { option: null, issue: '请选择数值型 Y 轴列', axisMeta: createEmptyStructuredAxisMeta() }
   }
   const points = structuredChartDataRows.value
     .map((row, index) => {
@@ -556,8 +932,81 @@ const buildStructuredScatterOption = () => {
     .filter(Boolean)
 
   if (!points.length) {
-    return { option: null, issue: '所选列在完整结果表中没有可绘制的散点数据' }
+    return {
+      option: null,
+      issue: '所选列在完整结果表中没有可绘制的散点数据',
+      axisMeta: createEmptyStructuredAxisMeta()
+    }
   }
+
+  const xAxisWindow = calculateValueAxisWindow(
+    points.map(point => point.value[0]),
+    { focus: true, paddingRatio: 0.08 }
+  )
+  const yAxisWindow = calculateValueAxisWindow(
+    points.map(point => point.value[1]),
+    { focus: true, paddingRatio: 0.08 }
+  )
+  const xAxisRange = resolveVisibleAxisRange('X 轴', xAxisWindow, structuredAxisRange.xMin, structuredAxisRange.xMax)
+  if (xAxisRange.issue) {
+    return {
+      option: null,
+      issue: xAxisRange.issue,
+      axisMeta: {
+        x: createAxisMeta({
+          axisLabel: 'X 轴',
+          supportsManual: true,
+          autoMin: xAxisWindow?.autoMin,
+          autoMax: xAxisWindow?.autoMax,
+          rawMin: xAxisWindow?.rawMin,
+          rawMax: xAxisWindow?.rawMax,
+          focusApplied: xAxisWindow?.focusApplied
+        }),
+        y: createAxisMeta({
+          axisLabel: 'Y 轴',
+          supportsManual: true,
+          autoMin: yAxisWindow?.autoMin,
+          autoMax: yAxisWindow?.autoMax,
+          rawMin: yAxisWindow?.rawMin,
+          rawMax: yAxisWindow?.rawMax,
+          focusApplied: yAxisWindow?.focusApplied
+        })
+      }
+    }
+  }
+  const yAxisRange = resolveVisibleAxisRange('Y 轴', yAxisWindow, structuredAxisRange.yMin, structuredAxisRange.yMax)
+  if (yAxisRange.issue) {
+    return {
+      option: null,
+      issue: yAxisRange.issue,
+      axisMeta: {
+        x: createAxisMeta({
+          axisLabel: 'X 轴',
+          supportsManual: true,
+          autoMin: xAxisWindow.autoMin,
+          autoMax: xAxisWindow.autoMax,
+          rawMin: xAxisWindow.rawMin,
+          rawMax: xAxisWindow.rawMax,
+          focusApplied: xAxisWindow.focusApplied
+        }),
+        y: createAxisMeta({
+          axisLabel: 'Y 轴',
+          supportsManual: true,
+          autoMin: yAxisWindow?.autoMin,
+          autoMax: yAxisWindow?.autoMax,
+          rawMin: yAxisWindow?.rawMin,
+          rawMax: yAxisWindow?.rawMax,
+          focusApplied: yAxisWindow?.focusApplied
+        })
+      }
+    }
+  }
+
+  const scatterSymbolSize = points.length > 500
+    ? 6
+    : points.length > 220
+      ? 8
+      : 10
 
   const option = {
     ...createChartBaseOption(),
@@ -575,6 +1024,8 @@ const buildStructuredScatterOption = () => {
     xAxis: {
       type: 'value',
       name: structuredXAxis.value,
+      min: xAxisRange.range.min,
+      max: xAxisRange.range.max,
       splitLine: { lineStyle: { color: '#e2e8f0' } },
       axisLabel: {
         color: '#64748b',
@@ -584,6 +1035,8 @@ const buildStructuredScatterOption = () => {
     yAxis: {
       type: 'value',
       name: structuredYAxis.value,
+      min: yAxisRange.range.min,
+      max: yAxisRange.range.max,
       splitLine: { lineStyle: { color: '#e2e8f0' } },
       axisLabel: {
         color: '#64748b',
@@ -595,21 +1048,44 @@ const buildStructuredScatterOption = () => {
         name: `${structuredXAxis.value} / ${structuredYAxis.value}`,
         type: 'scatter',
         data: points,
-        symbolSize: 11,
+        symbolSize: scatterSymbolSize,
         itemStyle: {
           color: '#0f766e',
-          opacity: 0.8
+          opacity: points.length > 300 ? 0.65 : 0.8
         }
       }
     ]
   }
 
-  return { option, issue: '' }
+  return {
+    option,
+    issue: '',
+    axisMeta: {
+      x: createAxisMeta({
+        axisLabel: 'X 轴',
+        supportsManual: true,
+        autoMin: xAxisWindow.autoMin,
+        autoMax: xAxisWindow.autoMax,
+        rawMin: xAxisWindow.rawMin,
+        rawMax: xAxisWindow.rawMax,
+        focusApplied: xAxisWindow.focusApplied
+      }),
+      y: createAxisMeta({
+        axisLabel: 'Y 轴',
+        supportsManual: true,
+        autoMin: yAxisWindow.autoMin,
+        autoMax: yAxisWindow.autoMax,
+        rawMin: yAxisWindow.rawMin,
+        rawMax: yAxisWindow.rawMax,
+        focusApplied: yAxisWindow.focusApplied
+      })
+    }
+  }
 }
 
 const buildStructuredHistogramOption = () => {
   if (!structuredXAxis.value) {
-    return { option: null, issue: '请选择一个数值列生成直方图' }
+    return { option: null, issue: '请选择一个数值列生成直方图', axisMeta: createEmptyStructuredAxisMeta() }
   }
 
   const values = structuredChartDataRows.value
@@ -617,19 +1093,68 @@ const buildStructuredHistogramOption = () => {
     .filter(value => value !== null)
 
   if (!values.length) {
-    return { option: null, issue: '所选列在完整结果表中没有可统计的数值数据' }
+    return {
+      option: null,
+      issue: '所选列在完整结果表中没有可统计的数值数据',
+      axisMeta: createEmptyStructuredAxisMeta()
+    }
   }
 
-  const minValue = Math.min(...values)
-  const maxValue = Math.max(...values)
+  const xAxisWindow = calculateValueAxisWindow(values, { focus: false, paddingRatio: 0.06 })
+  const xAxisRange = resolveVisibleAxisRange('X 轴', xAxisWindow, structuredAxisRange.xMin, structuredAxisRange.xMax)
+  if (xAxisRange.issue) {
+    return {
+      option: null,
+      issue: xAxisRange.issue,
+      axisMeta: {
+        x: createAxisMeta({
+          axisLabel: 'X 轴',
+          supportsManual: true,
+          autoMin: xAxisWindow?.autoMin,
+          autoMax: xAxisWindow?.autoMax,
+          rawMin: xAxisWindow?.rawMin,
+          rawMax: xAxisWindow?.rawMax,
+          helperText: xAxisWindow
+            ? `X 轴范围会据此重新分箱统计。自动范围 ${formatChartNumber(xAxisWindow.autoMin)} ~ ${formatChartNumber(xAxisWindow.autoMax)}，完整数据范围 ${formatChartNumber(xAxisWindow.rawMin)} ~ ${formatChartNumber(xAxisWindow.rawMax)}。`
+            : 'X 轴范围会据此重新分箱统计。'
+        }),
+        y: createAxisMeta({ axisLabel: 'Y 轴' })
+      }
+    }
+  }
+
+  const visibleValues = values.filter(value =>
+    value >= xAxisRange.range.min && value <= xAxisRange.range.max
+  )
+  if (!visibleValues.length) {
+    return {
+      option: null,
+      issue: '当前 X 轴范围内没有可统计的数值数据',
+      axisMeta: {
+        x: createAxisMeta({
+          axisLabel: 'X 轴',
+          supportsManual: true,
+          autoMin: xAxisWindow.autoMin,
+          autoMax: xAxisWindow.autoMax,
+          rawMin: xAxisWindow.rawMin,
+          rawMax: xAxisWindow.rawMax,
+          helperText: `X 轴范围会据此重新分箱统计。自动范围 ${formatChartNumber(xAxisWindow.autoMin)} ~ ${formatChartNumber(xAxisWindow.autoMax)}，完整数据范围 ${formatChartNumber(xAxisWindow.rawMin)} ~ ${formatChartNumber(xAxisWindow.rawMax)}。`
+        }),
+        y: createAxisMeta({ axisLabel: 'Y 轴' })
+      }
+    }
+  }
+
+  const minValue = Math.min(...visibleValues)
+  const maxValue = Math.max(...visibleValues)
   let categories = []
   let counts = []
 
   if (minValue === maxValue) {
     categories = [formatChartNumber(minValue)]
-    counts = [values.length]
+    counts = [visibleValues.length]
   } else {
-    const binCount = Math.min(20, Math.max(5, Math.round(Math.sqrt(values.length))))
+    const binCount = Math.min(20, Math.max(5, Math.round(Math.sqrt(visibleValues.length))))
     const binWidth = (maxValue - minValue) / binCount
     counts = Array.from({ length: binCount }, () => 0)
     categories = Array.from({ length: binCount }, (_, index) => {
@@ -637,12 +1162,46 @@ const buildStructuredHistogramOption = () => {
       const end = index === binCount - 1 ? maxValue : start + binWidth
       return `${formatChartNumber(start)} ~ ${formatChartNumber(end)}`
     })
-    values.forEach(value => {
+    visibleValues.forEach(value => {
       const index = value === maxValue
         ? binCount - 1
         : Math.min(binCount - 1, Math.max(0, Math.floor((value - minValue) / binWidth)))
       counts[index] += 1
     })
+  }
+
+  const yAxisWindow = calculateValueAxisWindow(counts.map(value => Number(value)), {
+    focus: false,
+    paddingRatio: 0.12
+  })
+  const yAxisRange = resolveVisibleAxisRange('Y 轴', yAxisWindow, structuredAxisRange.yMin, structuredAxisRange.yMax)
+  if (yAxisRange.issue) {
+    return {
+      option: null,
+      issue: yAxisRange.issue,
+      axisMeta: {
+        x: createAxisMeta({
+          axisLabel: 'X 轴',
+          supportsManual: true,
+          autoMin: xAxisWindow.autoMin,
+          autoMax: xAxisWindow.autoMax,
+          rawMin: xAxisWindow.rawMin,
+          rawMax: xAxisWindow.rawMax,
+          helperText: `X 轴范围会据此重新分箱统计。自动范围 ${formatChartNumber(xAxisWindow.autoMin)} ~ ${formatChartNumber(xAxisWindow.autoMax)}，完整数据范围 ${formatChartNumber(xAxisWindow.rawMin)} ~ ${formatChartNumber(xAxisWindow.rawMax)}。`
+        }),
+        y: createAxisMeta({
+          axisLabel: 'Y 轴',
+          supportsManual: true,
+          autoMin: yAxisWindow?.autoMin,
+          autoMax: yAxisWindow?.autoMax,
+          rawMin: 0,
+          rawMax: yAxisWindow?.rawMax,
+          helperText: yAxisWindow
+            ? `Y 轴默认按频次自动计算，可手动收紧或放大频次显示区间。`
+            : 'Y 轴默认按频次自动计算。'
+        })
+      }
+    }
   }
 
   const option = {
@@ -670,6 +1229,8 @@ const buildStructuredHistogramOption = () => {
     yAxis: {
       type: 'value',
       name: '频次',
+      min: Math.min(0, yAxisRange.range.min),
+      max: yAxisRange.range.max,
       splitLine: { lineStyle: { color: '#e2e8f0' } },
       axisLabel: { color: '#64748b' }
     },
@@ -684,32 +1245,59 @@ const buildStructuredHistogramOption = () => {
     ]
   }
 
-  return { option, issue: '' }
+  return {
+    option,
+    issue: '',
+    axisMeta: {
+      x: createAxisMeta({
+        axisLabel: 'X 轴',
+        supportsManual: true,
+        autoMin: xAxisWindow.autoMin,
+        autoMax: xAxisWindow.autoMax,
+        rawMin: xAxisWindow.rawMin,
+        rawMax: xAxisWindow.rawMax,
+        helperText: `X 轴范围会据此重新分箱统计。自动范围 ${formatChartNumber(xAxisWindow.autoMin)} ~ ${formatChartNumber(xAxisWindow.autoMax)}，完整数据范围 ${formatChartNumber(xAxisWindow.rawMin)} ~ ${formatChartNumber(xAxisWindow.rawMax)}。`
+      }),
+      y: createAxisMeta({
+        axisLabel: 'Y 轴',
+        supportsManual: true,
+        autoMin: Math.min(0, yAxisWindow.autoMin),
+        autoMax: yAxisWindow.autoMax,
+        rawMin: 0,
+        rawMax: yAxisWindow.rawMax,
+        helperText: 'Y 轴默认按频次自动计算，可手动调节频次显示区间。'
+      })
+    }
+  }
 }
 
 const structuredChartState = computed(() => {
   if (structuredChartError.value) {
     return {
       option: null,
-      issue: structuredChartError.value
+      issue: structuredChartError.value,
+      axisMeta: createEmptyStructuredAxisMeta()
     }
   }
   if (structuredChartLoading.value && !structuredChartDataRows.value.length) {
     return {
       option: null,
-      issue: ''
+      issue: '',
+      axisMeta: createEmptyStructuredAxisMeta()
     }
   }
   if (!structuredChartDataRows.value.length) {
     return {
       option: null,
-      issue: '完整结果表暂无可用于绘图的数据'
+      issue: '完整结果表暂无可用于绘图的数据',
+      axisMeta: createEmptyStructuredAxisMeta()
     }
   }
   if (!structuredColumns.value.length) {
     return {
       option: null,
-      issue: '当前结果表没有可用列'
+      issue: '当前结果表没有可用列',
+      axisMeta: createEmptyStructuredAxisMeta()
     }
   }
   if (structuredChartType.value === 'scatter') {
@@ -720,6 +1308,8 @@ const structuredChartState = computed(() => {
   }
   return buildStructuredLineOption()
 })
+
+const structuredAxisMeta = computed(() => structuredChartState.value?.axisMeta || createEmptyStructuredAxisMeta())
 
 const syncStructuredChartSelections = () => {
   const xOptions = structuredXAxisOptions.value
@@ -807,7 +1397,8 @@ watch(useRelativeTime, () => {
 watch([
   () => analysisQuery.downsample,
   () => analysisQuery.aggregator,
-  () => analysisQuery.precisionMs
+  () => analysisQuery.precisionValue,
+  () => analysisQuery.precisionUnit
 ], () => {
   loadAnalysis()
 })
@@ -820,6 +1411,18 @@ const normalizeReportPreviewRows = () => {
   }
   reportConfig.previewRows = Math.min(200, Math.floor(value))
 }
+
+watch(
+  [
+    () => structuredChartType.value,
+    () => structuredXAxis.value,
+    () => structuredYAxis.value,
+    () => structuredChartTaskId.value
+  ],
+  () => {
+    resetStructuredAxisControls()
+  }
+)
 
 watch(
   [
@@ -840,6 +1443,10 @@ watch(
     () => structuredChartType.value,
     () => structuredXAxis.value,
     () => structuredYAxis.value,
+    () => structuredAxisRange.xMin,
+    () => structuredAxisRange.xMax,
+    () => structuredAxisRange.yMin,
+    () => structuredAxisRange.yMax,
     structuredChartDataRows,
     structuredColumns,
     () => structuredChartLoading.value,
@@ -1196,16 +1803,32 @@ onBeforeUnmount(() => {
                   <option value="SUM">求和</option>
                   <option value="COUNT">计数</option>
                 </select>
-                <input
-                  v-model="analysisQuery.precisionMs"
-                  type="number"
-                  min="1"
-                  :disabled="!analysisQuery.downsample"
-                  class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
-                  placeholder="步长(ms，留空自动计算)"
-                >
+                <div class="flex gap-2">
+                  <input
+                    v-model="analysisQuery.precisionValue"
+                    type="number"
+                    min="0"
+                    step="any"
+                    :disabled="!analysisQuery.downsample"
+                    class="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    placeholder="步长值，留空自动计算"
+                  >
+                  <select
+                    v-model="analysisQuery.precisionUnit"
+                    :disabled="!analysisQuery.downsample"
+                    class="w-20 rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  >
+                    <option
+                      v-for="unit in TIME_PRECISION_UNIT_OPTIONS"
+                      :key="unit.value"
+                      :value="unit.value"
+                    >
+                      {{ unit.label }}
+                    </option>
+                  </select>
+                </div>
                 <div class="text-[10px] leading-5 text-gray-400">
-                  当前步长：{{ analysisPrecisionText }}。多任务对比会按同一组降采样参数返回结果。
+                  当前步长：{{ analysisPrecisionText }}。支持毫秒、秒、分、小时、天，多任务对比会按同一组降采样参数返回结果。
                 </div>
               </div>
             </div>
@@ -1260,6 +1883,68 @@ onBeforeUnmount(() => {
                   {{ column }}
                 </option>
               </select>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <label class="block text-[10px] font-bold text-gray-500 uppercase">坐标范围</label>
+                <button
+                  type="button"
+                  @click="resetStructuredAxisControls"
+                  class="rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-500 transition hover:bg-slate-50"
+                >
+                  恢复自动
+                </button>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-[11px] text-slate-600">
+                  <span class="mb-1 block">X 最小</span>
+                  <input
+                    v-model="structuredAxisRange.xMin"
+                    type="number"
+                    step="any"
+                    :disabled="!structuredAxisMeta.x.supportsManual"
+                    :placeholder="structuredAxisMeta.x.minPlaceholder || '自动'"
+                    class="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                </label>
+                <label class="text-[11px] text-slate-600">
+                  <span class="mb-1 block">X 最大</span>
+                  <input
+                    v-model="structuredAxisRange.xMax"
+                    type="number"
+                    step="any"
+                    :disabled="!structuredAxisMeta.x.supportsManual"
+                    :placeholder="structuredAxisMeta.x.maxPlaceholder || '自动'"
+                    class="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                </label>
+                <label class="text-[11px] text-slate-600">
+                  <span class="mb-1 block">Y 最小</span>
+                  <input
+                    v-model="structuredAxisRange.yMin"
+                    type="number"
+                    step="any"
+                    :disabled="!structuredAxisMeta.y.supportsManual"
+                    :placeholder="structuredAxisMeta.y.minPlaceholder || '自动'"
+                    class="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                </label>
+                <label class="text-[11px] text-slate-600">
+                  <span class="mb-1 block">Y 最大</span>
+                  <input
+                    v-model="structuredAxisRange.yMax"
+                    type="number"
+                    step="any"
+                    :disabled="!structuredAxisMeta.y.supportsManual"
+                    :placeholder="structuredAxisMeta.y.maxPlaceholder || '自动'"
+                    class="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                </label>
+              </div>
+              <div class="space-y-1 text-[10px] leading-5 text-slate-500">
+                <div>{{ structuredAxisMeta.x.helperText }}</div>
+                <div>{{ structuredAxisMeta.y.helperText }}</div>
+              </div>
             </div>
             <div class="rounded-lg border border-slate-200 bg-white p-3 text-[11px] leading-5 text-slate-500">
               {{ structuredChartDescription }}

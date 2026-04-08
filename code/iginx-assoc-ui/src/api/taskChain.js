@@ -35,3 +35,7 @@ export const fetchTaskChainRunDetail = (runId) => request(`/api/v1/task-chains/r
 export const stopTaskChainRun = (runId) => request(`/api/v1/task-chains/runs/${runId}/stop`, {
   method: 'POST'
 })
+
+export const deleteTaskChainRun = (runId) => request(`/api/v1/task-chains/runs/${runId}`, {
+  method: 'DELETE'
+})

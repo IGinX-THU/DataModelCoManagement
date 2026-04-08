@@ -3,6 +3,7 @@ package com.xmu.iginx.assoc.modules.data.service.impl;
 import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.thrift.DataType;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowCreateRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredRowDeleteRequest;
@@ -221,6 +222,20 @@ class DataMaintainServiceImplTest {
         dataMaintainService.deleteStructuredRow(request);
 
         verify(iginxStorageWrapper).executeSql("DELETE FROM rt.public.orders.* WHERE KEY >= 9 AND KEY <= 9;");
+    }
+
+    /**
+     * 任务默认输出 task.result.* 也应允许通过 DELETE COLUMNS 清理。
+     */
+    @Test
+    void deleteColumns_shouldAllowTaskResultPrefix() {
+        DataColumnsDeleteRequest request = new DataColumnsDeleteRequest();
+        request.setPath("task.result.demoTask");
+        request.setIncludeChildren(true);
+
+        dataMaintainService.deleteColumns(request);
+
+        verify(iginxStorageWrapper).executeSql("DELETE COLUMNS task.result.demoTask.*;");
     }
 
     /**

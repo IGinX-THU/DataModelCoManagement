@@ -2,6 +2,8 @@ package com.xmu.iginx.assoc.modules.taskchain.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
+import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.model.util.ModelFileStorageService;
 import com.xmu.iginx.assoc.modules.relation.entity.AssociationRuleEntity;
 import com.xmu.iginx.assoc.modules.relation.repository.AssociationRuleRepository;
@@ -14,7 +16,9 @@ import com.xmu.iginx.assoc.modules.taskchain.entity.TaskChainRunEntity;
 import com.xmu.iginx.assoc.modules.taskchain.model.TaskChainDefinition;
 import com.xmu.iginx.assoc.modules.taskchain.model.TaskChainInputSource;
 import com.xmu.iginx.assoc.modules.taskchain.model.TaskChainNodeDefinition;
+import com.xmu.iginx.assoc.modules.taskchain.model.TaskChainNodeRunSnapshot;
 import com.xmu.iginx.assoc.modules.taskchain.model.TaskChainRuleDescriptor;
+import com.xmu.iginx.assoc.modules.taskchain.model.TaskChainRunSnapshot;
 import com.xmu.iginx.assoc.modules.taskchain.repository.TaskChainRepository;
 import com.xmu.iginx.assoc.modules.taskchain.repository.TaskChainRunRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +36,11 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,10 +71,15 @@ class TaskChainServiceImplTest {
     @Mock
     private ModelFileStorageService modelFileStorageService;
 
+    @Mock
+    private DataMaintainService dataMaintainService;
+
+    private ObjectMapper objectMapper;
     private TaskChainServiceImpl taskChainService;
 
     @BeforeEach
     void setUp() {
+        objectMapper = new ObjectMapper();
         taskChainService = new TaskChainServiceImpl(
             taskChainRepository,
             taskChainRunRepository,
@@ -75,7 +88,8 @@ class TaskChainServiceImplTest {
             taskScheduler,
             taskModelExecutionEngine,
             modelFileStorageService,
-            new ObjectMapper()
+            objectMapper,
+            dataMaintainService
         );
     }
 
@@ -175,6 +189,166 @@ class TaskChainServiceImplTest {
         assertTrue(savedRun.getResultPrefix().startsWith("ts.chain.chain_42.run_"));
     }
 
+    /**
+     * 设置计划开始/终止时间后，应进入定时调度流程并持久化调度信息。
+     */
+    @Test
+    void submitRun_shouldScheduleWhenScheduledWindowProvided() throws Exception {
+        TaskChainEntity chain = new TaskChainEntity();
+        chain.setId(42L);
+        chain.setChainName("定时任务链");
+        chain.setChainMode("TIME_SERIES");
+        chain.setDefinitionJson(new ObjectMapper().writeValueAsString(buildDefinition("TIME_SERIES")));
+
+        when(taskChainRepository.findById(42L)).thenReturn(Optional.of(chain));
+        when(taskChainRuleResolver.resolveDescriptor(1L)).thenReturn(buildDescriptor(1L, "规则A", "TIME_SERIES", "temperature", "ts.factory.temp", "power", "FLOAT"));
+        when(taskChainRunRepository.save(any(TaskChainRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LocalDateTime scheduledStartTime = LocalDateTime.now().plusMinutes(10);
+        LocalDateTime scheduledEndTime = scheduledStartTime.plusMinutes(20);
+
+        TaskChainRunRequest request = new TaskChainRunRequest();
+        TaskChainRunRequest.TimeRange timeRange = new TaskChainRunRequest.TimeRange();
+        timeRange.setStart(LocalDateTime.of(2026, 4, 6, 8, 0, 0));
+        timeRange.setEnd(LocalDateTime.of(2026, 4, 6, 9, 0, 0));
+        request.setTimeRange(timeRange);
+        request.setScheduledStartTime(scheduledStartTime);
+        request.setScheduledEndTime(scheduledEndTime);
+
+        String runId = taskChainService.submitRun(42L, request);
+
+        ArgumentCaptor<TaskChainRunEntity> captor = ArgumentCaptor.forClass(TaskChainRunEntity.class);
+        verify(taskChainRunRepository).save(captor.capture());
+        TaskChainRunEntity savedRun = captor.getValue();
+        assertEquals(runId, savedRun.getId());
+        assertEquals(scheduledStartTime, savedRun.getScheduledStartTime());
+        assertEquals(scheduledEndTime, savedRun.getScheduledEndTime());
+        assertTrue(savedRun.getExecLog().contains("将于"));
+        verify(taskScheduler).schedule(eq(runId), any(Runnable.class), eq(scheduledStartTime), any());
+        verify(taskScheduler).scheduleDeadline(eq(runId), eq(scheduledEndTime), any(Runnable.class));
+    }
+
+    /**
+     * 若计划终止时间不晚于当前生效开始时间，应拒绝提交。
+     */
+    @Test
+    void submitRun_shouldRejectWhenScheduledEndTimeIsInvalid() throws Exception {
+        TaskChainEntity chain = new TaskChainEntity();
+        chain.setId(42L);
+        chain.setChainName("非法调度任务链");
+        chain.setChainMode("TIME_SERIES");
+        chain.setDefinitionJson(new ObjectMapper().writeValueAsString(buildDefinition("TIME_SERIES")));
+
+        when(taskChainRepository.findById(42L)).thenReturn(Optional.of(chain));
+        when(taskChainRuleResolver.resolveDescriptor(1L)).thenReturn(buildDescriptor(1L, "规则A", "TIME_SERIES", "temperature", "ts.factory.temp", "power", "FLOAT"));
+
+        TaskChainRunRequest request = new TaskChainRunRequest();
+        TaskChainRunRequest.TimeRange timeRange = new TaskChainRunRequest.TimeRange();
+        timeRange.setStart(LocalDateTime.of(2026, 4, 6, 8, 0, 0));
+        timeRange.setEnd(LocalDateTime.of(2026, 4, 6, 9, 0, 0));
+        request.setTimeRange(timeRange);
+        request.setScheduledEndTime(LocalDateTime.now().minusMinutes(1));
+
+        BizException ex = assertThrows(BizException.class, () -> taskChainService.submitRun(42L, request));
+        assertTrue(ex.getMessage().contains("任务链终止时间必须晚于当前时间"));
+        verify(taskChainRunRepository, never()).save(any(TaskChainRunEntity.class));
+        verify(taskScheduler, never()).schedule(any(String.class), any(Runnable.class), any(LocalDateTime.class), any());
+        verify(taskScheduler, never()).scheduleDeadline(any(String.class), any(LocalDateTime.class), any(Runnable.class));
+    }
+
+    /**
+     * 已失败的任务链运行记录允许被删除。
+     */
+    @Test
+    void deleteRun_shouldDeleteWhenStatusIsFailed() {
+        TaskChainRunEntity run = new TaskChainRunEntity();
+        run.setId("run_failed");
+        run.setStatus("FAILED");
+        run.setResultPrefix("ts.chain.chain_7.run_run_failed");
+
+        when(taskChainRunRepository.findById("run_failed")).thenReturn(Optional.of(run));
+
+        taskChainService.deleteRun("run_failed");
+
+        verify(dataMaintainService).deleteColumns(argThat(request ->
+            request != null
+                && "ts.chain.chain_7.run_run_failed".equals(request.getPath())
+                && Boolean.TRUE.equals(request.getIncludeChildren())
+        ));
+        verify(taskScheduler).clear("run_failed");
+        verify(taskChainRunRepository).delete(run);
+    }
+
+    /**
+     * 正常状态的任务链运行记录不允许删除。
+     */
+    @Test
+    void deleteRun_shouldRejectWhenStatusIsNotAbnormal() {
+        TaskChainRunEntity run = new TaskChainRunEntity();
+        run.setId("run_success");
+        run.setStatus("SUCCESS");
+
+        when(taskChainRunRepository.findById("run_success")).thenReturn(Optional.of(run));
+
+        BizException ex = assertThrows(BizException.class, () -> taskChainService.deleteRun("run_success"));
+        assertTrue(ex.getMessage().contains("仅允许删除失败或已中止的任务链运行记录"));
+        verify(taskChainRunRepository, never()).delete(any(TaskChainRunEntity.class));
+        verify(taskScheduler, never()).clear("run_success");
+        verify(dataMaintainService, never()).deleteColumns(any(DataColumnsDeleteRequest.class));
+    }
+
+    /**
+     * 清理输出路径失败时，不应删除任务链运行记录。
+     */
+    @Test
+    void deleteRun_shouldKeepRecordWhenOutputCleanupFails() {
+        TaskChainRunEntity run = new TaskChainRunEntity();
+        run.setId("run_aborted");
+        run.setStatus("ABORTED");
+        run.setResultPrefix("rt.chain.chain_9.run_run_aborted");
+
+        when(taskChainRunRepository.findById("run_aborted")).thenReturn(Optional.of(run));
+        doThrow(BizException.badRequest("IGinX 删除失败"))
+            .when(dataMaintainService).deleteColumns(any(DataColumnsDeleteRequest.class));
+
+        BizException ex = assertThrows(BizException.class, () -> taskChainService.deleteRun("run_aborted"));
+
+        assertTrue(ex.getMessage().contains("IGinX 删除失败"));
+        verify(taskChainRunRepository, never()).delete(run);
+        verify(taskScheduler, never()).clear("run_aborted");
+    }
+
+    /**
+     * 历史运行记录若缺少 resultPrefix，应回退到节点输出路径逐条清理。
+     */
+    @Test
+    void deleteRun_shouldFallbackToNodeOutputPathsWhenResultPrefixMissing() {
+        TaskChainRunEntity run = new TaskChainRunEntity();
+        run.setId("run_legacy");
+        run.setStatus("FAILED");
+        run.setResultPrefix("");
+        run.setRunSnapshot(buildRunSnapshotJson("node_a", Map.of(
+            "power", "ts.chain.chain_9.run_run_legacy.node_a.power",
+            "score", "ts.chain.chain_9.run_run_legacy.node_a.score"
+        )));
+
+        when(taskChainRunRepository.findById("run_legacy")).thenReturn(Optional.of(run));
+
+        taskChainService.deleteRun("run_legacy");
+
+        verify(dataMaintainService).deleteColumns(argThat(request ->
+            request != null
+                && "ts.chain.chain_9.run_run_legacy.node_a.power".equals(request.getPath())
+                && !Boolean.TRUE.equals(request.getIncludeChildren())
+        ));
+        verify(dataMaintainService).deleteColumns(argThat(request ->
+            request != null
+                && "ts.chain.chain_9.run_run_legacy.node_a.score".equals(request.getPath())
+                && !Boolean.TRUE.equals(request.getIncludeChildren())
+        ));
+        verify(taskChainRunRepository).delete(run);
+    }
+
     private TaskChainSaveRequest.NodeRequest createNode(String nodeId,
                                                         Long ruleId,
                                                         String upstreamNodeId,
@@ -247,5 +421,19 @@ class TaskChainServiceImplTest {
         descriptor.setInputs(List.of(input));
         descriptor.setOutputs(List.of(output));
         return descriptor;
+    }
+
+    private String buildRunSnapshotJson(String nodeId, Map<String, String> outputPaths) {
+        try {
+            TaskChainNodeRunSnapshot nodeSnapshot = new TaskChainNodeRunSnapshot();
+            nodeSnapshot.setNodeId(nodeId);
+            nodeSnapshot.setOutputPaths(outputPaths);
+
+            TaskChainRunSnapshot snapshot = new TaskChainRunSnapshot();
+            snapshot.setNodes(List.of(nodeSnapshot));
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 }

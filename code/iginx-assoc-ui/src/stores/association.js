@@ -8,6 +8,7 @@ import {
   deleteRule as deleteRuleApi,
   submitTask,
   stopTask as stopTaskApi,
+  deleteTask as deleteTaskApi,
   fetchTasks
 } from '../api/association'
 
@@ -86,6 +87,14 @@ export const useAssociationStore = defineStore('association', () => {
     await loadTasks()
   }
 
+  const deleteTask = async (taskId) => {
+    await deleteTaskApi(taskId)
+    if (selectedTask.value?.id === taskId) {
+      selectedTask.value = null
+    }
+    await loadTasks()
+  }
+
   const selectTask = (task) => {
     selectedTask.value = task
   }
@@ -101,6 +110,7 @@ export const useAssociationStore = defineStore('association', () => {
     toggleRule,
     createTask,
     stopTask,
+    deleteTask,
     loadRules,
     loadTasks,
     showWizard,

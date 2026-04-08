@@ -164,6 +164,28 @@ const handleStop = async (task) => {
     }
 }
 
+const canDeleteTaskRecord = (task) => {
+    return ['FAILED', 'ABORTED'].includes(task?.status)
+}
+
+const handleDeleteTask = async (task) => {
+    if (!canDeleteTaskRecord(task)) {
+        alert('仅允许删除失败或已中止的任务记录。')
+        return
+    }
+    if (!confirm(`确认删除任务记录“${resolveTaskDisplayName(task)}”吗？此操作会删除记录，并清理该次异常运行已写出的输出数据。`)) {
+        return
+    }
+    try {
+        await associationStore.deleteTask(task.id)
+        if (logTask.value?.id === task.id) {
+            closeLog()
+        }
+    } catch (error) {
+        alert(error.message || '删除任务记录失败')
+    }
+}
+
 const handleRerun = async (task) => {
     alert(`正在重新提交任务：${resolveTaskDisplayName(task)}`)
     const taskOptions = {}
@@ -200,6 +222,9 @@ const openTaskResultPreview = async (task) => {
     if (!targetNode) {
         alert('未在数据资源库中定位到该任务结果，请稍后刷新后再试')
         return
+    }
+    if (task?.analysisMode === 'TIME_SERIES' && task?.rangeStart && task?.rangeEnd) {
+        dataStore.setPreferredPreviewTimeRange(targetNode.path || targetNode.id, task.rangeStart, task.rangeEnd)
     }
     dataStore.selectNode(targetNode)
     await router.push('/data')
@@ -288,7 +313,14 @@ onMounted(() => {
                         <pre class="bg-gray-50 border border-gray-200 rounded p-3 text-xs text-gray-700 whitespace-pre-wrap">{{ logTask?.execLog || '暂无日志' }}</pre>
                     </div>
                 </div>
-                <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
+                <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+                    <button
+                        v-if="canDeleteTaskRecord(logTask)"
+                        @click="handleDeleteTask(logTask)"
+                        class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded text-sm hover:bg-red-100"
+                    >
+                        删除记录
+                    </button>
                     <button @click="closeLog" class="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200">关闭</button>
                 </div>
             </div>
@@ -374,6 +406,11 @@ onMounted(() => {
                                         @click="handleRerun(task)"
                                         class="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Rerun Task">
                                     <i class="ri-refresh-line text-lg"></i>
+                                </button>
+                                <button v-if="canDeleteTaskRecord(task)"
+                                        @click="handleDeleteTask(task)"
+                                        class="p-1 text-red-600 hover:bg-red-50 rounded" title="删除任务记录">
+                                    <i class="ri-delete-bin-line text-lg"></i>
                                 </button>
                                 <button class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded" title="查看日志" @click="openLog(task)">
                                     <i class="ri-file-list-line text-lg"></i>

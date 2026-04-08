@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import {
   createTaskChain,
   deleteTaskChain,
+  deleteTaskChainRun,
   fetchTaskChainDetail,
   fetchTaskChainRuleOptions,
   fetchTaskChainRunDetail,
@@ -53,6 +54,15 @@ const deepCopy = (value) => JSON.parse(JSON.stringify(value ?? null))
 const formatTime = (value) => {
   if (!value) return '-'
   return String(value).replace('T', ' ')
+}
+
+const resolveRunDisplayName = (run) => {
+  return String(run?.runName || '').trim() || run?.id || '未命名运行'
+}
+
+const formatScheduleTime = (value, emptyText) => {
+  if (!value) return emptyText
+  return formatTime(value)
 }
 
 const normalizeInputTime = (value) => {
@@ -798,6 +808,27 @@ const handleStopRun = async (runId) => {
   }
 }
 
+const canDeleteRunRecord = (run) => {
+  return ['FAILED', 'ABORTED'].includes(run?.status)
+}
+
+const handleDeleteRun = async (runId) => {
+  const targetRun = runs.value.find(item => item.id === runId) || selectedRun.value
+  if (!targetRun || !canDeleteRunRecord(targetRun)) {
+    alert('仅允许删除失败或已中止的任务链运行记录。')
+    return
+  }
+  if (!confirm(`确认删除任务链运行记录“${resolveRunDisplayName(targetRun)}”吗？此操作会删除记录，并清理该次异常运行已写出的输出数据。`)) {
+    return
+  }
+  try {
+    await deleteTaskChainRun(runId)
+    await loadRuns(selectedChainId.value)
+  } catch (error) {
+    alert(error.message || '删除任务链运行记录失败')
+  }
+}
+
 watch(selectedRun, refreshPolling, { deep: true })
 watch(activeRuns, refreshPolling, { deep: true })
 watch(graphPreview, async () => {
@@ -880,7 +911,7 @@ onBeforeUnmount(() => {
             </button>
             <div v-if="showRunAdvanced" class="mt-4 space-y-3">
               <div class="text-[11px] text-slate-500 leading-5">
-                开始时间留空表示立即执行；终止时间留空表示不限制任务链最晚结束时间。
+                开始时间留空表示立即执行；计划终止时间默认无限，任务链会一直运行到完成或失败。
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-500 mb-1">计划开始时间</label>
@@ -1271,13 +1302,22 @@ onBeforeUnmount(() => {
           <div class="rounded-2xl border border-slate-200 bg-white p-4">
             <div class="flex items-center justify-between gap-3 mb-3">
               <div class="text-sm font-bold text-slate-700">运行记录</div>
-              <button
-                v-if="selectedRun && ['PENDING', 'RUNNING'].includes(selectedRun.status)"
-                class="rounded-xl border border-rose-200 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
-                @click="handleStopRun(selectedRun.id)"
-              >
-                终止当前运行
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="selectedRun && ['PENDING', 'RUNNING'].includes(selectedRun.status)"
+                  class="rounded-xl border border-rose-200 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
+                  @click="handleStopRun(selectedRun.id)"
+                >
+                  终止当前运行
+                </button>
+                <button
+                  v-if="selectedRun && canDeleteRunRecord(selectedRun)"
+                  class="rounded-xl border border-rose-200 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
+                  @click="handleDeleteRun(selectedRun.id)"
+                >
+                  删除记录
+                </button>
+              </div>
             </div>
             <div v-if="!runs.length" class="text-sm text-slate-400">当前任务链还没有运行记录。</div>
             <div class="space-y-2">
@@ -1294,11 +1334,26 @@ onBeforeUnmount(() => {
                 <div class="flex items-center justify-between gap-3">
                   <div class="min-w-0">
                     <div class="truncate text-sm font-semibold text-slate-800">{{ run.runName || run.id }}</div>
-                    <div class="text-[11px] text-slate-400 mt-1">{{ formatTime(run.createTime) }}</div>
+                    <div class="mt-1 space-y-0.5 text-[11px] text-slate-400">
+                      <div>{{ formatTime(run.createTime) }}</div>
+                      <div>计划开始：{{ formatScheduleTime(run.scheduledStartTime, '立即执行') }}</div>
+                      <div>计划终止：{{ formatScheduleTime(run.scheduledEndTime, '不限制') }}</div>
+                    </div>
                   </div>
-                  <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold" :class="resolveStatusClass(run.status)">
-                    {{ run.status }}
-                  </span>
+                  <div class="flex items-center gap-2">
+                    <button
+                      v-if="canDeleteRunRecord(run)"
+                      type="button"
+                      class="rounded p-1 text-rose-500 hover:bg-rose-100"
+                      title="删除任务链运行记录"
+                      @click.stop="handleDeleteRun(run.id)"
+                    >
+                      <i class="ri-delete-bin-line text-sm"></i>
+                    </button>
+                    <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold" :class="resolveStatusClass(run.status)">
+                      {{ run.status }}
+                    </span>
+                  </div>
                 </div>
               </button>
             </div>
@@ -1322,6 +1377,14 @@ onBeforeUnmount(() => {
               <div>
                 <div class="text-slate-400">结束时间</div>
                 <div class="text-slate-700 mt-1">{{ formatTime(selectedRun.endTime) }}</div>
+              </div>
+              <div>
+                <div class="text-slate-400">计划开始时间</div>
+                <div class="text-slate-700 mt-1">{{ formatScheduleTime(selectedRun.scheduledStartTime, '立即执行') }}</div>
+              </div>
+              <div>
+                <div class="text-slate-400">计划终止时间</div>
+                <div class="text-slate-700 mt-1">{{ formatScheduleTime(selectedRun.scheduledEndTime, '不限制') }}</div>
               </div>
               <div class="col-span-2">
                 <div class="text-slate-400">结果前缀</div>

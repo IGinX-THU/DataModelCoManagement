@@ -128,4 +128,14 @@ public class TaskChainController {
         taskChainService.stopRun(runId);
         return Result.success();
     }
+
+    /**
+     * 删除任务链运行记录。
+     */
+    @Operation(summary = "删除任务链运行记录")
+    @DeleteMapping("/runs/{runId}")
+    public Result<Void> deleteRun(@PathVariable String runId) {
+        taskChainService.deleteRun(runId);
+        return Result.success();
+    }
 }

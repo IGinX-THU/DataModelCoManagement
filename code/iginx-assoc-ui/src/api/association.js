@@ -32,6 +32,10 @@ export const stopTask = (id) => request(`/api/v1/tasks/${id}/stop`, {
   method: 'POST'
 })
 
+export const deleteTask = (id) => request(`/api/v1/tasks/${id}`, {
+  method: 'DELETE'
+})
+
 export const fetchTasks = (ruleId) => {
   const query = ruleId ? `?ruleId=${ruleId}` : ''
   return request(`/api/v1/tasks${query}`)

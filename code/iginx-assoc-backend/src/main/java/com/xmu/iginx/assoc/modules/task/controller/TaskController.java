@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,6 +54,19 @@ public class TaskController {
     @PostMapping("/{id}/stop")
     public Result<Void> stop(@PathVariable String id) {
         taskService.stopTask(id);
+        return Result.success();
+    }
+
+    /**
+     * 删除任务记录。
+     *
+     * @param id 任务 ID
+     * @return 操作结果
+     */
+    @Operation(summary = "删除任务记录")
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable String id) {
+        taskService.deleteTask(id);
         return Result.success();
     }
 

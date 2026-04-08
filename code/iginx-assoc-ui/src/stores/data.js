@@ -27,6 +27,8 @@ export const useDataStore = defineStore('data', () => {
   const dataSourceTree = ref([])
   const resourceTree = ref([])
   const detailMap = reactive({})
+  const preferredPreviewTimeRangeMap = reactive({})
+  const timeSeriesRangeCacheMap = reactive({})
 
   const currentNode = reactive({
     id: '',
@@ -70,6 +72,61 @@ export const useDataStore = defineStore('data', () => {
     importForm.file = null
     importForm.keyMode = 'AUTO_GENERATED'
     importForm.keyColumn = ''
+  }
+
+  const normalizeResourcePath = (value) => String(value || '').trim().replace(/\.+$/, '')
+
+  /**
+   * 记录一次性预览时间范围。
+   * 说明：主要用于任务结果跳转到数据预览时，优先沿用任务自身的执行时间范围。
+   */
+  const setPreferredPreviewTimeRange = (path, startTime, endTime) => {
+    const normalizedPath = normalizeResourcePath(path)
+    if (!normalizedPath || !startTime || !endTime) {
+      return
+    }
+    preferredPreviewTimeRangeMap[normalizedPath] = {
+      startTime: String(startTime).trim(),
+      endTime: String(endTime).trim()
+    }
+  }
+
+  /**
+   * 读取并清除一次性预览时间范围。
+   */
+  const consumePreferredPreviewTimeRange = (path) => {
+    const normalizedPath = normalizeResourcePath(path)
+    if (!normalizedPath || !preferredPreviewTimeRangeMap[normalizedPath]) {
+      return null
+    }
+    const range = preferredPreviewTimeRangeMap[normalizedPath]
+    delete preferredPreviewTimeRangeMap[normalizedPath]
+    return range
+  }
+
+  /**
+   * 记住某个测点最近一次成功返回的数据时间范围，便于再次打开时直接落到有数据区间。
+   */
+  const rememberTimeSeriesRange = (path, startTime, endTime) => {
+    const normalizedPath = normalizeResourcePath(path)
+    if (!normalizedPath || !startTime || !endTime) {
+      return
+    }
+    timeSeriesRangeCacheMap[normalizedPath] = {
+      startTime: String(startTime).trim(),
+      endTime: String(endTime).trim()
+    }
+  }
+
+  /**
+   * 获取已缓存的时序数据时间范围。
+   */
+  const getRememberedTimeSeriesRange = (path) => {
+    const normalizedPath = normalizeResourcePath(path)
+    if (!normalizedPath) {
+      return null
+    }
+    return timeSeriesRangeCacheMap[normalizedPath] || null
   }
 
   const showTopology = (nodeOrType, id) => {
@@ -225,10 +282,48 @@ export const useDataStore = defineStore('data', () => {
     )
   }
 
+  const HIDDEN_TS_TIME_KEY_SEGMENTS = new Set([
+    'time',
+    'mytime',
+    'timestamp',
+    'datetime',
+    'eventtime',
+    'collecttime',
+    'sampletime',
+    'measuretime',
+    'recordtime',
+    'createtime',
+    'updatetime',
+    'starttime',
+    'endtime',
+    'timekey',
+    '时间',
+    '时间戳',
+    '采集时间',
+    '日期时间'
+  ])
+
+  const normalizeLeafSegment = (value) => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\-\s]/g, '')
+
+  const isHiddenTsTimeKeyNode = (node) => {
+    const hasChildren = Array.isArray(node?.children) && node.children.length > 0
+    if (hasChildren) {
+      return false
+    }
+    const path = String(node?.path || node?.id || '').trim()
+    const leaf = path.includes('.')
+      ? path.split('.').pop()
+      : String(node?.name || '').trim()
+    return HIDDEN_TS_TIME_KEY_SEGMENTS.has(normalizeLeafSegment(leaf))
+  }
+
   const decorateResourceTree = (nodes, rootType = '') => {
     if (!Array.isArray(nodes)) return []
     return nodes
-      .filter(node => !(rootType === 'ts' && isInternalTsNode(node)))
+      .filter(node => !(rootType === 'ts' && (isInternalTsNode(node) || isHiddenTsTimeKeyNode(node))))
       .map(node => {
         const nextRoot = rootType || (['ts', 'rt', 'task'].includes(node.type) ? node.type : rootType)
         const children = decorateResourceTree(node.children || [], nextRoot)
@@ -542,6 +637,10 @@ export const useDataStore = defineStore('data', () => {
     removeChild,
     deletePath,
     findNodeByPath,
+    setPreferredPreviewTimeRange,
+    consumePreferredPreviewTimeRange,
+    rememberTimeSeriesRange,
+    getRememberedTimeSeriesRange,
     buildDownloadUrl
   }
 })

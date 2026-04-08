@@ -26,6 +26,13 @@ public interface TaskService {
     void stopTask(String taskId);
 
     /**
+     * 删除任务记录。
+     *
+     * @param taskId 任务 ID
+     */
+    void deleteTask(String taskId);
+
+    /**
      * 查询任务列表。
      *
      * @param ruleId 规则 ID（可选）

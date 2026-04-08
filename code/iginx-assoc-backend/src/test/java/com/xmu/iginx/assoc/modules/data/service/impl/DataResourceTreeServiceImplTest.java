@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -96,6 +97,41 @@ class DataResourceTreeServiceImplTest {
         assertEquals("STRUCTURED", structuredLeaf.getPreviewMode());
         assertEquals("COLUMN", structuredLeaf.getPreviewRole());
         assertTrue(Boolean.TRUE.equals(structuredLeaf.getReadOnly()));
+    }
+
+    /**
+     * ts 根节点下的时间列别名叶子应从资源树中隐藏，避免被误当作普通测点展示。
+     */
+    @Test
+    void buildTree_shouldHideTimeKeyLeafUnderTsRoot() {
+        when(dataResourceRepository.findAll()).thenReturn(List.of());
+        when(taskRepository.findAll()).thenReturn(List.of());
+
+        Column tsTimeColumn = mock(Column.class);
+        when(tsTimeColumn.getPath()).thenReturn("ts.casebook.branch.mytime");
+        Column tsValueColumn = mock(Column.class);
+        when(tsValueColumn.getPath()).thenReturn("ts.casebook.branch.temperature");
+        Column rtColumn = mock(Column.class);
+        when(rtColumn.getPath()).thenReturn("rt.demo.mytime");
+        when(iginxStorageWrapper.executeWithSession(any()))
+            .thenReturn(List.of(tsTimeColumn, tsValueColumn, rtColumn));
+
+        List<DataResourceTreeNodeVO> roots = dataResourceTreeService.buildTree();
+
+        DataResourceTreeNodeVO tsRoot = roots.stream()
+            .filter(node -> "ts".equals(node.getType()))
+            .findFirst()
+            .orElse(null);
+        assertNotNull(tsRoot);
+        DataResourceTreeNodeVO rtRoot = roots.stream()
+            .filter(node -> "rt".equals(node.getType()))
+            .findFirst()
+            .orElse(null);
+        assertNotNull(rtRoot);
+
+        assertNull(findNode(tsRoot, "ts.casebook.branch.mytime"));
+        assertNotNull(findNode(tsRoot, "ts.casebook.branch.temperature"));
+        assertNotNull(findNode(rtRoot, "rt.demo.mytime"));
     }
 
     /**

@@ -3,6 +3,8 @@ package com.xmu.iginx.assoc.modules.task.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
+import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.model.dto.ModelIoSchema;
@@ -45,6 +47,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -76,6 +79,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskModelExecutionEngine taskModelExecutionEngine;
     private final ModelFileStorageService modelFileStorageService;
     private final ModelFunctionSchemaParser functionSchemaParser;
+    private final DataMaintainService dataMaintainService;
     private final Map<String, String> taskAbortReasons = new ConcurrentHashMap<>();
 
     /**
@@ -134,6 +138,20 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public void stopTask(String taskId) {
         abortTask(taskId, buildUserPendingAbortMessage(), buildUserRunningAbortMessage());
+    }
+
+    /**
+     * 删除失败或已中止的任务记录。
+     */
+    @Override
+    @Transactional
+    public void deleteTask(String taskId) {
+        TaskEntity task = findTask(taskId);
+        ensureTaskRecordDeletable(task);
+        cleanupTaskOutputs(task);
+        taskScheduler.clear(taskId);
+        taskAbortReasons.remove(taskId);
+        taskRepository.delete(task);
     }
 
     /**
@@ -690,11 +708,127 @@ public class TaskServiceImpl implements TaskService {
     }
 
     /**
+     * 删除任务记录前，先清理本次异常运行已经写出的输出路径数据。
+     * <p>
+     * 清理策略：
+     * 1. 默认 task.result.&lt;taskId&gt; 输出按前缀级联删除；
+     * 2. 自定义输出路径按真实 resolvedPath 精确删除；
+     * 3. 任一路径清理失败时，终止删除流程，避免记录丢失后无法重试。
+     * </p>
+     *
+     * @param task 任务实体
+     */
+    private void cleanupTaskOutputs(TaskEntity task) {
+        Map<String, Boolean> deleteTargets = collectTaskDeleteTargets(task);
+        for (Map.Entry<String, Boolean> entry : deleteTargets.entrySet()) {
+            DataColumnsDeleteRequest request = new DataColumnsDeleteRequest();
+            request.setPath(entry.getKey());
+            request.setIncludeChildren(entry.getValue());
+            dataMaintainService.deleteColumns(request);
+        }
+    }
+
+    /**
      * 查询任务实体。
      */
     private TaskEntity findTask(String taskId) {
         return taskRepository.findById(taskId)
             .orElseThrow(() -> BizException.badRequest("任务不存在，id=" + taskId));
+    }
+
+    /**
+     * 仅允许删除失败或已中止的任务记录，避免误删成功历史。
+     */
+    private void ensureTaskRecordDeletable(TaskEntity task) {
+        String status = task == null ? "" : task.getStatus();
+        if (TaskStatus.FAILED.name().equals(status) || TaskStatus.ABORTED.name().equals(status)) {
+            return;
+        }
+        throw BizException.badRequest("仅允许删除失败或已中止的任务记录");
+    }
+
+    /**
+     * 汇总任务删除时需要清理的输出路径。
+     *
+     * @param task 任务实体
+     * @return 路径 -> 是否级联删除子路径
+     */
+    private Map<String, Boolean> collectTaskDeleteTargets(TaskEntity task) {
+        LinkedHashMap<String, Boolean> targets = new LinkedHashMap<>();
+        TaskExecutionSnapshot snapshot = readExecutionSnapshotForCleanup(task == null ? null : task.getExecutionSnapshot());
+        if (snapshot == null || snapshot.getOutputs() == null || snapshot.getOutputs().isEmpty()) {
+            return targets;
+        }
+
+        boolean hasDefaultOutputs = snapshot.getOutputs().stream()
+            .filter(Objects::nonNull)
+            .anyMatch(item -> "TASK_RESULT".equalsIgnoreCase(item.getPathKind())
+                && StringUtils.hasText(item.getResolvedPath()));
+        if (hasDefaultOutputs && StringUtils.hasText(snapshot.getDefaultResultPrefix())) {
+            addDeleteTarget(targets, snapshot.getDefaultResultPrefix(), true);
+        }
+
+        for (TaskExecutionBinding output : snapshot.getOutputs()) {
+            if (output == null || !StringUtils.hasText(output.getResolvedPath())) {
+                continue;
+            }
+            if ("TASK_RESULT".equalsIgnoreCase(output.getPathKind()) && StringUtils.hasText(snapshot.getDefaultResultPrefix())) {
+                continue;
+            }
+            addDeleteTarget(targets, output.getResolvedPath(), false);
+        }
+        return targets;
+    }
+
+    /**
+     * 将路径加入清理集合。
+     * <p>
+     * 若父路径已按 includeChildren 删除，则无需重复加入子路径；
+     * 若当前新增的是父路径级联删除，则移除已存在的子路径目标。
+     * </p>
+     *
+     * @param targets 路径集合
+     * @param path 路径
+     * @param includeChildren 是否级联删除
+     */
+    private void addDeleteTarget(Map<String, Boolean> targets, String path, boolean includeChildren) {
+        String normalized = TimeSeriesPathUtils.normalizePath(path);
+        if (!StringUtils.hasText(normalized)) {
+            return;
+        }
+        for (Map.Entry<String, Boolean> entry : new ArrayList<>(targets.entrySet())) {
+            String existingPath = entry.getKey();
+            boolean existingIncludeChildren = Boolean.TRUE.equals(entry.getValue());
+            if (existingPath.equals(normalized)) {
+                targets.put(existingPath, existingIncludeChildren || includeChildren);
+                return;
+            }
+            if (existingIncludeChildren && TimeSeriesPathUtils.startsWithPath(normalized, existingPath)) {
+                return;
+            }
+            if (includeChildren && TimeSeriesPathUtils.startsWithPath(existingPath, normalized)) {
+                targets.remove(existingPath);
+            }
+        }
+        targets.put(normalized, includeChildren);
+    }
+
+    /**
+     * 解析删除清理场景使用的任务快照。
+     *
+     * @param executionSnapshotJson 任务快照 JSON
+     * @return 任务快照
+     */
+    private TaskExecutionSnapshot readExecutionSnapshotForCleanup(String executionSnapshotJson) {
+        if (!StringUtils.hasText(executionSnapshotJson)) {
+            return null;
+        }
+        try {
+            TaskExecutionSnapshot snapshot = objectMapper.readValue(executionSnapshotJson, TaskExecutionSnapshot.class);
+            return snapshot == null ? null : snapshot;
+        } catch (Exception ex) {
+            throw BizException.badRequest("任务执行快照解析失败，无法安全清理输出数据");
+        }
     }
 
     /**

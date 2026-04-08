@@ -142,6 +142,28 @@ const recentTasks = computed(() => {
         .sort((a, b) => new Date(b.createTime || 0) - new Date(a.createTime || 0))
 })
 
+const canDeleteTaskRecord = (task) => {
+    return ['FAILED', 'ABORTED'].includes(task?.status)
+}
+
+const handleDeleteTaskRecord = async (task) => {
+    if (!canDeleteTaskRecord(task)) {
+        alert('仅允许删除失败或已中止的任务记录。')
+        return
+    }
+    if (!confirm(`确认删除任务记录“${resolveTaskDisplayName(task)}”吗？此操作会删除记录，并清理该次异常运行已写出的输出数据。`)) {
+        return
+    }
+    try {
+        await associationStore.deleteTask(task.id)
+        if (selectedTask.value?.id === task.id) {
+            selectedTask.value = null
+        }
+    } catch (err) {
+        alert(err.message || '删除任务记录失败')
+    }
+}
+
 const toggleStatus = async (rule) => {
     try {
         await associationStore.toggleRule(rule.id)
@@ -932,6 +954,9 @@ const requiresTimeRangeForRun = computed(() => {
                                         <button v-if="task.status === 'RUNNING' || task.status === 'PENDING'" 
                                                 @click.stop="associationStore.stopTask(task.id)"
                                                 class="text-red-600 hover:underline">Stop</button>
+                                        <button v-else-if="canDeleteTaskRecord(task)"
+                                                @click.stop="handleDeleteTaskRecord(task)"
+                                                class="text-red-600 hover:underline">删除</button>
                                     </td>
                                 </tr>
                             </tbody>

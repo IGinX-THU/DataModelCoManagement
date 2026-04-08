@@ -10,6 +10,8 @@ public final class DataPrefixRules {
     public static final String TS_PREFIX = "ts";
     public static final String RT_PREFIX = "rt";
     public static final String MODEL_PREFIX = "models";
+    public static final String TASK_PREFIX = "task";
+    public static final String TASK_RESULT_SEGMENT = "result";
 
     private DataPrefixRules() {
     }
@@ -73,5 +75,27 @@ public final class DataPrefixRules {
             return false;
         }
         return prefix.equalsIgnoreCase(segments[0]);
+    }
+
+    /**
+     * 判断路径是否位于 task.result 前缀下。
+     *
+     * @param path 路径
+     * @return 是否属于任务结果路径
+     */
+    public static boolean startsWithTaskResultPrefix(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        String normalized = TimeSeriesPathUtils.normalizePath(path);
+        if (normalized.isBlank()) {
+            return false;
+        }
+        String[] segments = normalized.split("\\.");
+        if (segments.length < 2) {
+            return false;
+        }
+        return TASK_PREFIX.equalsIgnoreCase(segments[0])
+            && TASK_RESULT_SEGMENT.equalsIgnoreCase(segments[1]);
     }
 }

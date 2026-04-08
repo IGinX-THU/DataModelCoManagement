@@ -152,8 +152,9 @@ public class DataMaintainServiceImpl implements DataMaintainService {
         }
         if (!DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.TS_PREFIX)
             && !DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.RT_PREFIX)
-            && !DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.MODEL_PREFIX)) {
-            throw BizException.badRequest("路径前缀必须是 ts / rt / models");
+            && !DataPrefixRules.startsWithPrefix(normalized, DataPrefixRules.MODEL_PREFIX)
+            && !DataPrefixRules.startsWithTaskResultPrefix(normalized)) {
+            throw BizException.badRequest("路径前缀必须是 ts / rt / models / task.result");
         }
         boolean includeChildren = Boolean.TRUE.equals(request.getIncludeChildren());
         String target = normalized;

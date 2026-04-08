@@ -2,6 +2,8 @@ package com.xmu.iginx.assoc.modules.taskchain.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
+import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
 import com.xmu.iginx.assoc.modules.data.util.TimeSeriesPathUtils;
 import com.xmu.iginx.assoc.modules.model.util.ModelFileStorageService;
@@ -74,6 +76,7 @@ public class TaskChainServiceImpl implements TaskChainService {
     private final TaskModelExecutionEngine taskModelExecutionEngine;
     private final ModelFileStorageService modelFileStorageService;
     private final ObjectMapper objectMapper;
+    private final DataMaintainService dataMaintainService;
     private final Map<String, String> runAbortReasons = new ConcurrentHashMap<>();
 
     @Override
@@ -191,6 +194,20 @@ public class TaskChainServiceImpl implements TaskChainService {
     @Transactional
     public void stopRun(String runId) {
         abortRun(runId, "任务链在开始执行前被用户终止", "任务链被用户终止");
+    }
+
+    /**
+     * 删除失败或已中止的任务链运行记录。
+     */
+    @Override
+    @Transactional
+    public void deleteRun(String runId) {
+        TaskChainRunEntity run = findRun(runId);
+        ensureRunRecordDeletable(run);
+        cleanupRunOutputs(run);
+        taskScheduler.clear(runId);
+        runAbortReasons.remove(runId);
+        taskChainRunRepository.delete(run);
     }
 
     @Override
@@ -969,6 +986,25 @@ public class TaskChainServiceImpl implements TaskChainService {
         }
     }
 
+    /**
+     * 删除任务链运行记录前，先清理该次运行已经写出的输出路径。
+     * <p>
+     * 任务链输出前缀按 runId 唯一化，因此优先按 resultPrefix 级联删除；
+     * 若历史数据缺少 resultPrefix，则回退到节点快照中的具体输出路径逐条删除。
+     * </p>
+     *
+     * @param run 运行实体
+     */
+    private void cleanupRunOutputs(TaskChainRunEntity run) {
+        Map<String, Boolean> deleteTargets = collectRunDeleteTargets(run);
+        for (Map.Entry<String, Boolean> entry : deleteTargets.entrySet()) {
+            DataColumnsDeleteRequest request = new DataColumnsDeleteRequest();
+            request.setPath(entry.getKey());
+            request.setIncludeChildren(entry.getValue());
+            dataMaintainService.deleteColumns(request);
+        }
+    }
+
     private TaskChainEntity findChain(Long chainId) {
         return taskChainRepository.findById(chainId)
             .orElseThrow(() -> BizException.badRequest("任务链不存在，id=" + chainId));
@@ -977,6 +1013,94 @@ public class TaskChainServiceImpl implements TaskChainService {
     private TaskChainRunEntity findRun(String runId) {
         return taskChainRunRepository.findById(runId)
             .orElseThrow(() -> BizException.badRequest("任务链运行记录不存在，id=" + runId));
+    }
+
+    /**
+     * 仅允许删除失败或已中止的任务链运行记录，避免误删正常历史。
+     */
+    private void ensureRunRecordDeletable(TaskChainRunEntity run) {
+        String status = run == null ? "" : run.getStatus();
+        if (TaskStatus.FAILED.name().equals(status) || TaskStatus.ABORTED.name().equals(status)) {
+            return;
+        }
+        throw BizException.badRequest("仅允许删除失败或已中止的任务链运行记录");
+    }
+
+    /**
+     * 汇总任务链运行删除时需要清理的输出路径。
+     *
+     * @param run 运行实体
+     * @return 路径 -> 是否级联删除子路径
+     */
+    private Map<String, Boolean> collectRunDeleteTargets(TaskChainRunEntity run) {
+        LinkedHashMap<String, Boolean> targets = new LinkedHashMap<>();
+        if (run == null) {
+            return targets;
+        }
+        if (StringUtils.hasText(run.getResultPrefix())) {
+            addDeleteTarget(targets, run.getResultPrefix(), true);
+            return targets;
+        }
+        TaskChainRunSnapshot snapshot = readRunSnapshotForCleanup(run.getRunSnapshot());
+        if (snapshot == null || snapshot.getNodes() == null || snapshot.getNodes().isEmpty()) {
+            return targets;
+        }
+        for (TaskChainNodeRunSnapshot node : snapshot.getNodes()) {
+            if (node == null || node.getOutputPaths() == null || node.getOutputPaths().isEmpty()) {
+                continue;
+            }
+            for (String path : node.getOutputPaths().values()) {
+                addDeleteTarget(targets, path, false);
+            }
+        }
+        return targets;
+    }
+
+    /**
+     * 将路径加入任务链清理集合，避免父子路径重复删除。
+     *
+     * @param targets 路径集合
+     * @param path 路径
+     * @param includeChildren 是否级联删除
+     */
+    private void addDeleteTarget(Map<String, Boolean> targets, String path, boolean includeChildren) {
+        String normalized = TimeSeriesPathUtils.normalizePath(path);
+        if (!StringUtils.hasText(normalized)) {
+            return;
+        }
+        for (Map.Entry<String, Boolean> entry : new ArrayList<>(targets.entrySet())) {
+            String existingPath = entry.getKey();
+            boolean existingIncludeChildren = Boolean.TRUE.equals(entry.getValue());
+            if (existingPath.equals(normalized)) {
+                targets.put(existingPath, existingIncludeChildren || includeChildren);
+                return;
+            }
+            if (existingIncludeChildren && TimeSeriesPathUtils.startsWithPath(normalized, existingPath)) {
+                return;
+            }
+            if (includeChildren && TimeSeriesPathUtils.startsWithPath(existingPath, normalized)) {
+                targets.remove(existingPath);
+            }
+        }
+        targets.put(normalized, includeChildren);
+    }
+
+    /**
+     * 解析任务链清理场景使用的运行快照。
+     *
+     * @param json 快照 JSON
+     * @return 运行快照
+     */
+    private TaskChainRunSnapshot readRunSnapshotForCleanup(String json) {
+        if (!StringUtils.hasText(json)) {
+            return null;
+        }
+        try {
+            TaskChainRunSnapshot snapshot = objectMapper.readValue(json, TaskChainRunSnapshot.class);
+            return snapshot == null ? null : snapshot;
+        } catch (Exception ex) {
+            throw BizException.badRequest("任务链运行快照解析失败，无法安全清理输出数据");
+        }
     }
 
     private TaskChainDefinition readDefinition(String json) {

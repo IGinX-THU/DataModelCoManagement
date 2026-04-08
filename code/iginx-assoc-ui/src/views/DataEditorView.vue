@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, nextTick, reactive, computed } from 'vue'
 import { useDataStore } from '../stores/data'
 import * as echarts from 'echarts'
+import { TIME_PRECISION_UNIT_OPTIONS, formatPrecisionMs, parsePrecisionValueToMs } from '../utils/timePrecision'
 
 const dataStore = useDataStore()
 const chartRef = ref(null)
@@ -21,6 +22,7 @@ const structuredSchemaError = ref('')
 const structuredDataError = ref('')
 const structuredDataQueried = ref(false)
 const currentStructuredTablePath = ref('')
+const currentTsPreviewPath = ref('')
 const structuredJumpPage = ref('1')
 const lastTsQueryAggregator = ref('AVG')
 const lastTsPrecisionMs = ref(null)
@@ -28,12 +30,28 @@ const lastTsPrecisionMs = ref(null)
 const CHART_MAX_POINTS = 2000
 const TABLE_MAX_ROWS = 500
 const DEFAULT_TS_QUERY_MAX_POINTS = 1200
+const TS_AUTO_DISCOVERY_WINDOWS = [
+    60 * 60 * 1000,
+    6 * 60 * 60 * 1000,
+    24 * 60 * 60 * 1000,
+    7 * 24 * 60 * 60 * 1000,
+    30 * 24 * 60 * 60 * 1000,
+    90 * 24 * 60 * 60 * 1000,
+    180 * 24 * 60 * 60 * 1000,
+    365 * 24 * 60 * 60 * 1000,
+    3 * 365 * 24 * 60 * 60 * 1000,
+    5 * 365 * 24 * 60 * 60 * 1000,
+    10 * 365 * 24 * 60 * 60 * 1000,
+    30 * 365 * 24 * 60 * 60 * 1000,
+    50 * 365 * 24 * 60 * 60 * 1000
+]
 
 const tsQueryForm = reactive({
     startTime: '',
     endTime: '',
     aggregator: 'AVG',
-    precisionMs: ''
+    precisionValue: '',
+    precisionUnit: 'ms'
 })
 
 const pagination = reactive({
@@ -136,7 +154,7 @@ const tsDownsampleSummary = computed(() => {
     if (lastTsQueryAggregator.value === 'RAW' || !lastTsPrecisionMs.value) {
         return ''
     }
-    return `${lastTsQueryAggregator.value} / ${lastTsPrecisionMs.value}ms`
+    return `${lastTsQueryAggregator.value} / ${formatPrecisionMs(lastTsPrecisionMs.value)}`
 })
 
 const sampleTimeSeries = (data, maxPoints) => {
@@ -192,7 +210,7 @@ const formatAxisTime = (value, includeDate) => {
 
 const toLocalInput = (date) => {
     const pad = (num) => String(num).padStart(2, '0')
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 const normalizeInputTime = (value) => {
@@ -200,6 +218,8 @@ const normalizeInputTime = (value) => {
     const text = value.replace('T', ' ')
     return text.length === 16 ? `${text}:00` : text
 }
+
+const normalizePreviewPath = (value) => String(value || '').trim().replace(/\.+$/, '')
 
 const normalizeTimestamp = (value) => {
     if (value === null || value === undefined) return null
@@ -217,6 +237,42 @@ const parseInputToMillis = (value) => {
     const iso = normalized.replace(' ', 'T')
     const time = Date.parse(iso)
     return Number.isNaN(time) ? null : time
+}
+
+const buildDateTimeText = (value) => {
+    const timestamp = normalizeTimestamp(value)
+    return timestamp === null ? '' : formatDateTime(timestamp)
+}
+
+const applyTimeRangeToForm = (startValue, endValue) => {
+    const startMs = normalizeTimestamp(startValue)
+    const endMs = normalizeTimestamp(endValue)
+    if (startMs === null || endMs === null) {
+        return false
+    }
+    tsQueryForm.startTime = toLocalInput(new Date(startMs))
+    tsQueryForm.endTime = toLocalInput(new Date(endMs))
+    return true
+}
+
+const extractTimeRangeFromRows = (rows) => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+        return null
+    }
+    let min = Number.POSITIVE_INFINITY
+    let max = Number.NEGATIVE_INFINITY
+    rows.forEach((row) => {
+        const timestamp = normalizeTimestamp(row?.time)
+        if (timestamp === null) {
+            return
+        }
+        min = Math.min(min, timestamp)
+        max = Math.max(max, timestamp)
+    })
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        return null
+    }
+    return { startMs: min, endMs: max }
 }
 
 const normalizeValue = (value) => {
@@ -268,9 +324,12 @@ const setDefaultTimeRange = () => {
 }
 
 const resolveTsPrecisionMs = () => {
-    const manualPrecision = Number(tsQueryForm.precisionMs)
-    if (Number.isFinite(manualPrecision) && manualPrecision > 0) {
-        return Math.floor(manualPrecision)
+    const manualPrecision = parsePrecisionValueToMs(
+        tsQueryForm.precisionValue,
+        tsQueryForm.precisionUnit
+    )
+    if (manualPrecision) {
+        return manualPrecision
     }
     const startMs = parseInputToMillis(tsQueryForm.startTime)
     const endMs = parseInputToMillis(tsQueryForm.endTime)
@@ -278,6 +337,149 @@ const resolveTsPrecisionMs = () => {
         return 1000
     }
     return Math.max(1, Math.ceil((endMs - startMs) / DEFAULT_TS_QUERY_MAX_POINTS))
+}
+
+const buildDiscoveryPayload = (path, startMs, endMs) => {
+    const precisionMs = Math.max(1, Math.ceil(Math.max(1, endMs - startMs) / DEFAULT_TS_QUERY_MAX_POINTS))
+    return {
+        paths: [path],
+        timeRange: {
+            start: buildDateTimeText(startMs),
+            end: buildDateTimeText(endMs)
+        },
+        downsample: true,
+        aggregator: 'COUNT',
+        precisionMs
+    }
+}
+
+const buildRawRangePayload = (path, startMs, endMs) => ({
+    paths: [path],
+    timeRange: {
+        start: buildDateTimeText(startMs),
+        end: buildDateTimeText(endMs)
+    }
+})
+
+const resolveResultTimestamps = (result) => (Array.isArray(result?.timestamps) ? result.timestamps : [])
+    .map(item => normalizeTimestamp(item))
+    .filter(item => item !== null)
+
+const buildDiscoveryCandidateRanges = (now, windowSize) => {
+    const safeNow = Number.isFinite(now) ? now : Date.now()
+    const safeWindow = Math.max(1, Number(windowSize) || 1)
+    return [
+        {
+            startMs: Math.max(0, safeNow - safeWindow),
+            endMs: safeNow + safeWindow
+        }
+    ]
+}
+
+/**
+ * 在已定位到的时间桶内再做一次原始查询，尽量把首尾时间收敛到真实数据点。
+ */
+const refineTimeSeriesRangeInWindow = async (path, startMs, endMs) => {
+    const normalizedPath = normalizePreviewPath(path)
+    if (!normalizedPath || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+        return null
+    }
+    const payload = buildRawRangePayload(normalizedPath, startMs, endMs)
+    try {
+        const result = await dataStore.queryTimeSeriesData(payload)
+        const timestamps = resolveResultTimestamps(result)
+        if (!timestamps.length) {
+            return null
+        }
+        return {
+            startMs: Math.min(...timestamps),
+            endMs: Math.max(...timestamps)
+        }
+    } catch (error) {
+        console.error('精确收敛时序数据范围失败', { path: normalizedPath, error, payload })
+        return null
+    }
+}
+
+/**
+ * 自动探测当前测点最近一段“确实有数据”的时间窗口。
+ * 说明：按多个时间窗逐步扩大查询，避免首次打开时默认时间段为空。
+ */
+const discoverTimeSeriesRange = async (path) => {
+    const normalizedPath = normalizePreviewPath(path)
+    if (!normalizedPath) {
+        return null
+    }
+    const now = Date.now()
+    for (const windowSize of TS_AUTO_DISCOVERY_WINDOWS) {
+        const candidateRanges = buildDiscoveryCandidateRanges(now, windowSize)
+        for (const candidateRange of candidateRanges) {
+            const payload = buildDiscoveryPayload(
+                normalizedPath,
+                candidateRange.startMs,
+                candidateRange.endMs
+            )
+            try {
+                const result = await dataStore.queryTimeSeriesData(payload)
+                const timestamps = resolveResultTimestamps(result)
+                if (!timestamps.length) {
+                    continue
+                }
+                const precisionMs = Number(payload.precisionMs) || 1
+                const firstBucketStart = Math.min(...timestamps)
+                const lastBucketStart = Math.max(...timestamps)
+                const firstWindowRange = await refineTimeSeriesRangeInWindow(
+                    normalizedPath,
+                    firstBucketStart,
+                    Math.min(candidateRange.endMs, firstBucketStart + precisionMs)
+                )
+                const lastWindowRange = lastBucketStart === firstBucketStart
+                    ? firstWindowRange
+                    : await refineTimeSeriesRangeInWindow(
+                        normalizedPath,
+                        lastBucketStart,
+                        Math.min(candidateRange.endMs, lastBucketStart + precisionMs)
+                    )
+                return {
+                    startMs: firstWindowRange?.startMs ?? firstBucketStart,
+                    endMs: lastWindowRange?.endMs ?? lastBucketStart
+                }
+            } catch (error) {
+                console.error('自动探测时序数据范围失败', { path: normalizedPath, error, payload })
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * 初始化时序预览时间范围。
+ * 优先级：任务跳转指定范围 > 本地记忆范围 > 自动探测范围 > 最近 1 小时默认范围。
+ */
+const initializeTimeSeriesRange = async (path) => {
+    const normalizedPath = normalizePreviewPath(path)
+    if (!normalizedPath) {
+        setDefaultTimeRange()
+        return 'default'
+    }
+
+    const preferredRange = dataStore.consumePreferredPreviewTimeRange(normalizedPath)
+    if (preferredRange && applyTimeRangeToForm(preferredRange.startTime, preferredRange.endTime)) {
+        return 'preferred'
+    }
+
+    const rememberedRange = dataStore.getRememberedTimeSeriesRange(normalizedPath)
+    if (rememberedRange && applyTimeRangeToForm(rememberedRange.startTime, rememberedRange.endTime)) {
+        return 'cache'
+    }
+
+    const discoveredRange = await discoverTimeSeriesRange(normalizedPath)
+    if (discoveredRange && applyTimeRangeToForm(discoveredRange.startMs, discoveredRange.endMs)) {
+        return 'discovered'
+    }
+
+    setDefaultTimeRange()
+    return 'default'
 }
 
 const resetStructuredPagination = () => {
@@ -315,7 +517,10 @@ const jumpToStructuredPage = async () => {
     await changeStructuredPage(structuredJumpPage.value)
 }
 
-const loadTimeSeriesData = async () => {
+/**
+ * 查询时序数据，并在需要时把表单时间范围回填为实际返回的数据首尾时间。
+ */
+const loadTimeSeriesData = async ({ syncRangeToData = false } = {}) => {
     const node = dataStore.currentNode
     // 资源树节点可能直接来自 IGinX 当前列集合，此时未必能关联到系统内的数据源记录；
     // 时序查询接口实际只依赖路径和时间范围，因此这里不能再把 sourceId 作为查询前置条件。
@@ -323,7 +528,7 @@ const loadTimeSeriesData = async () => {
         tsQueryError.value = '未获取到有效的时序路径'
         tsData.value = []
         nextTick(initChart)
-        return
+        return { hasData: false }
     }
     if (!tsQueryForm.startTime || !tsQueryForm.endTime) {
         setDefaultTimeRange()
@@ -334,7 +539,7 @@ const loadTimeSeriesData = async () => {
         tsQueryError.value = '开始时间不能晚于结束时间'
         tsData.value = []
         nextTick(initChart)
-        return
+        return { hasData: false }
     }
     loadingData.value = true
     tsQueryError.value = ''
@@ -383,21 +588,60 @@ const loadTimeSeriesData = async () => {
             rows.sort((a, b) => a.time - b.time)
             tsData.value = rows
             tsInvalidValueCount.value = invalidCount
+            const actualRange = extractTimeRangeFromRows(rows)
+            if (actualRange) {
+                dataStore.rememberTimeSeriesRange(
+                    node.path,
+                    buildDateTimeText(actualRange.startMs),
+                    buildDateTimeText(actualRange.endMs)
+                )
+                if (syncRangeToData) {
+                    applyTimeRangeToForm(actualRange.startMs, actualRange.endMs)
+                }
+            }
         } else {
             tsData.value = []
             tsInvalidValueCount.value = 0
         }
         nextTick(initChart)
+        return { hasData: tsData.value.length > 0 }
     } catch (e) {
         console.error('查询时序数据失败', { error: e, payload })
         tsQueryError.value = e?.message || '时序数据查询失败'
         tsData.value = []
         tsInvalidValueCount.value = 0
         nextTick(initChart)
+        return { hasData: false }
     } finally {
         loadingData.value = false
     }
 }
+
+/**
+ * 打开时序测点预览时，自动切到更合适的有数据区间。
+ */
+const openTimeSeriesPreview = async () => {
+    const previewPath = normalizePreviewPath(dataStore.currentNode.path)
+    const pathChanged = currentTsPreviewPath.value !== previewPath
+    currentTsPreviewPath.value = previewPath
+
+    let rangeSource = 'manual'
+    if (pathChanged) {
+        rangeSource = await initializeTimeSeriesRange(previewPath)
+    }
+
+    let result = await loadTimeSeriesData({
+        syncRangeToData: pathChanged && (rangeSource === 'preferred' || rangeSource === 'default')
+    })
+
+    if (!result?.hasData && pathChanged) {
+        const discoveredRange = await discoverTimeSeriesRange(previewPath)
+        if (discoveredRange && applyTimeRangeToForm(discoveredRange.startMs, discoveredRange.endMs)) {
+            result = await loadTimeSeriesData({ syncRangeToData: true })
+        }
+    }
+}
+
 /**
  * 查询结构化表结构（列名与类型），并可选地自动查询表数据。
  */
@@ -881,13 +1125,14 @@ watch(() => [dataStore.currentNode.id, dataStore.currentNode.viewMode], async ([
         return
     }
     if (isTimeSeriesNode.value) {
-        await loadTimeSeriesData()
+        await openTimeSeriesPreview()
         return
     }
     if (isStructuredTableNode.value) {
         await loadStructuredSchema(true)
         return
     }
+    currentTsPreviewPath.value = ''
     currentStructuredTablePath.value = ''
     structuredSchemaError.value = ''
     structuredDataError.value = ''
@@ -908,7 +1153,7 @@ onMounted(() => {
         if (dataStore.currentNode.viewMode === 'topology' && ['group', 'ts', 'rt', 'task', 'models'].includes(dataStore.currentNode.type)) {
             initTreeChart()
         } else if (isTimeSeriesNode.value) {
-            loadTimeSeriesData()
+            openTimeSeriesPreview()
         } else if (isStructuredTableNode.value) {
             loadStructuredSchema(true)
         }
@@ -982,9 +1227,9 @@ onMounted(() => {
                 <div v-if="isTimeSeriesNode" class="flex space-x-2 items-center">
                     <div class="flex items-center space-x-1 bg-gray-50 border border-gray-200 rounded px-2 py-1">
                         <i class="ri-calendar-line text-gray-400 text-xs"></i>
-                        <input v-model="tsQueryForm.startTime" type="datetime-local" class="bg-transparent text-xs border-none focus:ring-0 text-gray-600 w-32">
+                        <input v-model="tsQueryForm.startTime" type="datetime-local" step="1" class="bg-transparent text-xs border-none focus:ring-0 text-gray-600 w-40">
                         <span class="text-gray-400">-</span>
-                        <input v-model="tsQueryForm.endTime" type="datetime-local" class="bg-transparent text-xs border-none focus:ring-0 text-gray-600 w-32">
+                        <input v-model="tsQueryForm.endTime" type="datetime-local" step="1" class="bg-transparent text-xs border-none focus:ring-0 text-gray-600 w-40">
                     </div>
                     <select v-model="tsQueryForm.aggregator" class="border border-gray-300 rounded text-xs px-2 py-1 text-gray-600 h-8">
                         <option value="RAW">原始数据</option>
@@ -994,7 +1239,20 @@ onMounted(() => {
                         <option value="SUM">求和</option>
                         <option value="COUNT">计数</option>
                     </select>
-                    <input v-if="tsQueryForm.aggregator !== 'RAW'" v-model="tsQueryForm.precisionMs" type="number" min="1" class="border border-gray-300 rounded text-xs px-2 py-1 text-gray-600 h-8 w-32" placeholder="步长(ms，留空自动)">
+                    <div v-if="tsQueryForm.aggregator !== 'RAW'" class="flex items-center space-x-2">
+                        <input
+                            v-model="tsQueryForm.precisionValue"
+                            type="number"
+                            min="0"
+                            step="any"
+                            class="border border-gray-300 rounded text-xs px-2 py-1 text-gray-600 h-8 w-28"
+                            placeholder="步长值">
+                        <select v-model="tsQueryForm.precisionUnit" class="border border-gray-300 rounded text-xs px-2 py-1 text-gray-600 h-8 w-20">
+                            <option v-for="unit in TIME_PRECISION_UNIT_OPTIONS" :key="unit.value" :value="unit.value">
+                                {{ unit.label }}
+                            </option>
+                        </select>
+                    </div>
                     <button @click="loadTimeSeriesData" class="px-3 py-1 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100 border border-blue-200 h-8">查询</button>
                 </div>
 

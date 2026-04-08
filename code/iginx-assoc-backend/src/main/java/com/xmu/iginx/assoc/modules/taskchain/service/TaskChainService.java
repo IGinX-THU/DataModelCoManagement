@@ -54,6 +54,11 @@ public interface TaskChainService {
     void stopRun(String runId);
 
     /**
+     * 删除任务链运行记录。
+     */
+    void deleteRun(String runId);
+
+    /**
      * 查询运行记录列表。
      */
     List<TaskChainRunVO> listRuns(Long chainId);

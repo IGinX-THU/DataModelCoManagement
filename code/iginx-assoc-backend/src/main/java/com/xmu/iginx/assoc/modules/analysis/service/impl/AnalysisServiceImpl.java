@@ -1617,21 +1617,43 @@ public class AnalysisServiceImpl implements AnalysisService {
         int previewRows = resolvePreviewRows(request);
         String previewStrategy = resolvePreviewStrategy(request);
         if (inputTable != null && inputTable.rows() != null && !inputTable.rows().isEmpty()) {
-            List<String> columns = limitColumns(inputTable.columns(), REPORT_PREVIEW_MAX_COLUMNS);
-            blocks.add(new ReportPdfBuilder.TableBlock(
-                "结构化输入预览",
-                buildPreviewNote(inputTable.rows().size(), previewRows, previewStrategy, columns.size(), inputTable.columns().size()),
-                columns,
-                limitTableRows(inputTable, columns, previewRows, previewStrategy)
-            ));
+            blocks.addAll(buildStructuredPreviewBlocks("结构化输入预览", inputTable, previewRows, previewStrategy));
         }
         if (outputTable != null && outputTable.rows() != null && !outputTable.rows().isEmpty()) {
-            List<String> columns = limitColumns(outputTable.columns(), REPORT_PREVIEW_MAX_COLUMNS);
+            blocks.addAll(buildStructuredPreviewBlocks("结构化结果预览", outputTable, previewRows, previewStrategy));
+        }
+        return blocks;
+    }
+
+    /**
+     * 按列分组构建结构化报告预览块，避免宽表只显示前几列。
+     *
+     * @param baseTitle 基础标题
+     * @param tableData 表格数据
+     * @param previewRows 预览行数
+     * @param previewStrategy 预览策略
+     * @return 预览块集合
+     */
+    private List<ReportPdfBuilder.TableBlock> buildStructuredPreviewBlocks(String baseTitle,
+                                                                           StructuredTableData tableData,
+                                                                           int previewRows,
+                                                                           String previewStrategy) {
+        if (tableData == null || tableData.rows() == null || tableData.rows().isEmpty()) {
+            return List.of();
+        }
+        List<ReportPdfBuilder.TableBlock> blocks = new ArrayList<>();
+        List<ColumnSlice> slices = sliceColumns(tableData.columns(), REPORT_PREVIEW_MAX_COLUMNS, "KEY");
+        for (ColumnSlice slice : slices) {
+            List<String> columns = slice.columns();
+            String note = appendStructuredColumnPreviewNote(
+                buildPreviewNote(tableData.rows().size(), previewRows, previewStrategy),
+                slice
+            );
             blocks.add(new ReportPdfBuilder.TableBlock(
-                "结构化结果预览",
-                buildPreviewNote(outputTable.rows().size(), previewRows, previewStrategy, columns.size(), outputTable.columns().size()),
+                buildGroupedPreviewTitle(baseTitle, slice),
+                note,
                 columns,
-                limitTableRows(outputTable, columns, previewRows, previewStrategy)
+                limitTableRows(tableData, columns, previewRows, previewStrategy)
             ));
         }
         return blocks;
@@ -1653,67 +1675,122 @@ public class AnalysisServiceImpl implements AnalysisService {
                                                                           SessionQueryDataSet outputDataSet,
                                                                           TaskReportRequest request) {
         List<ReportPdfBuilder.TableBlock> blocks = new ArrayList<>();
-        ReportPdfBuilder.TableBlock inputBlock = buildTimeSeriesPreviewBlock("输入数据预览", inputPaths, inputDataSet, request);
-        if (inputBlock != null) {
-            blocks.add(inputBlock);
+        blocks.addAll(buildTimeSeriesPreviewBlocks("输入数据预览", inputPaths, inputDataSet, request));
+        blocks.addAll(buildTimeSeriesPreviewBlocks("输出结果预览", outputPaths, outputDataSet, request));
+        return blocks;
+    }
+
+    /**
+     * 按路径分组构建时序预览块，避免路径过多时只能展示前几列。
+     *
+     * @param baseTitle 标题
+     * @param fallbackPaths 兜底路径
+     * @param dataSet 数据集
+     * @param request 报告请求
+     * @return 表格块列表
+     */
+    private List<ReportPdfBuilder.TableBlock> buildTimeSeriesPreviewBlocks(String baseTitle,
+                                                                           List<String> fallbackPaths,
+                                                                           SessionQueryDataSet dataSet,
+                                                                           TaskReportRequest request) {
+        if (isDataSetEmpty(dataSet)) {
+            return List.of();
         }
-        ReportPdfBuilder.TableBlock outputBlock = buildTimeSeriesPreviewBlock("输出结果预览", outputPaths, outputDataSet, request);
-        if (outputBlock != null) {
-            blocks.add(outputBlock);
+        List<String> dataPaths = resolvePaths(fallbackPaths, dataSet);
+        List<ColumnSlice> slices = sliceColumns(dataPaths, Math.max(1, REPORT_PREVIEW_MAX_COLUMNS - 1), null);
+        if (slices.isEmpty()) {
+            return List.of();
+        }
+        List<ReportPdfBuilder.TableBlock> blocks = new ArrayList<>();
+        int previewRows = resolvePreviewRows(request);
+        String previewStrategy = resolvePreviewStrategy(request);
+        for (ColumnSlice slice : slices) {
+            List<Map<String, Object>> rows = mapTimeSeriesRowsForReport(slice.columns(), dataSet);
+            if (rows.isEmpty()) {
+                continue;
+            }
+            List<String> columns = new ArrayList<>();
+            columns.add("timestamp");
+            columns.addAll(slice.columns());
+            String note = appendTimeSeriesPathPreviewNote(
+                buildPreviewNote(rows.size(), previewRows, previewStrategy),
+                slice
+            );
+            blocks.add(new ReportPdfBuilder.TableBlock(
+                buildGroupedPreviewTitle(baseTitle, slice),
+                note,
+                columns,
+                sampleRows(rows, previewRows, previewStrategy)
+            ));
         }
         return blocks;
     }
 
     /**
-     * 构建单个时序预览块。
-     *
-     * @param title 标题
-     * @param fallbackPaths 兜底路径
-     * @param dataSet 数据集
-     * @param request 报告请求
-     * @return 表格块
-     */
-    private ReportPdfBuilder.TableBlock buildTimeSeriesPreviewBlock(String title,
-                                                                    List<String> fallbackPaths,
-                                                                    SessionQueryDataSet dataSet,
-                                                                    TaskReportRequest request) {
-        if (isDataSetEmpty(dataSet)) {
-            return null;
-        }
-        List<String> dataPaths = resolvePaths(fallbackPaths, dataSet);
-        List<String> selectedPaths = limitColumns(dataPaths, Math.max(1, REPORT_PREVIEW_MAX_COLUMNS - 1));
-        List<Map<String, Object>> rows = mapTimeSeriesRowsForReport(selectedPaths, dataSet);
-        if (rows.isEmpty()) {
-            return null;
-        }
-        int previewRows = resolvePreviewRows(request);
-        String previewStrategy = resolvePreviewStrategy(request);
-        List<String> columns = new ArrayList<>();
-        columns.add("timestamp");
-        columns.addAll(selectedPaths);
-        return new ReportPdfBuilder.TableBlock(
-            title,
-            buildPreviewNote(rows.size(), previewRows, previewStrategy, columns.size(), dataPaths.size() + 1),
-            columns,
-            sampleRows(rows, previewRows, previewStrategy)
-        );
-    }
-
-    /**
-     * 裁剪表格列数，避免 PDF 一页过宽。
+     * 按最大列数切分预览列，保证宽表可分组展示。
      *
      * @param columns 原始列
      * @param maxColumns 最大列数
-     * @return 裁剪后的列
+     * @param emptyFallback 为空时的兜底列名
+     * @return 列切片列表
      */
-    private List<String> limitColumns(List<String> columns, int maxColumns) {
-        if (columns == null || columns.isEmpty()) {
-            return List.of("KEY");
+    private List<ColumnSlice> sliceColumns(List<String> columns, int maxColumns, String emptyFallback) {
+        List<String> safeColumns = columns == null ? new ArrayList<>() : new ArrayList<>(columns);
+        if (safeColumns.isEmpty()) {
+            if (!StringUtils.hasText(emptyFallback)) {
+                return List.of();
+            }
+            safeColumns.add(emptyFallback);
         }
-        if (columns.size() <= maxColumns) {
-            return new ArrayList<>(columns);
+        int safeMaxColumns = Math.max(1, maxColumns);
+        int totalColumns = safeColumns.size();
+        int totalSlices = (int) Math.ceil(totalColumns / (double) safeMaxColumns);
+        List<ColumnSlice> slices = new ArrayList<>(totalSlices);
+        for (int sliceIndex = 0; sliceIndex < totalSlices; sliceIndex++) {
+            int startIndex = sliceIndex * safeMaxColumns;
+            int endIndex = Math.min(totalColumns, startIndex + safeMaxColumns);
+            slices.add(new ColumnSlice(
+                new ArrayList<>(safeColumns.subList(startIndex, endIndex)),
+                startIndex + 1,
+                endIndex,
+                totalColumns,
+                sliceIndex + 1,
+                totalSlices
+            ));
         }
-        return new ArrayList<>(columns.subList(0, maxColumns));
+        return slices;
+    }
+
+    /**
+     * 构建分组预览标题。
+     */
+    private String buildGroupedPreviewTitle(String baseTitle, ColumnSlice slice) {
+        if (slice == null || slice.totalSlices() <= 1) {
+            return baseTitle;
+        }
+        return baseTitle + "（第 " + slice.index() + "/" + slice.totalSlices() + " 组）";
+    }
+
+    /**
+     * 为结构化宽表追加列范围说明。
+     */
+    private String appendStructuredColumnPreviewNote(String baseNote, ColumnSlice slice) {
+        if (slice == null || slice.totalSlices() <= 1) {
+            return baseNote;
+        }
+        return baseNote + "，当前展示第 " + slice.startOrdinal() + "-" + slice.endOrdinal()
+            + " 列（共 " + slice.totalColumns() + " 列）";
+    }
+
+    /**
+     * 为时序宽表追加路径范围说明。
+     */
+    private String appendTimeSeriesPathPreviewNote(String baseNote, ColumnSlice slice) {
+        if (slice == null || slice.totalSlices() <= 1) {
+            return baseNote;
+        }
+        return baseNote + "，当前展示 timestamp + 第 " + slice.startOrdinal() + "-"
+            + slice.endOrdinal() + " 条路径";
     }
 
     /**
@@ -1882,15 +1959,11 @@ public class AnalysisServiceImpl implements AnalysisService {
      * @param totalRows 总条数
      * @param previewRows 预览条数
      * @param previewStrategy 预览策略
-     * @param shownColumns 展示列数
-     * @param totalColumns 总列数
      * @return 说明文本
      */
     private String buildPreviewNote(int totalRows,
                                     int previewRows,
-                                    String previewStrategy,
-                                    int shownColumns,
-                                    int totalColumns) {
+                                    String previewStrategy) {
         StringBuilder builder = new StringBuilder();
         builder.append("共 ").append(totalRows).append(" 条记录");
         builder.append("，当前采用")
@@ -1898,9 +1971,6 @@ public class AnalysisServiceImpl implements AnalysisService {
             .append("方式展示 ")
             .append(Math.min(totalRows, previewRows))
             .append(" 条");
-        if (totalColumns > shownColumns) {
-            builder.append("，列展示 ").append(shownColumns).append("/").append(totalColumns);
-        }
         return builder.toString();
     }
 
@@ -3028,6 +3098,24 @@ public class AnalysisServiceImpl implements AnalysisService {
      */
     private record StructuredResultContext(LinkedHashMap<String, String> outputPaths,
                                            List<String> columns) {
+    }
+
+    /**
+     * 报告列分组描述。
+     *
+     * @param columns 当前组列集合
+     * @param startOrdinal 当前组起始列序号（从 1 开始）
+     * @param endOrdinal 当前组结束列序号（从 1 开始）
+     * @param totalColumns 总列数
+     * @param index 当前组序号
+     * @param totalSlices 总组数
+     */
+    private record ColumnSlice(List<String> columns,
+                               int startOrdinal,
+                               int endOrdinal,
+                               int totalColumns,
+                               int index,
+                               int totalSlices) {
     }
 
     /**

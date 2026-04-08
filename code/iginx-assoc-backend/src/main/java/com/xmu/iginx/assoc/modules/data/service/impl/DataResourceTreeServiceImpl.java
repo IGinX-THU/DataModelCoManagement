@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 数据资源树构建服务实现。
@@ -56,6 +57,27 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
     private static final String PREVIEW_ROLE_COLUMN = "COLUMN";
     /** 时序结果测点节点 */
     private static final String PREVIEW_ROLE_POINT = "POINT";
+    /** 资源树中需要隐藏的时序时间列别名 */
+    private static final Set<String> HIDDEN_TS_TIME_KEY_SEGMENTS = Set.of(
+        "time",
+        "mytime",
+        "timestamp",
+        "datetime",
+        "eventtime",
+        "collecttime",
+        "sampletime",
+        "measuretime",
+        "recordtime",
+        "createtime",
+        "updatetime",
+        "starttime",
+        "endtime",
+        "timekey",
+        "时间",
+        "时间戳",
+        "采集时间",
+        "日期时间"
+    );
 
     private final DataResourceRepository dataResourceRepository;
     private final IginxStorageWrapper iginxStorageWrapper;
@@ -107,6 +129,9 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             }
             DataResourceTreeNodeVO root = rootsByPrefix.get(prefix.toLowerCase(Locale.ROOT));
             if (root == null) {
+                continue;
+            }
+            if (shouldHideTimeKeyLeaf(segments, root.getType())) {
                 continue;
             }
             appendPathSegments(
@@ -411,6 +436,45 @@ public class DataResourceTreeServiceImpl implements DataResourceTreeService {
             }
         }
         return false;
+    }
+
+    /**
+     * 判断当前叶子路径是否属于应从时序资源树中隐藏的时间列。
+     * <p>
+     * 说明：IGinX 在 CSV 导入时即使某列被指定为 KEY，showColumns 里仍可能出现同名叶子路径。
+     * 为避免用户在资源树里再去点开这类“时间测点”，这里在 ts 根节点下按常见时间列别名做过滤。
+     * </p>
+     *
+     * @param segments 路径段列表
+     * @param rootType 根节点类型
+     * @return 是否需要隐藏
+     */
+    private boolean shouldHideTimeKeyLeaf(List<String> segments, String rootType) {
+        if (!TS_PREFIX.equalsIgnoreCase(rootType) || segments == null || segments.size() < 2) {
+            return false;
+        }
+        String leafSegment = segments.get(segments.size() - 1);
+        if (!StringUtils.hasText(leafSegment)) {
+            return false;
+        }
+        return HIDDEN_TS_TIME_KEY_SEGMENTS.contains(normalizeLeafSegment(leafSegment));
+    }
+
+    /**
+     * 规范化叶子段名称，便于兼容 my_time / my-time / my time 等写法。
+     *
+     * @param raw 原始叶子段
+     * @return 规范化后的名称
+     */
+    private String normalizeLeafSegment(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "";
+        }
+        return raw.trim()
+            .toLowerCase(Locale.ROOT)
+            .replace("_", "")
+            .replace("-", "")
+            .replace(" ", "");
     }
 
     /**

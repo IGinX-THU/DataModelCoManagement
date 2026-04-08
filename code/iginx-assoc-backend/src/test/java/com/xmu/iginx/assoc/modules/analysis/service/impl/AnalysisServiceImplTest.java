@@ -715,7 +715,92 @@ class AnalysisServiceImplTest {
         assertFalse(pdfText.contains("18.95"));
     }
 
+    /**
+     * 结构化宽表报告应按列分组展示后续列，而不是只保留前 6 列。
+     */
+    @Test
+    void generateReport_shouldSplitWideStructuredPreviewIntoMultipleBlocks() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        AnalysisServiceImpl service = new AnalysisServiceImpl(
+            taskRepository,
+            associationRuleRepository,
+            iginxStorageWrapper,
+            objectMapper,
+            modelAssetRepository,
+            modelFileStorageService,
+            dataFileStorageService,
+            structuredQueryHelper
+        );
+
+        List<TaskExecutionBinding> outputs = List.of(
+            buildOutputBinding("result_1", "task.result.demo.result_1"),
+            buildOutputBinding("result_2", "task.result.demo.result_2"),
+            buildOutputBinding("result_3", "task.result.demo.result_3"),
+            buildOutputBinding("result_4", "task.result.demo.result_4"),
+            buildOutputBinding("result_5", "task.result.demo.result_5"),
+            buildOutputBinding("result_6", "task.result.demo.result_6"),
+            buildOutputBinding("result_7", "task.result.demo.result_7"),
+            buildOutputBinding("result_8", "task.result.demo.result_8")
+        );
+        TaskExecutionSnapshot snapshot = buildStructuredSnapshot(outputs);
+        TaskEntity task = buildStructuredTask(objectMapper, snapshot);
+        AssociationRuleEntity rule = buildRule();
+
+        QueryDataSet inputSet = org.mockito.Mockito.mock(QueryDataSet.class);
+        when(inputSet.getColumnList()).thenReturn(List.of("temperature", "pressure", "flow"));
+        when(inputSet.nextRow()).thenReturn(
+            new Object[]{18.85d, 1.08d, 1.05d},
+            (Object[]) null
+        );
+
+        SessionQueryDataSet outputSet = org.mockito.Mockito.mock(SessionQueryDataSet.class);
+        when(outputSet.getKeys()).thenReturn(new long[]{0L, 1L});
+        when(outputSet.getValues()).thenReturn(List.of(
+            List.of(10.1d, 10.2d, 10.3d, 10.4d, 10.5d, 10.6d, 10.7d, 10.8d),
+            List.of(11.1d, 11.2d, 11.3d, 11.4d, 11.5d, 11.6d, 11.7d, 11.8d)
+        ));
+        when(outputSet.getPaths()).thenReturn(List.of(
+            "task.result.demo.result_1",
+            "task.result.demo.result_2",
+            "task.result.demo.result_3",
+            "task.result.demo.result_4",
+            "task.result.demo.result_5",
+            "task.result.demo.result_6",
+            "task.result.demo.result_7",
+            "task.result.demo.result_8"
+        ));
+
+        Path pdfPath = Files.createTempFile("analysis-structured-wide-report-", ".pdf");
+        when(taskRepository.findById("demo-task")).thenReturn(Optional.of(task));
+        when(associationRuleRepository.findById(1L)).thenReturn(Optional.of(rule));
+        when(structuredQueryHelper.executeQuery(anyString(), anyInt())).thenReturn(inputSet);
+        when(iginxStorageWrapper.executeWithSession(any())).thenReturn(outputSet);
+        when(dataFileStorageService.createFile("task_report", ".pdf"))
+            .thenReturn(new DataFileStorageService.StoredFile("task_report_wide_test.pdf", pdfPath));
+
+        TaskReportRequest request = new TaskReportRequest();
+        request.setIncludeStats(false);
+        request.setIncludeCharts(false);
+        request.setPreviewRows(1);
+        request.setPreviewStrategy("HEAD");
+
+        String downloadPath = service.generateReport("demo-task", request);
+
+        assertTrue(downloadPath.endsWith("task_report_wide_test.pdf"));
+        String pdfText = extractPdfText(pdfPath);
+        assertTrue(pdfText.contains("结构化结果预览"));
+        assertTrue(pdfText.contains("result_1"));
+        assertTrue(pdfText.contains("result_6"));
+        assertTrue(pdfText.contains("result_8"));
+        assertTrue(pdfText.contains("第 2/2 组"));
+        assertTrue(pdfText.contains("当前展示第 7-9 列"));
+    }
+
     private TaskExecutionSnapshot buildStructuredSnapshot() {
+        return buildStructuredSnapshot(List.of(buildOutputBinding("result", "task.result.demo.result")));
+    }
+
+    private TaskExecutionSnapshot buildStructuredSnapshot(List<TaskExecutionBinding> outputs) {
         TaskExecutionBinding temperature = new TaskExecutionBinding();
         temperature.setName("temperature");
         temperature.setResolvedPath("rt.factory.power.temperature");
@@ -731,14 +816,17 @@ class AnalysisServiceImplTest {
         flow.setResolvedPath("rt.factory.power.flow");
         flow.setPathKind("RT");
 
-        TaskExecutionBinding output = new TaskExecutionBinding();
-        output.setName("result");
-        output.setResolvedPath("task.result.demo.result");
-
         TaskExecutionSnapshot snapshot = new TaskExecutionSnapshot();
         snapshot.setInputs(List.of(temperature, pressure, flow));
-        snapshot.setOutputs(List.of(output));
+        snapshot.setOutputs(outputs);
         return snapshot;
+    }
+
+    private TaskExecutionBinding buildOutputBinding(String name, String path) {
+        TaskExecutionBinding output = new TaskExecutionBinding();
+        output.setName(name);
+        output.setResolvedPath(path);
+        return output;
     }
 
     private TaskEntity buildStructuredTask(ObjectMapper objectMapper, TaskExecutionSnapshot snapshot) throws Exception {

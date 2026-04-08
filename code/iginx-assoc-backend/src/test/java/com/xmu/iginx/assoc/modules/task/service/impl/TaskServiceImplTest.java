@@ -2,6 +2,8 @@ package com.xmu.iginx.assoc.modules.task.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
+import com.xmu.iginx.assoc.modules.data.dto.DataColumnsDeleteRequest;
+import com.xmu.iginx.assoc.modules.data.service.DataMaintainService;
 import com.xmu.iginx.assoc.modules.model.entity.ModelAssetEntity;
 import com.xmu.iginx.assoc.modules.model.repository.MetaModelProfileRepository;
 import com.xmu.iginx.assoc.modules.model.repository.ModelAssetRepository;
@@ -11,6 +13,7 @@ import com.xmu.iginx.assoc.modules.relation.entity.AssociationRuleEntity;
 import com.xmu.iginx.assoc.modules.relation.repository.AssociationRuleRepository;
 import com.xmu.iginx.assoc.modules.task.dto.TaskSubmitRequest;
 import com.xmu.iginx.assoc.modules.task.entity.TaskEntity;
+import com.xmu.iginx.assoc.modules.task.model.TaskExecutionBinding;
 import com.xmu.iginx.assoc.modules.task.model.TaskExecutionSnapshot;
 import com.xmu.iginx.assoc.modules.task.repository.TaskRepository;
 import com.xmu.iginx.assoc.modules.task.service.TaskScheduler;
@@ -29,8 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,20 +70,26 @@ class TaskServiceImplTest {
     @Mock
     private ModelFunctionSchemaParser functionSchemaParser;
 
+    @Mock
+    private DataMaintainService dataMaintainService;
+
+    private ObjectMapper objectMapper;
     private TaskServiceImpl taskService;
 
     @BeforeEach
     void setUp() {
+        objectMapper = new ObjectMapper();
         taskService = new TaskServiceImpl(
             taskRepository,
             associationRuleRepository,
             modelAssetRepository,
             profileRepository,
             taskScheduler,
-            new ObjectMapper(),
+            objectMapper,
             taskModelExecutionEngine,
             modelFileStorageService,
-            functionSchemaParser
+            functionSchemaParser,
+            dataMaintainService
         );
     }
 
@@ -285,6 +296,80 @@ class TaskServiceImplTest {
     }
 
     /**
+     * 失败任务记录允许被删除。
+     */
+    @Test
+    void deleteTask_shouldDeleteWhenStatusIsFailed() {
+        TaskEntity task = new TaskEntity();
+        task.setId("task_failed");
+        task.setStatus("FAILED");
+        task.setExecutionSnapshot(buildTaskSnapshotJson(
+            "task.result.task_failed",
+            buildOutputBinding("power", "TASK_RESULT", "task.result.task_failed.power"),
+            buildOutputBinding("alarm", "CUSTOM", "ts.factory.alert.alarm")
+        ));
+
+        when(taskRepository.findById("task_failed")).thenReturn(Optional.of(task));
+
+        taskService.deleteTask("task_failed");
+
+        verify(dataMaintainService).deleteColumns(argThat(request ->
+            request != null
+                && "task.result.task_failed".equals(request.getPath())
+                && Boolean.TRUE.equals(request.getIncludeChildren())
+        ));
+        verify(dataMaintainService).deleteColumns(argThat(request ->
+            request != null
+                && "ts.factory.alert.alarm".equals(request.getPath())
+                && !Boolean.TRUE.equals(request.getIncludeChildren())
+        ));
+        verify(taskScheduler).clear("task_failed");
+        verify(taskRepository).delete(task);
+    }
+
+    /**
+     * 非失败/中止状态的任务记录不允许删除。
+     */
+    @Test
+    void deleteTask_shouldRejectWhenStatusIsNotAbnormal() {
+        TaskEntity task = new TaskEntity();
+        task.setId("task_success");
+        task.setStatus("SUCCESS");
+
+        when(taskRepository.findById("task_success")).thenReturn(Optional.of(task));
+
+        BizException ex = assertThrows(BizException.class, () -> taskService.deleteTask("task_success"));
+        assertTrue(ex.getMessage().contains("仅允许删除失败或已中止的任务记录"));
+        verify(taskRepository, never()).delete(any(TaskEntity.class));
+        verify(taskScheduler, never()).clear("task_success");
+        verify(dataMaintainService, never()).deleteColumns(any(DataColumnsDeleteRequest.class));
+    }
+
+    /**
+     * 若输出路径清理失败，任务记录应保留，避免用户失去重试入口。
+     */
+    @Test
+    void deleteTask_shouldKeepRecordWhenOutputCleanupFails() {
+        TaskEntity task = new TaskEntity();
+        task.setId("task_aborted");
+        task.setStatus("ABORTED");
+        task.setExecutionSnapshot(buildTaskSnapshotJson(
+            "task.result.task_aborted",
+            buildOutputBinding("power", "TASK_RESULT", "task.result.task_aborted.power")
+        ));
+
+        when(taskRepository.findById("task_aborted")).thenReturn(Optional.of(task));
+        doThrow(BizException.badRequest("IGinX 删除失败"))
+            .when(dataMaintainService).deleteColumns(any(DataColumnsDeleteRequest.class));
+
+        BizException ex = assertThrows(BizException.class, () -> taskService.deleteTask("task_aborted"));
+
+        assertTrue(ex.getMessage().contains("IGinX 删除失败"));
+        verify(taskRepository, never()).delete(task);
+        verify(taskScheduler, never()).clear("task_aborted");
+    }
+
+    /**
      * 任务提交前应完成严格参数校验：输出参数集合不一致时禁止提交。
      */
     @Test
@@ -386,5 +471,24 @@ class TaskServiceImplTest {
         assertEquals("warning_flag", snapshot.getOutputs().get(2).getName());
         assertEquals("task.result." + taskId + ".warning_flag", snapshot.getOutputs().get(2).getResolvedPath());
         verify(taskScheduler).submit(eq(taskId), any(Runnable.class));
+    }
+
+    private String buildTaskSnapshotJson(String defaultResultPrefix, TaskExecutionBinding... outputs) {
+        try {
+            TaskExecutionSnapshot snapshot = new TaskExecutionSnapshot();
+            snapshot.setDefaultResultPrefix(defaultResultPrefix);
+            snapshot.setOutputs(java.util.Arrays.asList(outputs));
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private TaskExecutionBinding buildOutputBinding(String name, String pathKind, String resolvedPath) {
+        TaskExecutionBinding binding = new TaskExecutionBinding();
+        binding.setName(name);
+        binding.setPathKind(pathKind);
+        binding.setResolvedPath(resolvedPath);
+        return binding;
     }
 }
