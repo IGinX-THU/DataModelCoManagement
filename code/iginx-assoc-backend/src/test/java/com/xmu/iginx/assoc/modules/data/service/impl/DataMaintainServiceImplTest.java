@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,7 +58,7 @@ class DataMaintainServiceImplTest {
      */
     @BeforeEach
     void setUp() {
-        when(iginxStorageWrapper.executeWithSession(any())).thenAnswer(invocation -> {
+        lenient().when(iginxStorageWrapper.executeWithSession(any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             IginxStorageWrapper.SessionExecutor<Object> executor =
                 (IginxStorageWrapper.SessionExecutor<Object>) invocation.getArgument(0);

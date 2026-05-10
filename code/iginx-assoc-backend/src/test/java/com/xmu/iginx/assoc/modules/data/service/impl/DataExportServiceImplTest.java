@@ -1,5 +1,6 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
+import cn.edu.tsinghua.iginx.session.Column;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
 import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
@@ -8,11 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xmu.iginx.assoc.common.exception.BizException;
 import com.xmu.iginx.assoc.framework.iginx.IginxStorageWrapper;
 import com.xmu.iginx.assoc.modules.data.dto.DataExportRequest;
-import com.xmu.iginx.assoc.modules.data.entity.DataResourceEntity;
-import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
-import com.xmu.iginx.assoc.modules.data.model.DataSourceDetail;
 import com.xmu.iginx.assoc.modules.data.repository.DataExportTaskRepository;
-import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
 import com.xmu.iginx.assoc.modules.data.util.DataFileStorageService;
 import com.xmu.iginx.assoc.modules.data.util.IginxStructuredQueryHelper;
 import com.xmu.iginx.assoc.modules.data.vo.DataExportResultVO;
@@ -28,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,8 +56,6 @@ class DataExportServiceImplTest {
     @Mock
     private DataFileStorageService fileStorageService;
     @Mock
-    private DataSourceAccessor dataSourceAccessor;
-    @Mock
     private IginxStorageWrapper iginxStorageWrapper;
     @Mock
     private IginxStructuredQueryHelper structuredQueryHelper;
@@ -82,8 +78,6 @@ class DataExportServiceImplTest {
      */
     @BeforeEach
     void setUp() {
-        when(dataSourceAccessor.getDetail(anyLong(), any(DataSourceType[].class)))
-            .thenReturn(buildStructuredSourceDetail());
         lenient().when(iginxStorageWrapper.executeWithSession(any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             IginxStorageWrapper.SessionExecutor<Object> executor =
@@ -143,7 +137,7 @@ class DataExportServiceImplTest {
 
         BizException exception = assertThrows(BizException.class, () -> dataExportService.exportData(request));
 
-        assertTrue(exception.getMessage().contains("Export column not found"));
+        assertTrue(exception.getMessage().contains("导出列不存在"));
         verify(structuredQueryHelper, never()).executeQuery(anyString(), anyInt());
     }
 
@@ -176,6 +170,35 @@ class DataExportServiceImplTest {
         assertEquals("ok", lines.get(1));
         assertEquals(2, lines.size());
         verify(structuredQueryHelper, never()).loadColumnTypes(anyString(), anyString());
+    }
+
+    /**
+     * 验证未传数据源 ID 时仍可导出结构化数据。
+     */
+    @Test
+    void exportData_shouldAllowStructuredExportWithoutSourceId() throws Exception {
+        DataExportRequest request = buildStructuredRequest();
+        request.setSourceId(null);
+
+        Path exportPath = tempDir.resolve("structured-no-source.csv");
+        when(fileStorageService.createFile(anyString(), eq(".csv")))
+            .thenReturn(new DataFileStorageService.StoredFile("structured-no-source.csv", exportPath));
+        when(structuredQueryHelper.loadColumnTypes(anyString(), eq("demo_table")))
+            .thenReturn(buildColumnTypes());
+
+        QueryDataSet dataSet = mock(QueryDataSet.class);
+        when(structuredQueryHelper.executeQuery(anyString(), anyInt())).thenReturn(dataSet);
+        when(dataSet.getColumnList()).thenReturn(List.of("KEY", "temperature", "pressure", "status"));
+        when(dataSet.nextRow())
+            .thenReturn(new Object[]{1L, 21.5d, 101.3d, "ok".getBytes(StandardCharsets.UTF_8)})
+            .thenThrow(new RuntimeException("END"));
+
+        DataExportResultVO result = dataExportService.exportData(request);
+
+        List<String> lines = Files.readAllLines(exportPath, StandardCharsets.UTF_8);
+        assertEquals("SUCCESS", result.getStatus());
+        assertEquals(2, lines.size());
+        assertTrue(lines.get(0).contains("temperature"));
     }
 
     /**
@@ -217,6 +240,52 @@ class DataExportServiceImplTest {
     }
 
     /**
+     * 验证时序导出支持传入父级路径，并自动展开为叶子测点。
+     */
+    @Test
+    void exportData_shouldExpandTimeSeriesGroupPathToLeafMeasurements() throws Exception {
+        DataExportRequest request = new DataExportRequest();
+        request.setType("TS");
+        request.setSourceId(1L);
+        request.setFormat("CSV");
+        request.setPaths(List.of("ts.example"));
+        var range = new com.xmu.iginx.assoc.modules.data.dto.TimeRangeDTO();
+        range.setStart("2026-02-01 00:00:00");
+        range.setEnd("2026-02-01 00:10:00");
+        request.setTimeRange(range);
+
+        Path exportPath = tempDir.resolve("timeseries-group-export.csv");
+        when(fileStorageService.createFile(anyString(), eq(".csv")))
+            .thenReturn(new DataFileStorageService.StoredFile("timeseries-group-export.csv", exportPath));
+
+        Column pressureColumn = mock(Column.class);
+        when(pressureColumn.getPath()).thenReturn("ts.example.pressure");
+        Column powerColumn = mock(Column.class);
+        when(powerColumn.getPath()).thenReturn("ts.example.power");
+        when(session.showColumns()).thenReturn(List.of(pressureColumn, powerColumn));
+
+        List<List<String>> queriedPaths = new ArrayList<>();
+        when(session.queryData(any(), anyLong(), anyLong())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<String> paths = invocation.getArgument(0, List.class);
+            queriedPaths.add(new ArrayList<>(paths));
+            return sessionQueryDataSet;
+        });
+        when(sessionQueryDataSet.getPaths()).thenReturn(List.of("ts.example.pressure", "ts.example.power"));
+        when(sessionQueryDataSet.getKeys()).thenReturn(new long[]{1_000_000_000L});
+        when(sessionQueryDataSet.getValues()).thenReturn(List.of(List.of(101.2d, 5.3d)));
+
+        DataExportResultVO result = dataExportService.exportData(request);
+
+        List<String> lines = Files.readAllLines(exportPath, StandardCharsets.UTF_8);
+        assertEquals("SUCCESS", result.getStatus());
+        assertEquals(List.of("ts.example.pressure", "ts.example.power"), queriedPaths.get(0));
+        assertTrue(lines.get(0).contains("ts.example.pressure"));
+        assertTrue(lines.get(0).contains("ts.example.power"));
+        assertEquals(2, lines.size());
+    }
+
+    /**
      * 构造结构化导出请求。
      */
     private DataExportRequest buildStructuredRequest() {
@@ -241,13 +310,4 @@ class DataExportServiceImplTest {
         return columnTypes;
     }
 
-    /**
-     * 构造结构化数据源详情。
-     */
-    private DataSourceDetail buildStructuredSourceDetail() {
-        DataResourceEntity entity = new DataResourceEntity();
-        entity.setId(1L);
-        entity.setSourceType("POSTGRESQL");
-        return new DataSourceDetail(entity, DataSourceType.POSTGRESQL, null);
-    }
 }

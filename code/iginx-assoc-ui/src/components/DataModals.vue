@@ -107,8 +107,7 @@ const syncImportPath = (value) => {
 const detectedImportType = computed(() => dataStore.detectImportTypeByPath(dataStore.importForm.path))
 const isTimeSeriesExportTarget = computed(() => {
     const node = dataStore.currentNode || {}
-    if (node.type === 'ts') return true
-    return node.rootType === 'ts' && node.isLeaf
+    return node.rootType === 'ts' && !!resolveSelectedPath(node) && node.type !== 'ts'
 })
 const isStructuredExportTarget = computed(() => {
     const node = dataStore.currentNode || {}
@@ -343,6 +342,31 @@ const normalizeTime = (value) => {
     return text.length === 16 ? `${text}:00` : text
 }
 
+const parseRangeTextToLocalInput = (value) => {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    const parsed = Date.parse(text.includes('T') ? text : text.replace(' ', 'T'))
+    if (Number.isNaN(parsed)) {
+        return ''
+    }
+    return toLocalInput(new Date(parsed))
+}
+
+const applyRememberedExportRange = (node) => {
+    const rememberedRange = dataStore.resolveTimeSeriesExportRange(node)
+    if (!rememberedRange?.startTime || !rememberedRange?.endTime) {
+        return false
+    }
+    const startInput = parseRangeTextToLocalInput(rememberedRange.startTime)
+    const endInput = parseRangeTextToLocalInput(rememberedRange.endTime)
+    if (!startInput || !endInput) {
+        return false
+    }
+    exportForm.startTime = startInput
+    exportForm.endTime = endInput
+    return true
+}
+
 const splitPathSegments = (value) => String(value || '')
     .split('.')
     .map(item => item.trim())
@@ -379,7 +403,7 @@ watch(() => dataStore.showExportModal, async (val) => {
     const node = dataStore.currentNode
     exportForm.sql = ''
     if (isTimeSeriesExportTarget.value) {
-        if (!exportForm.startTime || !exportForm.endTime) {
+        if (!applyRememberedExportRange(node) && (!exportForm.startTime || !exportForm.endTime)) {
             setDefaultRange(exportForm)
         }
     }
@@ -489,8 +513,9 @@ const handleExport = async () => {
             format: exportForm.format.toUpperCase()
         }
         if (isTimeSeriesExportTarget.value) {
+            const exportPaths = dataStore.collectTimeSeriesLeafPaths(node)
             payload.type = 'TS'
-            payload.paths = [node.path || node.id]
+            payload.paths = exportPaths.length > 0 ? exportPaths : [node.path || node.id]
             payload.timeRange = {
                 start: normalizeTime(exportForm.startTime),
                 end: normalizeTime(exportForm.endTime)

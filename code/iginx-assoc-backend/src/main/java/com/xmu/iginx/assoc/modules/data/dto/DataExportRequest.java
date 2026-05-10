@@ -2,7 +2,6 @@ package com.xmu.iginx.assoc.modules.data.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
@@ -20,9 +19,8 @@ public class DataExportRequest {
     private String type;
 
     /**
-     * 数据源 ID。
+     * 数据源 ID，可为空。
      */
-    @NotNull(message = "数据源不能为空")
     private Long sourceId;
 
     /**

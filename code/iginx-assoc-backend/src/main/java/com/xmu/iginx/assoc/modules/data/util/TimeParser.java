@@ -46,6 +46,10 @@ public final class TimeParser {
                 // 毫秒级时间戳
                 return numeric;
             }
+            if (trimmed.length() <= 16) {
+                // 微秒级时间戳
+                return numeric / 1_000;
+            }
             // 纳秒级或更高精度，回退为毫秒
             return numeric / 1_000_000;
         }

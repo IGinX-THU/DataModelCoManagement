@@ -1,6 +1,7 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
+import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
 import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
 import cn.edu.tsinghua.iginx.thrift.AggregateType;
 import cn.edu.tsinghua.iginx.thrift.DataType;
@@ -33,6 +34,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -49,6 +52,7 @@ public class DataQueryServiceImpl implements DataQueryService {
     private final IginxStructuredQueryHelper structuredQueryHelper;
     private final IginxStorageWrapper iginxStorageWrapper;
     private final StructuredSqlBuilder structuredSqlBuilder = new StructuredSqlBuilder();
+    private final Set<String> sqlOnlyTimeSeriesPaths = ConcurrentHashMap.newKeySet();
 
     /**
      * 查询时序数据，支持可选的降采样聚合。
@@ -64,18 +68,21 @@ public class DataQueryServiceImpl implements DataQueryService {
         if (request.getTimeRange() == null) {
             throw BizException.badRequest("时间范围不能为空");
         }
-
-        // IGinX 0.8.0 的 queryData/downsampleQuery 会在内部对路径集合排序，
-        // 这里必须使用可变 List，避免 stream().toList() 生成不可变集合导致 UnsupportedOperationException。
         List<String> resolvedPaths = request.getPaths().stream()
             .filter(path -> path != null && !path.isBlank())
             .collect(Collectors.toCollection(ArrayList::new));
         if (resolvedPaths.isEmpty()) {
             throw BizException.badRequest("测点路径不能为空");
         }
-
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = toInclusiveEndExclusiveNs(request.getTimeRange().getEnd());
+        if (shouldUseSqlOnly(resolvedPaths)) {
+            TimeSeriesQueryResultVO rawResult = queryTimeSeriesRawBySql(resolvedPaths, startNs, endNs);
+            if (request.isDownsample() && request.getPrecisionMs() != null && request.getPrecisionMs() > 0) {
+                return buildLocallyDownsampledResult(rawResult, startNs, request.getPrecisionMs(), request.getAggregator());
+            }
+            return rawResult;
+        }
         if (request.isDownsample() && request.getPrecisionMs() != null && request.getPrecisionMs() > 0) {
             AggregateType aggregateType = mapAggregateType(request.getAggregator());
             try {
@@ -98,12 +105,29 @@ public class DataQueryServiceImpl implements DataQueryService {
                     throw ex;
                 }
             }
-            SessionQueryDataSet rawDataSet = queryTimeSeriesRaw(resolvedPaths, startNs, endNs);
-            return buildLocallyDownsampledResult(rawDataSet, startNs, request.getPrecisionMs(), request.getAggregator());
+            try {
+                SessionQueryDataSet rawDataSet = queryTimeSeriesRaw(resolvedPaths, startNs, endNs);
+                return buildLocallyDownsampledResult(rawDataSet, startNs, request.getPrecisionMs(), request.getAggregator());
+            } catch (BizException ex) {
+                if (!isProjectTaskError(ex)) {
+                    throw ex;
+                }
+                rememberSqlOnlyPaths(resolvedPaths);
+                TimeSeriesQueryResultVO rawResult = queryTimeSeriesRawBySql(resolvedPaths, startNs, endNs);
+                return buildLocallyDownsampledResult(rawResult, startNs, request.getPrecisionMs(), request.getAggregator());
+            }
         }
 
-        SessionQueryDataSet dataSet = queryTimeSeriesRaw(resolvedPaths, startNs, endNs);
-        return buildTimeSeriesResult(dataSet, resolvedPaths);
+        try {
+            SessionQueryDataSet dataSet = queryTimeSeriesRaw(resolvedPaths, startNs, endNs);
+            return buildTimeSeriesResult(dataSet, resolvedPaths);
+        } catch (BizException ex) {
+            if (!isProjectTaskError(ex)) {
+                throw ex;
+            }
+            rememberSqlOnlyPaths(resolvedPaths);
+            return queryTimeSeriesRawBySql(resolvedPaths, startNs, endNs);
+        }
     }
 
     /**
@@ -111,8 +135,18 @@ public class DataQueryServiceImpl implements DataQueryService {
      */
     private SessionQueryDataSet queryTimeSeriesRaw(List<String> paths, long startNs, long endNs) {
         List<String> primaryPaths = new ArrayList<>(paths);
-        SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session ->
-            session.queryData(primaryPaths, startNs, endNs));
+        SessionQueryDataSet dataSet;
+        try {
+            dataSet = iginxStorageWrapper.executeWithSession(session ->
+                session.queryData(primaryPaths, startNs, endNs));
+        } catch (BizException ex) {
+            if (!needsRootPrefix(primaryPaths)) {
+                throw ex;
+            }
+            List<String> fallbackPaths = addRootPrefix(primaryPaths);
+            dataSet = iginxStorageWrapper.executeWithSession(session ->
+                session.queryData(fallbackPaths, startNs, endNs));
+        }
         if (isDataSetEmpty(dataSet) && needsRootPrefix(primaryPaths)) {
             List<String> fallbackPaths = addRootPrefix(primaryPaths);
             dataSet = iginxStorageWrapper.executeWithSession(session ->
@@ -130,8 +164,18 @@ public class DataQueryServiceImpl implements DataQueryService {
                                                               AggregateType aggregateType,
                                                               long precisionMs) {
         List<String> primaryPaths = new ArrayList<>(paths);
-        SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session ->
-            session.downsampleQuery(primaryPaths, startNs, endNs, aggregateType, TimeParser.toNano(precisionMs)));
+        SessionQueryDataSet dataSet;
+        try {
+            dataSet = iginxStorageWrapper.executeWithSession(session ->
+                session.downsampleQuery(primaryPaths, startNs, endNs, aggregateType, TimeParser.toNano(precisionMs)));
+        } catch (BizException ex) {
+            if (!needsRootPrefix(primaryPaths)) {
+                throw ex;
+            }
+            List<String> fallbackPaths = addRootPrefix(primaryPaths);
+            dataSet = iginxStorageWrapper.executeWithSession(session ->
+                session.downsampleQuery(fallbackPaths, startNs, endNs, aggregateType, TimeParser.toNano(precisionMs)));
+        }
         if (isDataSetEmpty(dataSet) && needsRootPrefix(primaryPaths)) {
             List<String> fallbackPaths = addRootPrefix(primaryPaths);
             dataSet = iginxStorageWrapper.executeWithSession(session ->
@@ -282,6 +326,191 @@ public class DataQueryServiceImpl implements DataQueryService {
     }
 
     /**
+     * 基于 SQL 查询结果构建本地降采样结果。
+     * 说明：部分 IGinX + IoTDB 组合的 Session queryData/downsampleQuery 会触发 project task 异常，
+     * 此时 SQL 查询若可用，则继续在后端完成本地聚合，避免前端预览完全不可用。
+     */
+    private TimeSeriesQueryResultVO buildLocallyDownsampledResult(TimeSeriesQueryResultVO rawResult,
+                                                                  long anchorNs,
+                                                                  long precisionMs,
+                                                                  String aggregator) {
+        TimeSeriesQueryResultVO result = new TimeSeriesQueryResultVO();
+        List<Long> rawTimestamps = rawResult == null || rawResult.getTimestamps() == null
+            ? List.of()
+            : rawResult.getTimestamps();
+        List<TimeSeriesSeriesVO> rawSeries = rawResult == null || rawResult.getSeries() == null
+            ? List.of()
+            : rawResult.getSeries();
+        if (rawTimestamps.isEmpty() || rawSeries.isEmpty() || precisionMs <= 0) {
+            result.setTimestamps(List.of());
+            result.setSeries(List.of());
+            return result;
+        }
+
+        long precisionNs = TimeParser.toNano(precisionMs);
+        String normalizedAggregator = normalizeAggregator(aggregator);
+        TreeMap<Long, List<LocalDownsampleBucket>> buckets = new TreeMap<>();
+        for (int rowIndex = 0; rowIndex < rawTimestamps.size(); rowIndex++) {
+            long keyNs = TimeParser.toNano(rawTimestamps.get(rowIndex));
+            long bucketStartNs = resolveBucketStartNs(keyNs, anchorNs, precisionNs);
+            List<LocalDownsampleBucket> bucketColumns = buckets.computeIfAbsent(
+                bucketStartNs,
+                ignored -> createBucketColumns(bucketStartNs, rawSeries.size())
+            );
+            for (int columnIndex = 0; columnIndex < rawSeries.size(); columnIndex++) {
+                List<Object> values = rawSeries.get(columnIndex).getValues();
+                Object value = values != null && rowIndex < values.size() ? values.get(rowIndex) : null;
+                LocalDownsampleBucket updatedBucket = bucketColumns.get(columnIndex).accept(value, toDouble(value));
+                bucketColumns.set(columnIndex, updatedBucket);
+            }
+        }
+
+        List<Long> timestamps = new ArrayList<>();
+        for (Long bucketStart : buckets.keySet()) {
+            timestamps.add(TimeParser.toMillis(bucketStart));
+        }
+        List<TimeSeriesSeriesVO> series = new ArrayList<>();
+        for (int columnIndex = 0; columnIndex < rawSeries.size(); columnIndex++) {
+            TimeSeriesSeriesVO item = new TimeSeriesSeriesVO();
+            item.setPath(rawSeries.get(columnIndex).getPath());
+            List<Object> values = new ArrayList<>();
+            for (List<LocalDownsampleBucket> bucketColumns : buckets.values()) {
+                values.add(bucketColumns.get(columnIndex).aggregate(normalizedAggregator));
+            }
+            item.setValues(values);
+            series.add(item);
+        }
+        result.setTimestamps(timestamps);
+        result.setSeries(series);
+        return result;
+    }
+
+    /**
+     * 使用 SQL 查询原始时序数据，作为 Session queryData 投影异常时的兜底路径。
+     */
+    private TimeSeriesQueryResultVO queryTimeSeriesRawBySql(List<String> requestedPaths, long startNs, long endNs) {
+        TimeSeriesQueryResultVO result = new TimeSeriesQueryResultVO();
+        if (requestedPaths == null || requestedPaths.isEmpty()) {
+            result.setTimestamps(List.of());
+            result.setSeries(List.of());
+            return result;
+        }
+        TreeMap<Long, List<Object>> rowsByTime = new TreeMap<>();
+        List<TimeSeriesSeriesVO> series = requestedPaths.stream().map(path -> {
+            TimeSeriesSeriesVO item = new TimeSeriesSeriesVO();
+            item.setPath(path);
+            item.setValues(new ArrayList<>());
+            return item;
+        }).collect(Collectors.toCollection(ArrayList::new));
+
+        for (int pathIndex = 0; pathIndex < requestedPaths.size(); pathIndex++) {
+            String requestedPath = requestedPaths.get(pathIndex);
+            SessionExecuteSqlResult sqlResult = executeTimeSeriesSqlWithFallback(requestedPath, startNs, endNs);
+            if (hasSqlParseError(sqlResult)) {
+                throw BizException.badRequest(sqlResult.getParseErrorMsg().trim());
+            }
+            List<String> dataPaths = sqlResult.getPaths() == null ? List.of() : sqlResult.getPaths();
+            Map<String, Integer> normalizedIndex = buildNormalizedPathIndex(dataPaths);
+            int columnIndex = resolveDataPathIndex(dataPaths, normalizedIndex, requestedPath);
+            if (columnIndex < 0 && dataPaths.size() == 1) {
+                columnIndex = 0;
+            }
+            if (columnIndex < 0) {
+                continue;
+            }
+            long[] keys = sqlResult.getKeys() == null ? new long[0] : sqlResult.getKeys();
+            List<List<Object>> values = sqlResult.getValues() == null ? List.of() : sqlResult.getValues();
+            int rowCount = Math.min(keys.length, values.size());
+            for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+                long timestampMs = TimeParser.toMillis(keys[rowIndex]);
+                List<Object> rowValues = rowsByTime.computeIfAbsent(timestampMs, ignored -> createNullValueRow(requestedPaths.size()));
+                Object value = resolveColumnValue(values.get(rowIndex), columnIndex, 0);
+                rowValues.set(pathIndex, normalizeSqlValue(value));
+            }
+        }
+
+        List<Long> timestamps = new ArrayList<>(rowsByTime.keySet());
+        for (int pathIndex = 0; pathIndex < series.size(); pathIndex++) {
+            List<Object> values = new ArrayList<>();
+            for (List<Object> rowValues : rowsByTime.values()) {
+                values.add(pathIndex < rowValues.size() ? rowValues.get(pathIndex) : null);
+            }
+            series.get(pathIndex).setValues(values);
+        }
+        result.setTimestamps(timestamps);
+        result.setSeries(series);
+        return result;
+    }
+
+    /**
+     * 执行单测点 SQL 查询，必要时自动补 root 前缀重试。
+     */
+    private SessionExecuteSqlResult executeTimeSeriesSqlWithFallback(String path, long startNs, long endNs) {
+        String sql = buildTimeSeriesSql(path, startNs, endNs);
+        try {
+            return iginxStorageWrapper.executeSql(sql);
+        } catch (BizException ex) {
+            if (!needsRootPrefix(List.of(path))) {
+                throw ex;
+            }
+            return iginxStorageWrapper.executeSql(buildTimeSeriesSql(addRootPrefix(List.of(path)).get(0), startNs, endNs));
+        }
+    }
+
+    /**
+     * 构建单测点 SQL 查询语句。
+     */
+    private String buildTimeSeriesSql(String path, long startNs, long endNs) {
+        if (!isSafeTimeSeriesPath(path)) {
+            throw BizException.badRequest("测点路径包含不支持的字符: " + path);
+        }
+        int lastDot = path.lastIndexOf('.');
+        if (lastDot <= 0 || lastDot == path.length() - 1) {
+            throw BizException.badRequest("测点路径格式不合法: " + path);
+        }
+        String parentPath = path.substring(0, lastDot);
+        String leaf = path.substring(lastDot + 1);
+        return "SELECT " + leaf + " FROM " + parentPath
+            + " WHERE time >= " + startNs
+            + " AND time < " + endNs + ";";
+    }
+
+    /**
+     * 限定 SQL 兜底只接受普通 IGinX 路径字符，避免拼接任意表达式。
+     */
+    private boolean isSafeTimeSeriesPath(String path) {
+        return path != null && path.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+");
+    }
+
+    /**
+     * 创建占位行，便于多测点按时间合并。
+     */
+    private List<Object> createNullValueRow(int size) {
+        List<Object> values = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            values.add(null);
+        }
+        return values;
+    }
+
+    /**
+     * 判断 SQL 返回是否包含解析错误。
+     */
+    private boolean hasSqlParseError(SessionExecuteSqlResult result) {
+        return result != null && result.getParseErrorMsg() != null && !result.getParseErrorMsg().isBlank();
+    }
+
+    /**
+     * 归一化 SQL 查询返回值。
+     */
+    private Object normalizeSqlValue(Object value) {
+        if (value instanceof byte[] bytes) {
+            return new String(bytes, StandardCharsets.UTF_8);
+        }
+        return value;
+    }
+
+    /**
      * 创建单个时间桶对应的所有列聚合容器。
      */
     private List<LocalDownsampleBucket> createBucketColumns(long bucketStartNs, int columnCount) {
@@ -323,11 +552,43 @@ public class DataQueryServiceImpl implements DataQueryService {
         return message.contains("mapping function")
             || message.contains("aggregate function")
             || message.contains("aggregate type")
+            || message.contains("execute project task")
             || message.contains("set aggregate")
             || (message.contains("downsample") && (message.contains("not support")
             || message.contains("unsupported")
             || message.contains("failed")
             || message.contains("error")));
+    }
+
+    /**
+     * 判断异常是否为 IGinX 投影任务执行失败。
+     */
+    private boolean isProjectTaskError(BizException ex) {
+        return ex != null
+            && ex.getMessage() != null
+            && ex.getMessage().toLowerCase(Locale.ROOT).contains("execute project task");
+    }
+
+    /**
+     * 判断当前路径是否已被标记为仅使用 SQL 查询。
+     */
+    private boolean shouldUseSqlOnly(List<String> paths) {
+        return paths != null && paths.stream()
+            .map(this::normalizeMatchKey)
+            .anyMatch(sqlOnlyTimeSeriesPaths::contains);
+    }
+
+    /**
+     * 记录需要绕过 Session API 的路径。
+     */
+    private void rememberSqlOnlyPaths(List<String> paths) {
+        if (paths == null) {
+            return;
+        }
+        paths.stream()
+            .map(this::normalizeMatchKey)
+            .filter(path -> path != null && !path.isBlank())
+            .forEach(sqlOnlyTimeSeriesPaths::add);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
+import cn.edu.tsinghua.iginx.session.Column;
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
 import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
 import cn.edu.tsinghua.iginx.thrift.DataType;
@@ -15,10 +16,8 @@ import com.xmu.iginx.assoc.modules.data.dto.DataExportRequest;
 import com.xmu.iginx.assoc.modules.data.dto.StructuredQueryCondition;
 import com.xmu.iginx.assoc.modules.data.entity.DataExportTaskEntity;
 import com.xmu.iginx.assoc.modules.data.enums.DataExportTaskStatus;
-import com.xmu.iginx.assoc.modules.data.enums.DataSourceType;
 import com.xmu.iginx.assoc.modules.data.repository.DataExportTaskRepository;
 import com.xmu.iginx.assoc.modules.data.service.DataExportService;
-import com.xmu.iginx.assoc.modules.data.service.DataSourceAccessor;
 import com.xmu.iginx.assoc.modules.data.util.CsvUtils;
 import com.xmu.iginx.assoc.modules.data.util.DataFileStorageService;
 import com.xmu.iginx.assoc.modules.data.util.DataPrefixRules;
@@ -57,7 +56,6 @@ public class DataExportServiceImpl implements DataExportService {
 
     private final DataExportTaskRepository taskRepository;
     private final DataFileStorageService fileStorageService;
-    private final DataSourceAccessor dataSourceAccessor;
     private final IginxStorageWrapper iginxStorageWrapper;
     private final IginxStructuredQueryHelper structuredQueryHelper;
     private final ObjectMapper objectMapper;
@@ -161,7 +159,6 @@ public class DataExportServiceImpl implements DataExportService {
      * @return 存储文件
      */
     private DataFileStorageService.StoredFile exportTimeSeries(DataExportRequest request) {
-        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.INFLUXDB, DataSourceType.IOTDB);
         if (request.getPaths() == null || request.getPaths().isEmpty()) {
             throw BizException.badRequest("测点路径不能为空");
         }
@@ -177,11 +174,12 @@ public class DataExportServiceImpl implements DataExportService {
         if (paths.isEmpty()) {
             throw BizException.badRequest("导出路径不能为空");
         }
+        List<String> resolvedPaths = resolveTimeSeriesExportPaths(paths);
         // 将毫秒时间转换为纳秒，匹配 Iginx 查询接口
         long startNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getStart(), null));
         long endNs = TimeParser.toNano(TimeParser.parseToMillis(request.getTimeRange().getEnd(), null));
         SessionQueryDataSet dataSet = iginxStorageWrapper.executeWithSession(session ->
-            session.queryData(paths, startNs, endNs));
+            session.queryData(resolvedPaths, startNs, endNs));
         String format = request.getFormat().trim().toUpperCase(Locale.ROOT);
         DataFileStorageService.StoredFile file = fileStorageService.createFile("export_ts", format.equals("JSON") ? ".json" : ".csv");
         if ("JSON".equals(format)) {
@@ -193,13 +191,66 @@ public class DataExportServiceImpl implements DataExportService {
     }
 
     /**
+     * 解析时序导出路径。
+     * <p>
+     * 说明：前端可能传入 `ts.xxx` 这类分组路径。导出时需要把它展开为 showColumns 中真实存在的叶子测点，
+     * 否则直接 queryData(groupPath, ...) 会返回空结果。
+     * </p>
+     *
+     * @param requestPaths 请求中的时序路径
+     * @return 可直接查询的叶子测点路径
+     */
+    private List<String> resolveTimeSeriesExportPaths(List<String> requestPaths) {
+        if (requestPaths == null || requestPaths.isEmpty()) {
+            return List.of();
+        }
+        List<String> normalizedPaths = requestPaths.stream()
+            .map(TimeSeriesPathUtils::normalizePath)
+            .filter(path -> path != null && !path.isBlank())
+            .toList();
+        if (normalizedPaths.isEmpty()) {
+            return List.of();
+        }
+        List<Column> columns = iginxStorageWrapper.executeWithSession(session -> session.showColumns());
+        if (columns == null || columns.isEmpty()) {
+            return new ArrayList<>(normalizedPaths);
+        }
+        Set<String> availablePaths = new LinkedHashSet<>();
+        for (Column column : columns) {
+            if (column == null) {
+                continue;
+            }
+            String normalized = TimeSeriesPathUtils.normalizePath(column.getPath());
+            if (!normalized.isBlank()) {
+                availablePaths.add(normalized);
+            }
+        }
+        if (availablePaths.isEmpty()) {
+            return new ArrayList<>(normalizedPaths);
+        }
+        Set<String> resolvedPaths = new LinkedHashSet<>();
+        for (String requestedPath : normalizedPaths) {
+            int sizeBefore = resolvedPaths.size();
+            for (String availablePath : availablePaths) {
+                if (TimeSeriesPathUtils.startsWithPath(availablePath, requestedPath)) {
+                    resolvedPaths.add(availablePath);
+                }
+            }
+            if (resolvedPaths.size() == sizeBefore) {
+                // showColumns 未命中时回退原路径，兼容直接传入叶子测点或树状态未同步的情况。
+                resolvedPaths.add(requestedPath);
+            }
+        }
+        return new ArrayList<>(resolvedPaths);
+    }
+
+    /**
      * 导出结构化数据。
      *
      * @param request 导出请求
      * @return 存储文件
      */
     private DataFileStorageService.StoredFile exportStructured(DataExportRequest request) {
-        dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
         String format = request.getFormat().trim().toUpperCase(Locale.ROOT);
         DataFileStorageService.StoredFile file = fileStorageService.createFile("export_struct",
             format.equals("EXCEL") ? ".xlsx" : format.equals("JSON") ? ".json" : ".csv");
@@ -226,6 +277,8 @@ public class DataExportServiceImpl implements DataExportService {
             } finally {
                 closeQuietly(dataSet);
             }
+        } catch (BizException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw BizException.internal(ExceptionMessageUtils.buildDetailedMessage("结构化数据导出失败", ex), ex);
         }
@@ -500,6 +553,7 @@ public class DataExportServiceImpl implements DataExportService {
         List<String> headers = IginxStructuredUtils.normalizeStructuredHeaders(dataSet.getColumnList());
         List<String> visibleHeaders = new ArrayList<>();
         List<Integer> visibleIndices = new ArrayList<>();
+        List<Integer> visibleDataIndices = new ArrayList<>();
         Map<String, Integer> exactIndexMap = new java.util.LinkedHashMap<>();
         Map<String, Integer> lowerIndexMap = new java.util.LinkedHashMap<>();
         for (int i = 0; i < headers.size(); i++) {
@@ -507,6 +561,9 @@ public class DataExportServiceImpl implements DataExportService {
             // 记录可见列并构建大小写索引，支持不区分大小写匹配
             visibleHeaders.add(header);
             visibleIndices.add(i);
+            if (!"KEY".equalsIgnoreCase(header)) {
+                visibleDataIndices.add(i);
+            }
             exactIndexMap.putIfAbsent(header, i);
             lowerIndexMap.putIfAbsent(header.toLowerCase(Locale.ROOT), i);
         }
@@ -514,7 +571,11 @@ public class DataExportServiceImpl implements DataExportService {
             throw BizException.badRequest("表列信息不存在");
         }
         if (selectedColumns == null || selectedColumns.isEmpty()) {
-            return new StructuredExportMeta(visibleHeaders, visibleIndices, visibleIndices);
+            return new StructuredExportMeta(
+                visibleHeaders,
+                visibleIndices,
+                visibleDataIndices.isEmpty() ? visibleIndices : visibleDataIndices
+            );
         }
         List<String> outputHeaders = new ArrayList<>();
         List<Integer> outputIndices = new ArrayList<>();
@@ -529,7 +590,8 @@ public class DataExportServiceImpl implements DataExportService {
         if (outputHeaders.isEmpty()) {
             throw BizException.badRequest("未选择导出列");
         }
-        return new StructuredExportMeta(outputHeaders, outputIndices, visibleIndices);
+        List<Integer> rowCheckIndices = visibleDataIndices.isEmpty() ? visibleIndices : visibleDataIndices;
+        return new StructuredExportMeta(outputHeaders, outputIndices, rowCheckIndices);
     }
 
     /**
@@ -706,7 +768,6 @@ public class DataExportServiceImpl implements DataExportService {
      */
     private long estimateStructuredSize(DataExportRequest request) {
         try {
-            dataSourceAccessor.getDetail(request.getSourceId(), DataSourceType.POSTGRESQL);
             String schemaPath = DataPrefixRules.normalizeStructuredSchema(request.getSchema());
             Map<String, DataType> columnTypes = structuredQueryHelper.loadColumnTypes(schemaPath, request.getTable());
             if (columnTypes == null || columnTypes.isEmpty()) {

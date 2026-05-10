@@ -378,7 +378,8 @@ public class DataMaintainServiceImpl implements DataMaintainService {
             return false;
         }
         String normalized = column.trim();
-        return "KEY".equalsIgnoreCase(normalized);
+        return "KEY".equalsIgnoreCase(normalized)
+            || IginxStructuredUtils.INTERNAL_KEY.equalsIgnoreCase(normalized);
     }
 
     /**

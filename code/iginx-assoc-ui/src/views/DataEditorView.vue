@@ -3,6 +3,7 @@ import { ref, onMounted, watch, nextTick, reactive, computed } from 'vue'
 import { useDataStore } from '../stores/data'
 import * as echarts from 'echarts'
 import { TIME_PRECISION_UNIT_OPTIONS, formatPrecisionMs, parsePrecisionValueToMs } from '../utils/timePrecision'
+import { normalizeTimestampToMillis } from '../utils/timeNormalize'
 
 const dataStore = useDataStore()
 const chartRef = ref(null)
@@ -222,13 +223,7 @@ const normalizeInputTime = (value) => {
 const normalizePreviewPath = (value) => String(value || '').trim().replace(/\.+$/, '')
 
 const normalizeTimestamp = (value) => {
-    if (value === null || value === undefined) return null
-    const num = Number(value)
-    if (Number.isFinite(num)) {
-        return num < 1e12 ? num * 1000 : num
-    }
-    const parsed = Date.parse(String(value).replace(' ', 'T'))
-    return Number.isNaN(parsed) ? null : parsed
+    return normalizeTimestampToMillis(value)
 }
 
 const parseInputToMillis = (value) => {
@@ -365,6 +360,10 @@ const resolveResultTimestamps = (result) => (Array.isArray(result?.timestamps) ?
     .map(item => normalizeTimestamp(item))
     .filter(item => item !== null)
 
+const isIginxProjectTaskError = (error) => String(error?.message || error || '')
+    .toLowerCase()
+    .includes('execute project task')
+
 const buildDiscoveryCandidateRanges = (now, windowSize) => {
     const safeNow = Number.isFinite(now) ? now : Date.now()
     const safeWindow = Math.max(1, Number(windowSize) || 1)
@@ -446,11 +445,17 @@ const discoverTimeSeriesRange = async (path) => {
                 }
             } catch (error) {
                 console.error('自动探测时序数据范围失败', { path: normalizedPath, error, payload })
+                if (isIginxProjectTaskError(error)) {
+                    return null
+                }
             }
         }
     }
     return null
 }
+
+const DEFAULT_RANGE_SOURCE = 'default'
+const EMPTY_DISCOVERY_RANGE_SOURCE = 'empty-discovery'
 
 /**
  * 初始化时序预览时间范围。
@@ -479,7 +484,7 @@ const initializeTimeSeriesRange = async (path) => {
     }
 
     setDefaultTimeRange()
-    return 'default'
+    return EMPTY_DISCOVERY_RANGE_SOURCE
 }
 
 const resetStructuredPagination = () => {
@@ -634,7 +639,7 @@ const openTimeSeriesPreview = async () => {
         syncRangeToData: pathChanged && (rangeSource === 'preferred' || rangeSource === 'default')
     })
 
-    if (!result?.hasData && pathChanged) {
+    if (!result?.hasData && pathChanged && rangeSource !== EMPTY_DISCOVERY_RANGE_SOURCE) {
         const discoveredRange = await discoverTimeSeriesRange(previewPath)
         if (discoveredRange && applyTimeRangeToForm(discoveredRange.startMs, discoveredRange.endMs)) {
             result = await loadTimeSeriesData({ syncRangeToData: true })

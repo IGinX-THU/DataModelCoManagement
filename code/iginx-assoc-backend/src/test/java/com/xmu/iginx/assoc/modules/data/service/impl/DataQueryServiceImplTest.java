@@ -1,6 +1,7 @@
 package com.xmu.iginx.assoc.modules.data.service.impl;
 
 import cn.edu.tsinghua.iginx.session.QueryDataSet;
+import cn.edu.tsinghua.iginx.session.SessionExecuteSqlResult;
 import cn.edu.tsinghua.iginx.session.Session;
 import cn.edu.tsinghua.iginx.session.SessionQueryDataSet;
 import cn.edu.tsinghua.iginx.thrift.AggregateType;
@@ -112,6 +113,69 @@ class DataQueryServiceImplTest {
     }
 
     /**
+     * 当无 root 前缀的路径触发 IGinX 投影执行异常时，
+     * 后端应自动补 root 前缀重试，避免前端预览直接失败。
+     */
+    @Test
+    void queryTimeSeries_shouldRetryRawQueryWithRootPrefixWhenPrimaryPathFails() throws Exception {
+        TimeSeriesQueryRequest request = new TimeSeriesQueryRequest();
+        request.setPaths(List.of("ts.casebook.branch.pressures"));
+        TimeRangeDTO range = new TimeRangeDTO();
+        range.setStart("1996-05-17 21:04:07");
+        range.setEnd("1996-05-17 21:04:08");
+        request.setTimeRange(range);
+
+        when(session.queryData(anyList(), anyLong(), anyLong())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<String> paths = invocation.getArgument(0, List.class);
+            if (!paths.get(0).startsWith("root.")) {
+                throw BizException.badRequest("execute project task in iotdb12 failure");
+            }
+            return queryDataSet;
+        });
+        when(queryDataSet.getKeys()).thenReturn(new long[]{832_338_247_012_000_000L});
+        when(queryDataSet.getPaths()).thenReturn(List.of("root.ts.casebook.branch.pressures"));
+        when(queryDataSet.getValues()).thenReturn(List.of(List.of(12.5d)));
+
+        TimeSeriesQueryResultVO result = dataQueryService.queryTimeSeries(request);
+
+        assertEquals(List.of(832_338_247_012L), result.getTimestamps());
+        assertEquals("ts.casebook.branch.pressures", result.getSeries().get(0).getPath());
+        assertEquals(12.5d, result.getSeries().get(0).getValues().get(0));
+        verify(session, times(2)).queryData(anyList(), anyLong(), anyLong());
+    }
+
+    /**
+     * 当 Session queryData 在原路径和 root 前缀路径上都失败时，
+     * 应继续尝试通过 SQL 查询获取原始数据，保证页面仍可展示。
+     */
+    @Test
+    void queryTimeSeries_shouldFallbackToSqlWhenQueryDataFails() throws Exception {
+        TimeSeriesQueryRequest request = new TimeSeriesQueryRequest();
+        request.setPaths(List.of("ts.casebook.branch.pressures"));
+        TimeRangeDTO range = new TimeRangeDTO();
+        range.setStart("1996-05-17 21:04:07");
+        range.setEnd("1996-05-17 21:04:08");
+        request.setTimeRange(range);
+
+        when(session.queryData(anyList(), anyLong(), anyLong()))
+            .thenThrow(BizException.badRequest("execute project task in iotdb12 failure"));
+        SessionExecuteSqlResult sqlResult = new SessionExecuteSqlResult();
+        sqlResult.setKeys(new long[]{832_338_247_012_000_000L});
+        sqlResult.setPaths(List.of("pressures"));
+        sqlResult.setValues(List.of(List.of(12.5d)));
+        when(iginxStorageWrapper.executeSql(anyString())).thenReturn(sqlResult);
+
+        TimeSeriesQueryResultVO result = dataQueryService.queryTimeSeries(request);
+
+        assertEquals(List.of(832_338_247_012L), result.getTimestamps());
+        assertEquals("ts.casebook.branch.pressures", result.getSeries().get(0).getPath());
+        assertEquals(List.of(12.5d), result.getSeries().get(0).getValues());
+        verify(session, times(2)).queryData(anyList(), anyLong(), anyLong());
+        verify(iginxStorageWrapper, times(1)).executeSql(anyString());
+    }
+
+    /**
      * 用户在界面上输入的结束时间应被视为“包含该时刻”，
      * 因此后端需要把结束时间转换成开区间上界后再传给 IGinX。
      */
@@ -176,8 +240,51 @@ class DataQueryServiceImplTest {
         assertEquals(1, result.getSeries().size());
         assertEquals("ts.demo.temperature", result.getSeries().get(0).getPath());
         assertEquals(List.of(2.0d, 6.0d), result.getSeries().get(0).getValues());
-        verify(session).downsampleQuery(any(), anyLong(), anyLong(), eq(AggregateType.AVG), anyLong());
+        verify(session, times(2)).downsampleQuery(any(), anyLong(), anyLong(), eq(AggregateType.AVG), anyLong());
         verify(session).queryData(any(), anyLong(), anyLong());
+    }
+
+    /**
+     * 部分 IGinX + IoTDB 组合会在原生降采样投影阶段抛出 execute project task 异常，
+     * 此时应回退到原始点查询并在服务端完成本地聚合。
+     */
+    @Test
+    void queryTimeSeries_shouldFallbackToLocalDownsampleWhenIginxProjectTaskFails() throws Exception {
+        TimeSeriesQueryRequest request = new TimeSeriesQueryRequest();
+        request.setPaths(List.of("ts.casebook.branch.pressures"));
+        request.setDownsample(true);
+        request.setAggregator("COUNT");
+        request.setPrecisionMs(2000L);
+        TimeRangeDTO range = new TimeRangeDTO();
+        range.setStart("1996-05-17 21:04:07");
+        range.setEnd("1996-05-17 21:04:12");
+        request.setTimeRange(range);
+
+        when(session.downsampleQuery(anyList(), anyLong(), anyLong(), eq(AggregateType.COUNT), anyLong()))
+            .thenThrow(BizException.badRequest("execute project task in iotdb12 failure"));
+        when(session.queryData(anyList(), anyLong(), anyLong()))
+            .thenThrow(BizException.badRequest("execute project task in iotdb12 failure"));
+        SessionExecuteSqlResult sqlResult = new SessionExecuteSqlResult();
+        sqlResult.setKeys(new long[]{
+            832_338_247_012_000_000L,
+            832_338_248_012_000_000L,
+            832_338_249_012_000_000L
+        });
+        sqlResult.setPaths(List.of("pressures"));
+        sqlResult.setValues(List.of(
+            List.of(10.0d),
+            List.of(11.0d),
+            List.of(12.0d)
+        ));
+        when(iginxStorageWrapper.executeSql(anyString())).thenReturn(sqlResult);
+
+        TimeSeriesQueryResultVO result = dataQueryService.queryTimeSeries(request);
+
+        assertEquals(List.of(832_338_247_000L, 832_338_249_000L), result.getTimestamps());
+        assertEquals(List.of(2.0d, 1.0d), result.getSeries().get(0).getValues());
+        verify(session, times(2)).downsampleQuery(anyList(), anyLong(), anyLong(), eq(AggregateType.COUNT), anyLong());
+        verify(session, times(2)).queryData(anyList(), anyLong(), anyLong());
+        verify(iginxStorageWrapper, times(1)).executeSql(anyString());
     }
 
     /**
